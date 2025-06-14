@@ -1,0 +1,18 @@
+[project]
+name = "magg"
+version = "0.1.0"
+description = "MCP Aggregator"
+requires-python = ">=3.13"
+packages = [{include = "magg"}]
+dependencies = [
+    "fastmcp^2",
+    # "marvin^3",
+    "mcp^1",
+]
+
+[project.scripts]
+magg = "magg.cli.magg:main"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

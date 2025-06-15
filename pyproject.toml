@@ -3,16 +3,24 @@ name = "magg"
 version = "0.1.0"
 description = "MCP Aggregator"
 requires-python = ">=3.13"
-packages = [{include = "magg"}]
+packages = [{include = "magg"}, {include = "mbro"}]
 dependencies = [
-    "fastmcp^2",
-    # "marvin^3",
-    "mcp^1",
+    "fastmcp<3",
+    "mcp>=1.0.0",
+    "aiohttp",
+    "pydantic",
 ]
 
 [project.scripts]
-magg = "magg.cli.magg:main"
+magg = "magg.cli.__main__:main"
+mbro = "mbro.cli:main"
 
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.4.0",
+    "pytest-asyncio>=1.0.0",
+]

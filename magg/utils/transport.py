@@ -5,8 +5,6 @@ from typing import Any
 from fastmcp.client.transports import (
     infer_transport,
     StdioTransport,
-    PythonStdioTransport,
-    NodeStdioTransport,
     NpxStdioTransport,
     UvxStdioTransport,
     FastMCPStdioTransport,
@@ -14,6 +12,7 @@ from fastmcp.client.transports import (
     StreamableHttpTransport,
     ClientTransport
 )
+from .custom_transports import NoValidatePythonStdioTransport, NoValidateNodeStdioTransport
 
 
 def get_transport_for_command(
@@ -40,10 +39,11 @@ def get_transport_for_command(
     
     # Handle special commands with specific transport classes
     if command == "python":
-        # Python script execution
-        if args and args[0].endswith(".py"):
-            return PythonStdioTransport(
-                script_path=args[0],
+        # Python execution - use our custom transport that doesn't validate paths
+        # This handles python script.py, python -m module, etc.
+        if args:
+            return NoValidatePythonStdioTransport(
+                script_path=args[0],  # Could be script path, -m, or other Python arg
                 args=args[1:] if len(args) > 1 else None,
                 env=env,
                 cwd=working_dir,
@@ -52,10 +52,10 @@ def get_transport_for_command(
             )
     
     elif command == "node":
-        # Node.js script execution
-        if args and args[0].endswith(".js"):
-            return NodeStdioTransport(
-                script_path=args[0],
+        # Node.js execution - use our custom transport that doesn't validate paths
+        if args:
+            return NoValidateNodeStdioTransport(
+                script_path=args[0],  # Could be script path or other Node arg
                 args=args[1:] if len(args) > 1 else None,
                 env=env,
                 cwd=working_dir,
@@ -157,10 +157,8 @@ def get_transport_for_uri(
 TRANSPORT_DOCS = """
 For command-based servers, the 'transport' parameter accepts a JSON object with transport-specific options:
 
-**Common options for all StdioTransport subclasses:**
+**Common options for all command-based servers:**
 - `keep_alive` (boolean): Keep the process alive between requests (default: true)
-- `env_vars` (object): Environment variables to set
-- `working_dir` (string): Working directory for the command
 
 **Python servers (command="python"):**
 - `python_cmd` (string): Python executable path (default: sys.executable)

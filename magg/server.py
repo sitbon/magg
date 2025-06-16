@@ -9,7 +9,12 @@ from typing import Any
 from fastmcp import FastMCP, Client, Context
 
 from .core.config import ConfigManager, MCPSource, MCPServer
-from .utils import TRANSPORT_DOCS, get_transport_for_command, get_transport_for_uri
+from .utils import (
+    TRANSPORT_DOCS, 
+    get_transport_for_command, 
+    get_transport_for_uri,
+    validate_working_directory
+)
 
 # Create the main FastMCP server with instructions
 MAGG_INSTRUCTIONS = """
@@ -30,25 +35,34 @@ mcp = FastMCP(name="magg", instructions=MAGG_INSTRUCTIONS, log_level="INFO")
 
 # Global instances
 config_manager: ConfigManager | None = None
-mounted_servers: dict[str, FastMCP] = {}  # Track mounted servers by name
+mounted_servers: dict[str, Any] = {}  # Track mounted proxy servers by name
 
 
 @mcp.tool
-async def magg_add_source(url: str, name: str | None = None) -> str:
+async def magg_add_source(name: str, uri: str | None = None) -> str:
     """Add a new MCP source with enhanced metadata collection.
     
     Args:
-        url: Canonical URL of the source (GitHub, Glama, NPM, etc.)
-        name: Optional name hint (auto-generated from URL if not provided)
+        name: Unique source name (required)
+        uri: Optional URI of the source (defaults to local file:// URI)
+             For remote sources: GitHub, NPM, HTTP/HTTPS URLs
+             For local sources: omit to auto-create in .magg/sources/<name>
     """
     try:
-        # Check if source already exists
+        # Check if source already exists by name
         config = config_manager.load_config()
-        if url in config.sources:
-            return f"⚠️ Source with URL '{url}' already exists: {config.sources[url].name}"
+        if name in config.sources:
+            return f"❌ Source '{name}' already exists"
         
-        # Create source with initial data
-        source = MCPSource(url=url, name=name)
+        # Create source - URI will be auto-generated if not provided
+        source = MCPSource(name=name, uri=uri)
+        
+        # Create local directory if it's a file:// URI
+        if source.uri.startswith('file://'):
+            import os
+            from pathlib import Path
+            path = source.uri.replace('file://', '')
+            Path(path).mkdir(parents=True, exist_ok=True)
         
         # Collect rich metadata from multiple sources
         from .discovery.metadata import SourceMetadataCollector
@@ -57,7 +71,7 @@ async def magg_add_source(url: str, name: str | None = None) -> str:
         result_lines = [f"🔍 Collecting metadata for '{source.name}'..."]
         
         try:
-            metadata_entries = await collector.collect_metadata(url, source.name)
+            metadata_entries = await collector.collect_metadata(source.uri, source.name)
             
             # Add collected metadata to source
             for entry in metadata_entries:
@@ -170,7 +184,7 @@ def _attach_transport_docs(fn):
 @_attach_transport_docs
 async def magg_add_server(
     name: str,
-    source_url: str,
+    source_name: str,
     prefix: str | None = None,
     command: str | None = None,
     args: list[str] | None = None,
@@ -184,13 +198,13 @@ async def magg_add_server(
     
     Args:
         name: Unique server name
-        source_url: URL of the source this server uses
+        source_name: Name of the source this server uses
         prefix: Tool prefix (defaults to server name)
         command: Main command (e.g., "python", "node", "uvx", "npx")
         args: Command arguments as a list
         uri: URI for HTTP servers
         env_vars: Environment variables as a dictionary
-        working_dir: Working directory for the server
+        working_dir: Working directory for the server (required for commands, must not be project root)
         transport: Transport-specific configuration as a dictionary (see below)
         notes: Setup notes for LLM and humans
     
@@ -200,17 +214,33 @@ async def magg_add_server(
         config = config_manager.load_config()
 
         # Check if source exists
-        if source_url not in config.sources:
-            return f"❌ Source '{source_url}' not found. Add it first with magg_add_source()"
+        if source_name not in config.sources:
+            return f"❌ Source '{source_name}' not found. Add it first with magg_add_source()"
 
         # Check if server name already exists
         if name in config.servers:
             return f"❌ Server '{name}' already exists"
+        
+        # Get source URI for validation
+        source = config.sources[source_name]
+        
+        # Validate working directory for command-based servers
+        if command:
+            # Check if source has a URI
+            if not source.uri:
+                return f"❌ Source '{source_name}' has no URI configured. Please update the source with a URI."
+            
+            validated_dir, error = validate_working_directory(working_dir, source.uri)
+            if error:
+                return f"❌ {error}"
+            working_dir = str(validated_dir)
+        elif working_dir:
+            return "❌ Working directory should only be specified for command-based servers"
 
         # Create server
         server = MCPServer(
             name=name,
-            source_url=source_url,
+            source_name=source_name,
             prefix=prefix or name,
             command=command,
             args=args,
@@ -231,7 +261,7 @@ async def magg_add_server(
         config_manager.save_config(config)
 
         result = [f"✅ Added and mounted server '{name}'"]
-        result.append(f"   Source: {source_url}")
+        result.append(f"   Source: {source_name}")
         result.append(f"   Prefix: {server.prefix}")
         if server.command:
             cmd_display = server.command
@@ -307,6 +337,16 @@ async def magg_edit_server(
             changed = changed or server.env != env_vars
             server.env = env_vars
         if working_dir:
+            # Validate working directory if server uses commands
+            if server.command or command:
+                # Get source URI from config
+                source = config.sources.get(server.source_name)
+                if not source:
+                    return f"❌ Source '{server.source_name}' not found in configuration"
+                validated_dir, error = validate_working_directory(working_dir, source.uri)
+                if error:
+                    return f"❌ {error}"
+                working_dir = str(validated_dir)
             changed = changed or server.working_dir != working_dir
             server.working_dir = working_dir
         if transport:
@@ -347,12 +387,12 @@ async def magg_list_sources() -> str:
         
         result = ["📋 Sources:"]
         
-        for url, source in config.sources.items():
-            servers = config.get_servers_for_source(url)
+        for name, source in config.sources.items():
+            servers = config.get_servers_for_source(name)
             server_count = len(servers)
             
-            result.append(f"  📦 {source.name}")
-            result.append(f"      URL: {url}")
+            result.append(f"  📦 {name}")
+            result.append(f"      URI: {source.uri}")
             result.append(f"      Servers: {server_count}")
         
         return "\n".join(result)
@@ -376,7 +416,7 @@ async def magg_list_servers() -> str:
             # Check if server is currently mounted
             status = "🟢 Mounted" if name in mounted_servers else "⚪ Not mounted"
             result.append(f"  {status} {name} ({server.prefix})")
-            result.append(f"      Source: {server.source_url}")
+            result.append(f"      Source: {server.source_name}")
             
             if server.command:
                 cmd_display = server.command
@@ -433,20 +473,20 @@ async def magg_list_tools() -> str:
 
 
 @mcp.tool()
-async def magg_remove_source(url: str) -> str:
+async def magg_remove_source(name: str) -> str:
     """Remove a source and all its servers.
     
     Args:
-        url: Source URL to remove
+        name: Source name to remove
     """
     try:
         config = config_manager.load_config()
         
-        if config.remove_source(url):
+        if config.remove_source(name):
             config_manager.save_config(config)
-            return f"✅ Removed source '{url}' and all its servers"
+            return f"✅ Removed source '{name}' and all its servers"
         else:
-            return f"❌ Source '{url}' not found"
+            return f"❌ Source '{name}' not found"
     
     except Exception as e:
         return f"❌ Error removing source: {str(e)}"
@@ -507,7 +547,7 @@ async def magg_search_sources(query: str, limit: int = 5) -> str:
                         output.append(f"       🔗 {result.url}")
                     result_index += 1
         
-        output.append(f"\n💡 To add: magg_add_source('<url>', '<name>')")
+        output.append(f"\n💡 To add: magg_add_source(name='<name>', uri='<uri>')")
         
         return "\n".join(output)
     
@@ -519,24 +559,24 @@ async def magg_search_sources(query: str, limit: int = 5) -> str:
 # MCP Resources - Expose source metadata for LLM consumption
 # ============================================================================
 
-@mcp.resource("magg://source/{url}")
-async def get_source_metadata(url: str) -> str:
+@mcp.resource("magg://source/{name}")
+async def get_source_metadata(name: str) -> str:
     """Expose source metadata as an MCP resource."""
     try:
         config = config_manager.load_config()
         
-        # URL decode the parameter
+        # URI decode the parameter
         import urllib.parse
-        decoded_url = urllib.parse.unquote(url)
+        decoded_name = urllib.parse.unquote(name)
         
-        if decoded_url not in config.sources:
-            return json.dumps({"error": f"Source not found: {decoded_url}"})
+        if decoded_name not in config.sources:
+            return json.dumps({"error": f"Source not found: {decoded_name}"})
         
-        source = config.sources[decoded_url]
+        source = config.sources[decoded_name]
         
         # Format metadata for LLM consumption
         resource_data = {
-            "url": source.url,
+            "uri": source.uri,
             "name": source.name,
             "metadata": source.metadata,
             "setup_hints": source.get_setup_hints(),
@@ -557,9 +597,9 @@ async def get_all_sources_metadata() -> str:
         config = config_manager.load_config()
         
         sources_data = {}
-        for url, source in config.sources.items():
-            sources_data[url] = {
-                "name": source.name,
+        for name, source in config.sources.items():
+            sources_data[name] = {
+                "uri": source.uri,
                 "metadata_summary": {
                     "total_entries": len(source.metadata),
                     "sources": [entry.get("source") for entry in source.metadata],
@@ -582,15 +622,15 @@ async def get_all_sources_metadata() -> str:
 # ============================================================================
 
 @mcp.prompt("configure_server_from_source")
-async def configure_server_prompt(source_url: str, server_name: str | None = None) -> list[dict[str, str]]:
+async def configure_server_prompt(source_name: str, server_name: str | None = None) -> list[dict[str, str]]:
     """Generate a prompt for configuring a server from source metadata."""
     try:
         config = config_manager.load_config()
         
-        if source_url not in config.sources:
-            return [{"role": "user", "content": f"Error: Source '{source_url}' not found"}]
+        if source_name not in config.sources:
+            return [{"role": "user", "content": f"Error: Source '{source_name}' not found"}]
         
-        source = config.sources[source_url]
+        source = config.sources[source_name]
         
         # Build comprehensive prompt with all metadata
         prompt_parts = [
@@ -598,7 +638,7 @@ async def configure_server_prompt(source_url: str, server_name: str | None = Non
             f"",
             f"**Source Details:**",
             f"- Name: {source.name}",
-            f"- URL: {source.url}",
+            f"- URI: {source.uri}",
             f"- Server Name: {server_name or 'Please suggest one'}",
             f"",
         ]
@@ -677,20 +717,20 @@ async def configure_server_prompt(source_url: str, server_name: str | None = Non
 
 
 @mcp.prompt("analyze_source_setup")
-async def analyze_source_setup_prompt(source_url: str) -> list[dict[str, str]]:
+async def analyze_source_setup_prompt(source_name: str) -> list[dict[str, str]]:
     """Generate a prompt for analyzing source setup requirements."""
     try:
         config = config_manager.load_config()
         
-        if source_url not in config.sources:
-            return [{"role": "user", "content": f"Error: Source '{source_url}' not found"}]
+        if source_name not in config.sources:
+            return [{"role": "user", "content": f"Error: Source '{source_name}' not found"}]
         
-        source = config.sources[source_url]
+        source = config.sources[source_name]
         
         prompt_parts = [
             f"Please analyze this MCP source and extract setup information:",
             f"",
-            f"**Source:** {source.name} ({source.url})",
+            f"**Source:** {source.name} ({source.uri})",
             f"",
             f"**Metadata Available:**",
         ]
@@ -740,24 +780,24 @@ async def analyze_source_setup_prompt(source_url: str) -> list[dict[str, str]]:
 # ============================================================================
 
 async def magg_generate_server_config(
-    source_url: str, 
+    source_name: str, 
     server_name: str | None = None,
     ctx: Context = None
 ) -> str:
     """Generate server configuration using LLM sampling with source metadata.
     
     Args:
-        source_url: URL of the source to configure as a server
+        source_name: Name of the source to configure as a server
         server_name: Optional name for the server
         ctx: MCP context for sampling
     """
     try:
         config = config_manager.load_config()
         
-        if source_url not in config.sources:
-            return f"❌ Source '{source_url}' not found. Add it first with magg_add_source()"
+        if source_name not in config.sources:
+            return f"❌ Source '{source_name}' not found. Add it first with magg_add_source()"
         
-        source = config.sources[source_url]
+        source = config.sources[source_name]
         
         if not ctx:
             return "❌ MCP context not available for LLM sampling"
@@ -768,7 +808,7 @@ async def magg_generate_server_config(
             "",
             f"**Source Details:**",
             f"- Name: {source.name}",
-            f"- URL: {source.url}",
+            f"- URI: {source.uri}",
             f"- Requested server name: {server_name or 'auto-suggest'}",
             "",
         ]
@@ -801,7 +841,7 @@ async def magg_generate_server_config(
             "```json",
             "{",
             '  "name": "suggested_server_name",',
-            '  "source_url": "' + source_url + '",',
+            '  "source_name": "' + source_name + '",', 
             '  "prefix": "suggested_prefix",',
             '  "command": "exact command to run the server",',
             '  "uri": "http://localhost:port (if HTTP server, otherwise null)",',
@@ -860,7 +900,7 @@ async def magg_generate_server_config(
                 config_data = json.loads(json_text)
                 
                 # Validate required fields
-                required_fields = ["name", "source_url", "prefix"]
+                required_fields = ["name", "source_name", "prefix"]
                 missing_fields = [field for field in required_fields if field not in config_data]
                 
                 if missing_fields:
@@ -876,7 +916,7 @@ async def magg_generate_server_config(
                     "**Next Steps:**",
                     f"Use this configuration with: magg_add_server(",
                     f"  name='{config_data['name']}',",
-                    f"  source_url='{config_data['source_url']}',",
+                    f"  source_name='{config_data['source_name']}',",
                     f"  prefix='{config_data['prefix']}',",
                 ]
                 
@@ -885,7 +925,7 @@ async def magg_generate_server_config(
                 if config_data.get("uri"):
                     result_lines.append(f"  uri='{config_data['uri']}',")
                 if config_data.get("env_vars"):
-                    result_lines.append(f"  env_vars='{json.dumps(config_data['env_vars'])}',")
+                    result_lines.append(f"  env_vars={config_data['env_vars']},")
                 if config_data.get("working_dir"):
                     result_lines.append(f"  working_dir='{config_data['working_dir']}',")
                 if config_data.get("notes"):
@@ -909,20 +949,20 @@ _magg_generate_server_config = mcp.tool(magg_generate_server_config)
 
 @mcp.tool
 async def magg_smart_configure(
-    source_url: str,
+    source_name: str,
     auto_add: bool = False,
     ctx: Context = None
 ) -> str:
     """Smart configuration: Generate and optionally add server configuration.
     
     Args:
-        source_url: URL of the source to configure
+        source_name: Name of the source to configure
         auto_add: If True, automatically add the generated server configuration
         ctx: MCP context for sampling
     """
     try:
         # First generate the configuration
-        config_result = await magg_generate_server_config(source_url, None, ctx)
+        config_result = await magg_generate_server_config(source_name, None, ctx)
         
         if config_result.startswith("❌"):
             return config_result
@@ -945,11 +985,11 @@ async def magg_smart_configure(
             # Use the generated configuration to add the server
             add_result = await magg_add_server(
                 name=config_data["name"],
-                source_url=config_data["source_url"],
+                source_name=config_data["source_name"],
                 prefix=config_data.get("prefix"),
                 command=config_data.get("command"),
                 uri=config_data.get("uri"),
-                env_vars=json.dumps(config_data.get("env_vars")) if config_data.get("env_vars") else None,
+                env_vars=config_data.get("env_vars"),
                 working_dir=config_data.get("working_dir"),
                 notes=config_data.get("notes")
             )
@@ -993,9 +1033,10 @@ async def mount_server(server: MCPServer) -> bool:
             logging.getLogger(__name__).error(f"No command or URI specified for {server.name}")
             return False
         
-        # Mount the client directly (FastMCP handles Client mounting)
-        mcp.mount(server.prefix, client)
-        mounted_servers[server.name] = client
+        # Create a proxy server from the client and mount it
+        proxy_server = FastMCP.as_proxy(client)
+        mcp.mount(server.prefix, proxy_server)
+        mounted_servers[server.name] = proxy_server
         
         logging.getLogger(__name__).info(f"Mounted server {server.name} with prefix {server.prefix}")
         return True

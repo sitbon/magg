@@ -11,44 +11,19 @@ from enum import Enum
 @dataclass
 class MCPSource:
     """Enhanced source with rich metadata for server configuration."""
-    url: str  # Canonical URL - primary identifier
-    name: str | None = None  # Optional hint, can be auto-generated from URL
+    name: str  # Primary identifier - unique name
+    uri: str | None = None  # Optional URI (defaults to local file:// URI)
     metadata: list[dict[str, Any]] | None = None  # Flexible metadata from multiple sources
     
     def __post_init__(self):
-        """Auto-generate name from URL if not provided and initialize metadata."""
-        if not self.name:
-            # Extract name from URL (GitHub repo, NPM package, etc.)
-            if 'github.com' in self.url:
-                parts = self.url.rstrip('/').split('/')
-                if len(parts) >= 2:
-                    self.name = parts[-1]  # repo name
-                else:
-                    self.name = "github_source"
-            elif 'npmjs.com' in self.url:
-                parts = self.url.split('/')
-                if 'package' in parts:
-                    pkg_idx = parts.index('package')
-                    if pkg_idx + 1 < len(parts):
-                        self.name = parts[pkg_idx + 1]
-                    else:
-                        self.name = "npm_package"
-                else:
-                    self.name = "npm_source"
-            elif 'glama.ai' in self.url:
-                self.name = "glama_source"
-            else:
-                # Fallback to domain name
-                try:
-                    from urllib.parse import urlparse
-                    parsed = urlparse(self.url)
-                    if parsed.netloc:
-                        self.name = parsed.netloc.replace('.', '_')
-                    else:
-                        # If URL parsing fails, use a simple fallback
-                        self.name = "unknown_source"
-                except:
-                    self.name = "unknown_source"
+        """Auto-generate URI from name if not provided and initialize metadata."""
+        if not self.uri:
+            # Generate a local file:// URI based on the name
+            import os
+            from pathlib import Path
+            # Use .magg/sources/<name> as the default location
+            sources_dir = Path.cwd() / ".magg" / "sources" / self.name
+            self.uri = f"file://{sources_dir.absolute()}"
         
         # Initialize metadata list if not provided
         if self.metadata is None:
@@ -97,7 +72,7 @@ class MCPSource:
 class MCPServer:
     """Server configuration - how to actually run an MCP server from a source."""
     name: str  # Unique server name
-    source_url: str  # Reference to source URL
+    source_name: str  # Reference to source by name
     prefix: str | None = None  # Tool prefix for this server
     notes: str | None = None  # Setup notes for LLM and humans
     
@@ -118,7 +93,7 @@ class MCPServer:
 @dataclass
 class MAGGConfig:
     """Main MAGG configuration - sources and servers."""
-    sources: dict[str, MCPSource] = None  # URL -> MCPSource
+    sources: dict[str, MCPSource] = None  # name -> MCPSource
     servers: dict[str, MCPServer] = None  # name -> MCPServer
     
     def __post_init__(self):
@@ -129,18 +104,18 @@ class MAGGConfig:
     
     def add_source(self, source: MCPSource) -> None:
         """Add a source."""
-        self.sources[source.url] = source
+        self.sources[source.name] = source
     
-    def remove_source(self, url: str) -> bool:
+    def remove_source(self, name: str) -> bool:
         """Remove a source and all its servers."""
-        if url in self.sources:
+        if name in self.sources:
             # Remove all servers that reference this source
-            servers_to_remove = [name for name, server in self.servers.items() 
-                               if server.source_url == url]
+            servers_to_remove = [sname for sname, server in self.servers.items() 
+                               if server.source_name == name]
             for server_name in servers_to_remove:
                 del self.servers[server_name]
             
-            del self.sources[url]
+            del self.sources[name]
             return True
         return False
     
@@ -155,9 +130,9 @@ class MAGGConfig:
             return True
         return False
     
-    def get_servers_for_source(self, source_url: str) -> list[MCPServer]:
+    def get_servers_for_source(self, source_name: str) -> list[MCPServer]:
         """Get all servers for a given source."""
-        return [server for server in self.servers.values() if server.source_url == source_url]
+        return [server for server in self.servers.values() if server.source_name == source_name]
 
 
 class ConfigManager:
@@ -186,8 +161,12 @@ class ConfigManager:
             
             # Deserialize sources
             sources = {}
-            for url, source_data in data.get('sources', {}).items():
-                sources[url] = MCPSource(**source_data)
+            for name, source_data in data.get('sources', {}).items():
+                source = MCPSource(**source_data)
+                # Ensure source has a URI (for backwards compatibility)
+                if not source.uri:
+                    source.__post_init__()  # This will auto-generate the URI
+                sources[name] = source
             
             # Deserialize servers
             servers = {}
@@ -205,7 +184,7 @@ class ConfigManager:
         """Save configuration to disk."""
         try:
             data = {
-                'sources': {url: asdict(source) for url, source in config.sources.items()},
+                'sources': {name: asdict(source) for name, source in config.sources.items()},
                 'servers': {name: asdict(server) for name, server in config.servers.items()}
             }
             

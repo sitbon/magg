@@ -56,19 +56,29 @@ async def cmd_add_source(args) -> None:
     config_manager = ConfigManager(args.config)
     config = config_manager.load_config()
     
-    if args.url in config.sources:
-        print(f"⚠️ Source with URL '{args.url}' already exists: {config.sources[args.url].name}")
+    # Name is required
+    if not args.name:
+        print("❌ Source name is required")
+        sys.exit(1)
+    
+    # Check if source with this name already exists
+    if args.name in config.sources:
+        print(f"⚠️ Source '{args.name}' already exists")
         choice = input("Continue anyway? (y/N): ").lower().strip()
         if choice != 'y':
             print("Cancelled")
             return
     
-    source = MCPSource(url=args.url, name=args.name)
+    # Create source with optional URI
+    source = MCPSource(name=args.name, uri=args.uri)
     config.add_source(source)
     
     if config_manager.save_config(config):
         print(f"✅ Added source '{source.name}'")
-        print(f"📍 URL: {args.url}")
+        if source.uri:
+            print(f"📍 URI: {source.uri}")
+        else:
+            print(f"📍 URI: {source.uri} (auto-generated)")
         print(f"💡 Use 'magg add-server' to create a runnable server from this source")
     else:
         print(f"❌ Failed to save configuration")
@@ -80,8 +90,8 @@ async def cmd_add_server(args) -> None:
     config_manager = ConfigManager(args.config)
     config = config_manager.load_config()
     
-    if args.source_url not in config.sources:
-        print(f"❌ Source '{args.source_url}' not found. Add it first with 'magg add-source'")
+    if args.source_name not in config.sources:
+        print(f"❌ Source '{args.source_name}' not found. Add it first with 'magg add-source'")
         sys.exit(1)
     
     if args.name in config.servers:
@@ -93,11 +103,21 @@ async def cmd_add_server(args) -> None:
     if args.env:
         env = dict(arg.split('=', 1) for arg in args.env)
     
+    # Parse command and args
+    command = None
+    command_args = None
+    if args.command:
+        parts = args.command.split()
+        if parts:
+            command = parts[0]
+            command_args = parts[1:] if len(parts) > 1 else None
+    
     server = MCPServer(
         name=args.name,
-        source_url=args.source_url,
+        source_name=args.source_name,
         prefix=args.prefix or args.name,
-        command=args.command.split() if args.command else None,
+        command=command,
+        args=command_args,
         uri=args.uri,
         env=env,
         working_dir=args.working_dir,
@@ -108,10 +128,13 @@ async def cmd_add_server(args) -> None:
     
     if config_manager.save_config(config):
         print(f"✅ Added server '{args.name}'")
-        print(f"📍 Source: {args.source_url}")
+        print(f"📍 Source: {args.source_name}")
         print(f"🏷️ Prefix: {server.prefix}")
         if server.command:
-            print(f"▶️ Command: {' '.join(server.command)}")
+            full_command = server.command
+            if server.args:
+                full_command += ' ' + ' '.join(server.args)
+            print(f"▶️ Command: {full_command}")
         if server.notes:
             print(f"📝 Notes: {server.notes}")
         print(f"💡 Server is now mounted and ready to use")
@@ -132,13 +155,16 @@ async def cmd_list_sources(args) -> None:
         return
     
     print("📦 Sources:")
-    for url, source in config.sources.items():
-        servers = config.get_servers_for_source(url)
+    for name, source in config.sources.items():
+        servers = config.get_servers_for_source(name)
         server_count = len(servers)
         
-        print(f"  📦 {source.name}")
-        print(f"      URL: {url}")
+        print(f"  📦 {name}")
+        if source.uri:
+            print(f"      URI: {source.uri}")
         print(f"      Servers: {server_count}")
+        if source.metadata:
+            print(f"      Metadata sources: {len(source.metadata)}")
         print()
 
 
@@ -154,10 +180,13 @@ async def cmd_list_servers(args) -> None:
     print("🖥️ Servers:")
     for name, server in config.servers.items():
         print(f"  🖥️ {name} ({server.prefix})")
-        print(f"      Source: {server.source_url}")
+        print(f"      Source: {server.source_name}")
         
         if server.command:
-            print(f"      Command: {' '.join(server.command)}")
+            full_command = server.command
+            if server.args:
+                full_command += ' ' + ' '.join(server.args)
+            print(f"      Command: {full_command}")
         if server.uri:
             print(f"      URI: {server.uri}")
         if server.working_dir:
@@ -205,7 +234,7 @@ async def cmd_search_sources(args) -> None:
                 print()
     
     print("💡 To add a source:")
-    print("   magg add-source <url> <name>")
+    print("   magg add-source <name> [uri]")
 
 
 def create_parser() -> argparse.ArgumentParser:
@@ -221,11 +250,14 @@ Examples:
   # Start MAGG as HTTP server
   magg --http --port 8080
 
-  # Add a source
-  magg add-source https://github.com/example/weather-mcp weather
+  # Add a source with explicit URI
+  magg add-source weather https://github.com/example/weather-mcp
+
+  # Add a source with auto-generated local URI
+  magg add-source my_tools
 
   # Add and mount a server from source
-  magg add-server weather_server https://github.com/example/weather-mcp --command "./weather-server"
+  magg add-server weather_server weather --command "./weather-server"
 
   # Search for sources
   magg search-sources calculator
@@ -271,13 +303,13 @@ Examples:
     
     # Add source command
     add_source_parser = subparsers.add_parser('add-source', help='Add a new MCP source')
-    add_source_parser.add_argument('url', help='Source URL')
-    add_source_parser.add_argument('name', nargs='?', help='Source name (optional)')
+    add_source_parser.add_argument('name', help='Source name (required)')
+    add_source_parser.add_argument('uri', nargs='?', help='Source URI (optional, defaults to local file:// URI)')
     
     # Add server command
     add_server_parser = subparsers.add_parser('add-server', help='Add a new MCP server')
     add_server_parser.add_argument('name', help='Server name')
-    add_server_parser.add_argument('source_url', help='Source URL')
+    add_server_parser.add_argument('source_name', help='Source name')
     add_server_parser.add_argument('--prefix', help='Tool prefix (defaults to server name)')
     add_server_parser.add_argument('--command', help='Command to run')
     add_server_parser.add_argument('--uri', help='URI for HTTP servers')

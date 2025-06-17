@@ -6,6 +6,7 @@ Intended for apps that don't use Django.
 
 Just sets every logger to use this package's components.
 """
+import os
 
 
 LOGGING_CONFIG = {
@@ -14,7 +15,7 @@ LOGGING_CONFIG = {
     "formatters": {
         "default": {
             "()": "magg.logs.formatter.DefaultFormatter",
-            "format": "[{asctime}] {levelname} {name} {message}",
+            "format": "{process} {thread} | [{asctime}] {levelname} {name} {message}",
             "datefmt": "%Y-%m-%d %H:%M:%S",
             "style": "{",
             "defaults": {
@@ -43,7 +44,7 @@ LOGGING_CONFIG = {
         },
         "magg": {
             "handlers": ["default"],
-            "level": "INFO",
+            "level": os.getenv("MAGG_LOG_LEVEL", "INFO").upper(),
             "propagate": False,
         },
         "FastMCP": {

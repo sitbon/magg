@@ -4,7 +4,7 @@ import json
 import logging
 from functools import cached_property
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any
 from pydantic import field_validator, Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -97,10 +97,25 @@ class MAGGConfig(BaseSettings):
         # Allow arbitrary types
         arbitrary_types_allowed=True
     )
-    
+
+    log_level: str = Field(default="INFO", description="Logging level for MAGG")
     config_path: Path = Field(default_factory=lambda: Path.cwd() / ".magg" / "config.json", description="Configuration file path (can be overridden by MAGG_CONFIG_PATH)")
-    servers: Dict[str, ServerConfig] = Field(default_factory=dict, description="Servers configuration (loaded from JSON file)")
-    
+    servers: dict[str, ServerConfig] = Field(default_factory=dict, description="Servers configuration (loaded from JSON file)")
+
+    @model_validator(mode='after')
+    def export_environment_variables(self) -> 'MAGGConfig':
+        """Export log_level and config_path as environment variables, in case they were not set that way.
+        """
+        import os
+
+        if 'MAGG_LOG_LEVEL' not in os.environ:
+            os.environ['MAGG_LOG_LEVEL'] = self.log_level
+
+        if 'MAGG_CONFIG_PATH' not in os.environ:
+            os.environ['MAGG_CONFIG_PATH'] = str(self.config_path)
+
+        return self
+
     def add_server(self, server: ServerConfig) -> None:
         """Add a server."""
         self.servers[server.name] = server
@@ -112,7 +127,7 @@ class MAGGConfig(BaseSettings):
             return True
         return False
     
-    def get_enabled_servers(self) -> Dict[str, ServerConfig]:
+    def get_enabled_servers(self) -> dict[str, ServerConfig]:
         """Get all enabled servers."""
         return {name: server for name, server in self.servers.items() if server.enabled}
 

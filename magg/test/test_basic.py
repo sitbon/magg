@@ -2,7 +2,7 @@
 
 import pytest
 from fastmcp import Client
-from magg.server import create_server
+from magg.server import MAGGServer
 
 
 class TestMAGGBasicFunctionality:
@@ -11,7 +11,7 @@ class TestMAGGBasicFunctionality:
     @pytest.mark.asyncio
     async def test_basic_setup_and_tools(self):
         """Test MAGG setup and tool availability."""
-        server = create_server()
+        server = MAGGServer()
         await server.setup()
         
         # Check for core MAGG tools - no more sources
@@ -27,7 +27,7 @@ class TestMAGGBasicFunctionality:
     @pytest.mark.asyncio
     async def test_magg_list_tools(self):
         """Test MAGG list tools functionality."""
-        server = create_server()
+        server = MAGGServer()
         await server.setup()
         
         async with Client(server.mcp) as client:
@@ -39,7 +39,7 @@ class TestMAGGBasicFunctionality:
     @pytest.mark.asyncio
     async def test_list_servers(self):
         """Test listing servers."""
-        server = create_server()
+        server = MAGGServer()
         await server.setup()
         
         async with Client(server.mcp) as client:
@@ -55,7 +55,7 @@ class TestMAGGServerManagement:
     @pytest.mark.asyncio
     async def test_add_server(self):
         """Test adding a server."""
-        server = create_server()
+        server = MAGGServer()
         await server.setup()
         
         import time
@@ -68,8 +68,7 @@ class TestMAGGServerManagement:
                 "name": server_name,
                 "url": f"https://github.com/example/test-{unique_id}",
                 "prefix": "test",
-                "command": "echo",
-                "args": ["test"]
+                "command": "echo test"
             })
             
             assert len(result) > 0
@@ -87,7 +86,7 @@ class TestMAGGServerSearch:
     @pytest.mark.asyncio
     async def test_search_servers(self):
         """Test server search (requires internet)."""
-        server = create_server()
+        server = MAGGServer()
         await server.setup()
         
         async with Client(server.mcp) as client:

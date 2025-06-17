@@ -105,7 +105,7 @@ async def cmd_list_servers(args) -> None:
     config_manager = ConfigManager(args.config)
     config = config_manager.load_config()
     
-    logger.debug("Listing %d configured servers", len(config.servers))
+    # logger.debug("Listing %d configured servers", len(config.servers))
     print_server_list(config.servers)
 
 
@@ -312,9 +312,6 @@ async def run():
     """Main entry point (async)."""
     parser = create_parser()
     args = parser.parse_args()
-    
-    # Create config manager early to get settings (including env vars)
-    config_manager = ConfigManager(args.config)
     
     if not args.subcommand:
         parser.print_help()

@@ -65,13 +65,12 @@ if __name__ == "__main__":
             result = await server.add_server(
                 name="moduletest",
                 url="https://github.com/example/module-server",
-                command="python",
-                args=["-m", "example.server", "--port", "8080"],
+                command="python -m example.server --port 8080",
                 working_dir=str(tmpdir)
             )
             
             assert result.is_success
-            assert result.output["server"]["args"] == ["-m", "example.server", "--port", "8080"]
+            assert result.output["server"]["command"] == "python -m example.server --port 8080"
     
     @pytest.mark.asyncio
     async def test_transport_selection(self):
@@ -84,8 +83,7 @@ if __name__ == "__main__":
             result = await server.add_server(
                 name="pythontransport",
                 url="https://example.com",
-                command="python",
-                args=["script.py"]
+                command="python script.py"
             )
             assert result.is_success
             
@@ -93,8 +91,7 @@ if __name__ == "__main__":
             result = await server.add_server(
                 name="nodetransport",
                 url="https://example.com",
-                command="node",
-                args=["server.js"]
+                command="node server.js"
             )
             assert result.is_success
             
@@ -102,8 +99,7 @@ if __name__ == "__main__":
             result = await server.add_server(
                 name="npxtransport",
                 url="https://example.com",
-                command="npx",
-                args=["@example/server"]
+                command="npx @example/server"
             )
             assert result.is_success
             
@@ -111,8 +107,7 @@ if __name__ == "__main__":
             result = await server.add_server(
                 name="uvxtransport",
                 url="https://example.com",
-                command="uvx",
-                args=["example-server"]
+                command="uvx example-server"
             )
             assert result.is_success
             
@@ -143,8 +138,7 @@ class TestServerLifecycle:
             result = await server.add_server(
                 name="lifecycle",
                 url="https://example.com",
-                command="echo",
-                args=["test"],
+                command="echo test",
                 enable=False
             )
             assert result.is_success
@@ -177,8 +171,7 @@ class TestServerLifecycle:
             await server.add_server(
                 name="toremove",
                 url="https://example.com",
-                command="echo",
-                args=["test"]
+                command="echo test"
             )
             
             # Remove it

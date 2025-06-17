@@ -86,13 +86,12 @@ class TestAddServer:
                 result = await magg_server.add_server(
                     name="testmoduleserver",
                     url="https://github.com/example/test",
-                    command="python",
-                    args=["-m", "mypackage.server", "--debug"],
+                    command="python -m mypackage.server --debug",
                     working_dir=str(temp_dirs["working_dir"])
                 )
                 
                 assert result.is_success
-                assert result.output["server"]["args"] == ["-m", "mypackage.server", "--debug"]
+                assert result.output["server"]["command"] == "python -m mypackage.server --debug"
     
     @pytest.mark.asyncio
     async def test_add_server_working_dir_validation_error(self, magg_server, temp_dirs):
@@ -103,8 +102,7 @@ class TestAddServer:
             result = await magg_server.add_server(
                 name="testserver",
                 url="https://github.com/example/test",
-                command="python",
-                args=["server.py"],
+                command="python server.py",
                 working_dir=str(temp_dirs["project_root"])
             )
             
@@ -122,8 +120,7 @@ class TestAddServer:
             result1 = await magg_server.add_server(
                 name="existingserver",
                 url="https://github.com/example/test1",
-                command="python",
-                args=["old.py"]
+                command="python old.py"
             )
             assert result1.is_success
             
@@ -131,8 +128,7 @@ class TestAddServer:
             result2 = await magg_server.add_server(
                 name="existingserver",
                 url="https://github.com/example/test2",
-                command="python",
-                args=["new.py"]
+                command="python new.py"
             )
             
             assert result2.is_error
@@ -144,8 +140,7 @@ class TestAddServer:
         result = await magg_server.add_server(
             name="123-invalid",
             url="https://github.com/example/test",
-            command="python",
-            args=["server.py"]
+            command="python server.py"
         )
         
         assert result.is_success

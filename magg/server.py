@@ -238,13 +238,12 @@ Server name: {server_name or 'auto-generate'}
 Please determine:
 1. name: A string, potentially user provided (can be human-readable)
 2. prefix: A valid Python identifier (no underscores)
-3. command: The appropriate command (python, node, npx, uvx, or null for HTTP)
-4. args: Required arguments as an array
-5. uri: For HTTP servers (if applicable)
-6. working_dir: If needed
-7. env: Environment variables as an object (if needed)
-8. notes: Helpful setup instructions
-9. transport: Any transport-specific configuration (optional dict)
+3. command: The full command to run (e.g., "python server.py", "npx @playwright/mcp@latest", or null for HTTP)
+4. uri: For HTTP servers (if applicable)
+5. working_dir: If needed
+6. env: Environment variables as an object (if needed)
+7. notes: Helpful setup instructions
+8. transport: Any transport-specific configuration (optional dict)
 
 Consider the URL type:
 - GitHub repos may need cloning and setup
@@ -266,7 +265,6 @@ Consider the URL type:
         url: str,
         prefix: str | None = None,
         command: str | None = None,
-        args: list[str] | None = None,
         uri: str | None = None,
         env_vars: dict[str, str] | None = None,
         working_dir: str | None = None,
@@ -280,8 +278,7 @@ Consider the URL type:
             name: Unique server name
             url: URL of the server package/repository
             prefix: Tool prefix (defaults to conformed server name)
-            command: Command to run (e.g., "python", "node", "npx")
-            args: Command arguments
+            command: Full command to run (e.g., "python server.py", "npx @playwright/mcp@latest")
             uri: URI for HTTP servers
             env_vars: Environment variables
             working_dir: Working directory (required for commands)
@@ -295,8 +292,21 @@ Consider the URL type:
             if name in config.servers:
                 return MAGGResponse.error(f"Server '{name}' already exists")
             
+            # Split command into command and args if needed
+            actual_command = command
+            actual_args = None
+            if command:
+                import shlex
+                parts = shlex.split(command)
+                if len(parts) > 1:
+                    actual_command = parts[0]
+                    actual_args = parts[1:]
+                elif len(parts) == 1:
+                    actual_command = parts[0]
+                    actual_args = None
+            
             # Validate working directory for command servers
-            if command and working_dir:
+            if actual_command and working_dir:
                 validated_dir, error = validate_working_directory(working_dir, url)
                 if error:
                     return MAGGResponse.error(error)
@@ -308,8 +318,8 @@ Consider the URL type:
                     name=name,
                     url=url,
                     prefix=prefix or "",  # Will be auto-generated from name
-                    command=command,
-                    args=args,
+                    command=actual_command,
+                    args=actual_args,
                     uri=uri,
                     env=env_vars,
                     working_dir=working_dir,
@@ -337,8 +347,7 @@ Consider the URL type:
                     "name": name,
                     "url": url,
                     "prefix": server.prefix,
-                    "command": command,
-                    "args": args,
+                    "command": command,  # Return original command string
                     "uri": uri,
                     "working_dir": working_dir,
                     "notes": notes,
@@ -385,9 +394,11 @@ Consider the URL type:
                 
                 # Add optional fields only if present
                 if server.command:
-                    server_data["command"] = server.command
+                    # Reconstruct full command for display
                     if server.args:
-                        server_data["args"] = server.args
+                        server_data["command"] = f"{server.command} {' '.join(server.args)}"
+                    else:
+                        server_data["command"] = server.command
                 if server.uri:
                     server_data["uri"] = server.uri
                 if server.working_dir:
@@ -731,16 +742,3 @@ Please provide:
         """Run MAGG in HTTP mode."""
         # Don't call setup() here - it's already called by ServerRunner
         await self.mcp.run_http_async(host=host, port=port)
-
-
-# Module-level convenience functions
-def create_server(config_path: str | None = None) -> MAGGServer:
-    """Create a MAGG server instance."""
-    return MAGGServer(config_path)
-
-
-async def setup_magg(config_path: str | None = None):
-    """Setup function for backwards compatibility."""
-    server = create_server(config_path)
-    await server.setup()
-    return server.mcp, server.config_manager, server.server_manager.mounted_servers

@@ -99,7 +99,7 @@ Example configuration:
   "servers": {
     "calculator": {
       "name": "calculator",
-      "url": "https://github.com/executeautomation/calculator-mcp",
+      "source": "https://github.com/executeautomation/calculator-mcp",
       "command": "npx @executeautomation/calculator-mcp",
       "prefix": "calc",
       "enabled": true
@@ -131,11 +131,3 @@ Servers can be added in several ways:
 ## Documentation
 
 For more documentation, see [docs/](docs/index.md).
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-## License
-
-This project is licensed under the MIT License - see the LICENSE file for details.

@@ -66,7 +66,7 @@ class TestMAGGServerManagement:
             server_name = f"testserver{unique_id}"
             result = await client.call_tool("magg_add_server", {
                 "name": server_name,
-                "url": f"https://github.com/example/test-{unique_id}",
+                "source": f"https://github.com/example/test-{unique_id}",
                 "prefix": "test",
                 "command": "echo test"
             })

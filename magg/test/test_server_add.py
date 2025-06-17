@@ -61,7 +61,7 @@ class TestAddServer:
                 
                 result = await magg_server.add_server(
                     name="testpythonserver",
-                    url="https://github.com/example/test",
+                    source="https://github.com/example/test",
                     command="python",
                     args=["server.py", "--port", "8080"],
                     working_dir=str(temp_dirs["subdir"])
@@ -85,7 +85,7 @@ class TestAddServer:
                 
                 result = await magg_server.add_server(
                     name="testmoduleserver",
-                    url="https://github.com/example/test",
+                    source="https://github.com/example/test",
                     command="python -m mypackage.server --debug",
                     working_dir=str(temp_dirs["working_dir"])
                 )

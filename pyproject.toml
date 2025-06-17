@@ -6,10 +6,9 @@ requires-python = ">=3.13"
 packages = [{include = "magg"}, {include = "mbro"}]
 dependencies = [
     "fastmcp<3",
-    "mcp>=1.0.0",
-    "aiohttp",
-    "pydantic",
-    "pydantic-settings",
+    "aiohttp<4",
+    "pydantic<3",
+    "pydantic-settings<3",
 ]
 
 [project.scripts]

@@ -329,7 +329,6 @@ source = { editable = "." }
 dependencies = [
     { name = "aiohttp" },
     { name = "fastmcp" },
-    { name = "mcp" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
 ]
@@ -342,11 +341,10 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "aiohttp" },
+    { name = "aiohttp", specifier = "<4" },
     { name = "fastmcp", specifier = "<3" },
-    { name = "mcp", specifier = ">=1.0.0" },
-    { name = "pydantic" },
-    { name = "pydantic-settings" },
+    { name = "pydantic", specifier = "<3" },
+    { name = "pydantic-settings", specifier = "<3" },
 ]
 
 [package.metadata.requires-dev]

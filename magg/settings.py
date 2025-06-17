@@ -27,7 +27,7 @@ class ServerConfig(BaseSettings):
     )
     
     name: str = Field(..., description="Unique server name - can contain any characters")
-    url: str = Field(..., description="URL/URI of the server package, repository, or listing")
+    source: str = Field(..., description="URL/URI of the server package, repository, or listing")
     prefix: str = Field(default="", description="Tool prefix for this server - must be a valid Python identifier without underscores")
     notes: str | None = Field(None, description="Setup notes for LLM and humans")
     

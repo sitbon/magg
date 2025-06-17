@@ -222,7 +222,7 @@ class MAGGServer:
     # MCP Prompt Methods - Templates for LLM-assisted configuration
     # ============================================================================
     
-    async def configure_server_prompt(self, url: str, server_name: str | None = None) -> list[dict[str, str]]:
+    async def configure_server_prompt(self, source: str, server_name: str | None = None) -> list[dict[str, str]]:
         """Generate a prompt for configuring a server from a URL."""
         messages = [
             {
@@ -231,7 +231,7 @@ class MAGGServer:
             },
             {
                 "role": "user",
-                "content": f"""Configure an MCP server for: {url}
+                "content": f"""Configure an MCP server for: {source}
                 
 Server name: {server_name or 'auto-generate'}
 
@@ -262,7 +262,7 @@ Consider the URL type:
     async def add_server(
         self,
         name: str,
-        url: str,
+        source: str,
         prefix: str | None = None,
         command: str | None = None,
         uri: str | None = None,
@@ -276,7 +276,7 @@ Consider the URL type:
         
         Args:
             name: Unique server name
-            url: URL of the server package/repository
+            source: URL of the server package/repository
             prefix: Tool prefix (defaults to conformed server name)
             command: Full command to run (e.g., "python server.py", "npx @playwright/mcp@latest")
             uri: URI for HTTP servers
@@ -307,7 +307,7 @@ Consider the URL type:
             
             # Validate working directory for command servers
             if actual_command and working_dir:
-                validated_dir, error = validate_working_directory(working_dir, url)
+                validated_dir, error = validate_working_directory(working_dir, source)
                 if error:
                     return MAGGResponse.error(error)
                 working_dir = str(validated_dir)
@@ -316,7 +316,7 @@ Consider the URL type:
             try:
                 server = ServerConfig(
                     name=name,
-                    url=url,
+                    source=source,
                     prefix=prefix or "",  # Will be auto-generated from name
                     command=actual_command,
                     args=actual_args,
@@ -345,7 +345,7 @@ Consider the URL type:
                 "action": "server_added",
                 "server": {
                     "name": name,
-                    "url": url,
+                    "source": source,
                     "prefix": server.prefix,
                     "command": command,  # Return original command string
                     "uri": uri,
@@ -386,7 +386,7 @@ Consider the URL type:
             for name, server in config.servers.items():
                 server_data = {
                     "name": name,
-                    "url": server.url,
+                    "source": server.source,
                     "prefix": server.prefix,
                     "enabled": server.enabled,
                     "mounted": name in self.server_manager.mounted_servers,
@@ -500,14 +500,14 @@ Consider the URL type:
     
     async def smart_configure(
         self, 
-        url: str,
+        source: str,
         server_name: str | None = None,
         ctx: Context | None = None
     ) -> MAGGResponse:
         """Use LLM sampling to intelligently configure a server from a URL.
         
         Args:
-            url: URL of the server package/repository
+            source: URL of the server package/repository
             server_name: Optional server name (auto-generated if not provided)
             ctx: MCP context for sampling
         """
@@ -516,7 +516,7 @@ Consider the URL type:
             from .discovery.metadata import SourceMetadataCollector
             collector = SourceMetadataCollector()
             
-            metadata_entries = await collector.collect_metadata(url, server_name)
+            metadata_entries = await collector.collect_metadata(source, server_name)
             
             # Build a comprehensive prompt with metadata
             metadata_summary = []
@@ -544,8 +544,8 @@ Consider the URL type:
             if not ctx:
                 # Try to auto-configure based on metadata
                 config_suggestion = {
-                    "name": server_name or Path(url).stem.replace('-', '').replace('_', ''),
-                    "url": url
+                    "name": server_name or Path(source).stem.replace('-', '').replace('_', ''),
+                    "source": source
                 }
                 
                 # Detect command based on metadata
@@ -555,10 +555,10 @@ Consider the URL type:
                         project_type = data["project_type"]
                         if project_type == "nodejs_project":
                             config_suggestion["command"] = "npx"
-                            config_suggestion["args"] = [server_name or Path(url).stem]
+                            config_suggestion["args"] = [server_name or Path(source).stem]
                         elif project_type == "python_project":
                             config_suggestion["command"] = "python"
-                            config_suggestion["args"] = ["-m", server_name or Path(url).stem]
+                            config_suggestion["args"] = ["-m", server_name or Path(source).stem]
                 
                 return MAGGResponse.success({
                     "action": "metadata_based_config",
@@ -567,9 +567,9 @@ Consider the URL type:
                 })
             
             # Build enhanced prompt with metadata
-            prompt = f"""Configure an MCP server for: {url}
+            prompt = f"""Configure an MCP server for: {source}
 
-url: The source url or URI of this server. Can be a GitHub repo, Glama listing, website, or local filesystem path.
+source: The source url or URI of this server. Can be a GitHub repo, Glama listing, website, or local filesystem path.
 
 Server name: {server_name or '<auto-generate>'}
 
@@ -577,7 +577,7 @@ Collected metadata:
 {chr(10).join(f"- {item}" for item in metadata_summary)}
 
 Based on this metadata, please generate a complete JSON configuration with:
-0. url: (as above)
+0. source: (as above)
 1. name: A string (human-readable, can contain any characters)
 2. prefix: A valid Python identifier (no underscores)
 3. command: The appropriate command (python, node, npx, uvx, or null for HTTP)
@@ -612,7 +612,7 @@ Return ONLY valid JSON, no explanations."""
                 # Add the server with the generated configuration
                 add_result = await self.add_server(
                     name=config_data.get("name", server_name or "generated"),
-                    url=url,
+                    source=source,
                     prefix=config_data.get("prefix"),
                     command=config_data.get("command"),
                     args=config_data.get("args"),
@@ -693,7 +693,7 @@ Return ONLY valid JSON, no explanations."""
             
             for name, server in config.servers.items():
                 server_info = {
-                    "url": server.url,
+                    "source": server.source,
                     "enabled": server.enabled,
                     "mounted": name in self.server_manager.mounted_servers,
                     "command": server.command,

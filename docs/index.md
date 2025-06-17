@@ -140,7 +140,7 @@ Add a new MCP server to the configuration.
 
 **Parameters:**
 - `name` (str, required): Unique server name
-- `url` (str, required): URL or URI of the server package/repository (can be a local path as well)
+- `source` (str, required): URL or URI of the server package/repository (can be a local path as well)
 - `command` (str, optional): Full command to run (e.g., "npx @playwright/mcp@latest")
 - `prefix` (str, optional): Tool prefix (defaults to server name)
 - `uri` (str, optional): URI for HTTP servers
@@ -280,7 +280,7 @@ Servers are stored in the current directory under `.magg/servers.json`:
   "servers": {
     "calc": {
       "name": "calc",
-      "url": "https://github.com/wrtnlabs/calculator-mcp",
+      "source": "https://github.com/wrtnlabs/calculator-mcp",
       "prefix": "calc",
       "notes": null,
       "command": "npx",
@@ -306,7 +306,7 @@ For servers requiring special setup:
    ```json
    {
      "name": "custom-server",
-     "url": "file:///path/to/server", 
+     "source": "file:///path/to/server", 
      "prefix": "custom",
      "command": "uv run python server.py",
      "working_dir": "/path/to/server"
@@ -317,7 +317,7 @@ For servers requiring special setup:
    ```json
    {
      "name": "docker-server",
-     "url": "docker://myimage:tag", 
+     "source": "docker://myimage:tag", 
      "prefix": "myimage",
      "command": "docker run -i myimage:tag",
      "env_vars": {

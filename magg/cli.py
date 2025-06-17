@@ -69,7 +69,7 @@ async def cmd_add_server(args) -> None:
     try:
         server = ServerConfig(
             name=args.name,
-            url=args.url,
+            source=args.source,
             prefix=args.prefix,  # Will be auto-generated if not provided
             command=command,
             args=command_args,
@@ -86,7 +86,7 @@ async def cmd_add_server(args) -> None:
     
     if config_manager.save_config(config):
         print_success(f"Added server '{args.name}'")
-        print(f"  URL: {args.url}")
+        print(f"  Source: {args.source}")
         print(f"  Prefix: {server.prefix}")
         if server.command:
             full_command = server.command
@@ -275,7 +275,7 @@ def create_parser() -> argparse.ArgumentParser:
     # Add server command
     add_parser = subparsers.add_parser('add-server', help='Add a new server')
     add_parser.add_argument('name', help='Server name')
-    add_parser.add_argument('url', help='URL of the server package/repository')
+    add_parser.add_argument('source', help='URL of the server package/repository')
     add_parser.add_argument('--prefix', help='Tool prefix (defaults to server name)')
     add_parser.add_argument('--command', help='Command to run the server')
     add_parser.add_argument('--uri', help='URI for HTTP servers')

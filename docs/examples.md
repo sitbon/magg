@@ -101,7 +101,7 @@ Call tool magg_add_server:
 
 (Multiline mbro commands not yet supported)
 ```text
-mbro:magg> call magg_add_server {"url": "https://github.com/microsoft/playwright-mcp", "name": "playwright", "command": "npx @playwright/mcp@latest", "notes": "Browser automation MCP server using Playwright."}
+mbro:magg> call magg_add_server {"source": "https://github.com/microsoft/playwright-mcp", "name": "playwright", "command": "npx @playwright/mcp@latest", "notes": "Browser automation MCP server using Playwright."}
 ```
 Response:
 ```json
@@ -111,7 +111,7 @@ Response:
     "action": "server_added",
     "server": {
       "name": "playwright",
-      "url": "https://github.com/microsoft/playwright-mcp",
+      "source": "https://github.com/microsoft/playwright-mcp",
       "prefix": "playwright",
       "command": "npx @playwright/mcp@latest",
       "uri": null,

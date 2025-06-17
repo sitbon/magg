@@ -6,8 +6,8 @@ from unittest.mock import patch, MagicMock
 import tempfile
 import os
 
-from magg.utils.transport import get_transport_for_command, get_transport_for_uri
-from magg.utils.custom_transports import NoValidatePythonStdioTransport, NoValidateNodeStdioTransport
+from magg.util.transport import get_transport_for_command, get_transport_for_uri
+from magg.util.custom_transports import NoValidatePythonStdioTransport, NoValidateNodeStdioTransport
 from fastmcp.client.transports import (
     StdioTransport,
     NpxStdioTransport,
@@ -180,7 +180,7 @@ class TestGetTransportForUri:
         assert transport.auth is not None
         assert transport.headers == {"X-Custom": "value"}
     
-    @patch('magg.utils.transport.infer_transport')
+    @patch('magg.util.transport.infer_transport')
     def test_unknown_uri_scheme(self, mock_infer):
         """Test fallback to infer_transport for unknown schemes."""
         mock_transport = MagicMock()

@@ -9,7 +9,7 @@ from fastmcp import FastMCP, Client, Context
 
 from .settings import ConfigManager, ServerConfig
 from .response import MAGGResponse
-from .utils import (
+from .util import (
     get_transport_for_command, 
     get_transport_for_uri,
     validate_working_directory

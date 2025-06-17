@@ -26,7 +26,7 @@ def initialize(**environment) -> bool:
         os.environ.setdefault(key, value)
 
     if not os.environ.get("NO_TERM", False):
-        from .utils.system import initterm
+        from .util.system import initterm
         initterm()
 
     return True

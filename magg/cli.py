@@ -11,7 +11,7 @@ import logging
 from magg.server import MAGGServer
 from magg.settings import ConfigManager, ServerConfig
 from magg import process
-from magg.utils.terminal import (
+from magg.util.terminal import (
     print_header, print_success, print_error, print_warning, 
     print_info, print_server_list, print_status_summary, confirm_action
 )
@@ -21,7 +21,7 @@ logger: logging.Logger | None = None
 
 async def cmd_serve(args) -> None:
     """Start MAGG server."""
-    from magg.utils.server_runner import ServerRunner, print_startup_banner
+    from magg.util.server_runner import ServerRunner, print_startup_banner
     
     logger.info("Starting MAGG server (mode: %s)", 'http' if args.http else 'stdio')
     

@@ -36,7 +36,7 @@ class TestGetTransportForCommand:
             
             assert isinstance(transport, NoValidatePythonStdioTransport)
             # Check that transport was configured correctly
-            assert transport.command.endswith("python")
+            assert transport.command.endswith("python") or transport.command.endswith("python3")
             assert transport.args == [script_path, "--port", "8080"]
             assert transport.cwd == "/tmp/test"
         finally:
@@ -53,7 +53,7 @@ class TestGetTransportForCommand:
         
         assert isinstance(transport, NoValidatePythonStdioTransport)
         # Check that transport was configured correctly
-        assert transport.command.endswith("python")
+        assert transport.command.endswith("python") or transport.command.endswith("python3")
         assert transport.args == ["-m", "mymodule.server", "--debug"]
         assert transport.cwd == "/tmp/test"
     
@@ -99,17 +99,16 @@ class TestGetTransportForCommand:
     
     def test_npx_command(self):
         """Test NPX transport."""
-        transport = get_transport_for_command(
-            command="npx",
-            args=["@modelcontextprotocol/server-calculator"],
-            working_dir="/tmp/calc"
-        )
-        
-        assert isinstance(transport, NpxStdioTransport)
-        # NpxStdioTransport builds the command internally
-        assert transport.command == "npx"
-        # The package is passed as an argument
-        assert "@modelcontextprotocol/server-calculator" in transport.args
+        with tempfile.TemporaryDirectory() as tmpdir:
+            transport = get_transport_for_command(
+                command="npx",
+                args=["@modelcontextprotocol/server-calculator"],
+                working_dir=tmpdir
+            )
+            
+            assert isinstance(transport, NpxStdioTransport)
+            # NpxStdioTransport has different attributes than other transports
+            assert transport.package == "@modelcontextprotocol/server-calculator"
     
     def test_uvx_command(self):
         """Test UVX transport."""

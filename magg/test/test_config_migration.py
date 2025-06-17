@@ -1,14 +1,14 @@
-"""Test configuration functionality and migrations."""
+"""Test configuration functionality."""
 
 import pytest
 import tempfile
 import json
 from pathlib import Path
 
-from magg.core.config import ConfigManager, MCPSource, MCPServer, MAGGConfig
+from magg.settings import ConfigManager, ServerConfig, MAGGConfig
 
 
-class TestConfigMigration:
+class TestConfigStructure:
     """Test configuration structure and functionality."""
     
     @pytest.fixture
@@ -25,118 +25,150 @@ class TestConfigMigration:
         config_manager = ConfigManager(str(temp_config_file))
         config = config_manager.load_config()
         
-        # Test adding a source with new structure
-        new_source = MCPSource(
+        # Test adding servers
+        server1 = ServerConfig(
+            name="weatherserver",
             url="https://github.com/example/weather-mcp",
-            name="test-weather"
+            command="npx",
+            args=["weather-mcp"],
+            prefix="weather"
         )
         
-        config.add_source(new_source)
-        
-        # Verify source was added
-        assert len(config.sources) == 1
-        assert "https://github.com/example/weather-mcp" in config.sources
-        assert config.sources["https://github.com/example/weather-mcp"].name == "test-weather"
-        
-        # Test adding a server for this source
-        new_server = MCPServer(
-            name="weather-server",
-            source_url="https://github.com/example/weather-mcp",
-            prefix="weather",
-            command=["npx", "weather-mcp-server"],
-            notes="Test weather MCP server"
+        server2 = ServerConfig(
+            name="filesystemserver",
+            url="https://github.com/example/filesystem-mcp",
+            uri="http://localhost:8080"
         )
-        
-        config.add_server(new_server)
-        
-        # Verify server was added
-        assert len(config.servers) == 1
-        assert "weather-server" in config.servers
-        assert config.servers["weather-server"].source_url == "https://github.com/example/weather-mcp"
-        assert config.servers["weather-server"].prefix == "weather"
-    
-    def test_sources_by_url_lookup(self):
-        """Test finding sources by URL."""
-        config = MAGGConfig()
-        
-        # Add multiple sources
-        source1 = MCPSource(url="https://github.com/example/weather-mcp", name="weather1")
-        source2 = MCPSource(url="https://github.com/example/weather-mcp", name="weather2")
-        source3 = MCPSource(url="https://github.com/different/repo", name="other")
-        
-        config.add_source(source1)
-        config.add_source(source2)  # Same URL, different name - should replace
-        config.add_source(source3)
-        
-        # Should only have 2 sources (weather2 replaced weather1)
-        assert len(config.sources) == 2
-        assert config.sources["https://github.com/example/weather-mcp"].name == "weather2"
-        assert config.sources["https://github.com/different/repo"].name == "other"
-    
-    def test_server_source_relationship(self):
-        """Test relationship between servers and sources."""
-        config = MAGGConfig()
-        
-        # Add source
-        source = MCPSource(url="https://github.com/example/weather-mcp", name="weather")
-        config.add_source(source)
-        
-        # Add multiple servers for same source
-        server1 = MCPServer(name="weather-dev", source_url="https://github.com/example/weather-mcp", prefix="weather_dev")
-        server2 = MCPServer(name="weather-prod", source_url="https://github.com/example/weather-mcp", prefix="weather_prod")
         
         config.add_server(server1)
         config.add_server(server2)
         
-        # Test getting servers for source
-        servers_for_source = config.get_servers_for_source("https://github.com/example/weather-mcp")
-        assert len(servers_for_source) == 2
-        server_names = {s.name for s in servers_for_source}
-        assert server_names == {"weather-dev", "weather-prod"}
+        # Save and reload
+        assert config_manager.save_config(config) is True
         
-        # Test removing source removes associated servers
-        config.remove_source("https://github.com/example/weather-mcp")
-        assert len(config.sources) == 0
-        assert len(config.servers) == 0
+        loaded_config = config_manager.load_config()
+        assert len(loaded_config.servers) == 2
+        
+        # Verify servers loaded correctly
+        weather = loaded_config.servers["weatherserver"]
+        assert weather.url == "https://github.com/example/weather-mcp"
+        assert weather.command == "npx"
+        assert weather.prefix == "weather"
+        
+        filesystem = loaded_config.servers["filesystemserver"]
+        assert filesystem.uri == "http://localhost:8080"
+        assert filesystem.prefix == "filesystemserver"  # Default prefix
     
-    def test_save_and_reload_config(self, temp_config_file):
-        """Test saving config and reloading maintains structure."""
+    def test_config_serialization_format(self, temp_config_file):
+        """Test the actual JSON format of saved config."""
         config_manager = ConfigManager(str(temp_config_file))
-        
-        # Create config with data
         config = MAGGConfig()
-        source = MCPSource(url="https://github.com/example/weather-mcp", name="weather")
-        server = MCPServer(
-            name="weather-server",
-            source_url="https://github.com/example/weather-mcp",
-            prefix="weather",
-            command=["npx", "weather-mcp-server"],
-            env={"API_KEY": "test123"},
-            working_dir="/tmp/weather",
-            notes="Weather server with API key"
+        
+        # Add a server with all fields
+        server = ServerConfig(
+            name="testserver",
+            url="https://github.com/test/test-mcp",
+            prefix="test",
+            command="python",
+            args=["-m", "test_mcp"],
+            env={"TEST_VAR": "value"},
+            working_dir="/tmp/test",
+            notes="Test server for unit tests",
+            enabled=False
         )
         
-        config.add_source(source)
         config.add_server(server)
+        config_manager.save_config(config)
         
-        # Save config
-        success = config_manager.save_config(config)
-        assert success is True
+        # Read raw JSON
+        with open(temp_config_file, 'r') as f:
+            raw_data = json.load(f)
         
-        # Load config
+        # Check structure
+        assert "servers" in raw_data
+        assert "testserver" in raw_data["servers"]
+        
+        server_data = raw_data["servers"]["testserver"]
+        assert server_data["name"] == "testserver"
+        assert server_data["url"] == "https://github.com/test/test-mcp"
+        assert server_data["prefix"] == "test"
+        assert server_data["command"] == "python"
+        assert server_data["args"] == ["-m", "test_mcp"]
+        assert server_data["env"] == {"TEST_VAR": "value"}
+        assert server_data["working_dir"] == "/tmp/test"
+        assert server_data["notes"] == "Test server for unit tests"
+        assert server_data["enabled"] is False
+    
+    def test_minimal_server_config(self, temp_config_file):
+        """Test minimal server configuration."""
+        config_manager = ConfigManager(str(temp_config_file))
+        config = MAGGConfig()
+        
+        # Minimal server - just name and url
+        server = ServerConfig(
+            name="minimal",
+            url="https://example.com"
+        )
+        
+        config.add_server(server)
+        config_manager.save_config(config)
+        
+        # Reload and check defaults
         loaded_config = config_manager.load_config()
+        minimal = loaded_config.servers["minimal"]
         
-        # Verify structure preserved
-        assert len(loaded_config.sources) == 1
-        assert len(loaded_config.servers) == 1
+        assert minimal.name == "minimal"
+        assert minimal.url == "https://example.com"
+        assert minimal.prefix == "minimal"  # Defaults to name
+        assert minimal.enabled is True  # Default enabled
+        assert minimal.command is None
+        assert minimal.args is None
+        assert minimal.uri is None
+        assert minimal.env is None
+        assert minimal.working_dir is None
+        assert minimal.notes is None
+    
+    def test_environment_variable_override(self):
+        """Test that environment variables can override settings."""
+        import os
         
-        loaded_source = loaded_config.sources["https://github.com/example/weather-mcp"]
-        assert loaded_source.name == "weather"
+        # Set environment variable
+        os.environ["MAGG_LOG_LEVEL"] = "DEBUG"
         
-        loaded_server = loaded_config.servers["weather-server"]
-        assert loaded_server.source_url == "https://github.com/example/weather-mcp"
-        assert loaded_server.prefix == "weather"
-        assert loaded_server.command == ["npx", "weather-mcp-server"]
-        assert loaded_server.env == {"API_KEY": "test123"}
-        assert loaded_server.working_dir == "/tmp/weather"
-        assert loaded_server.notes == "Weather server with API key"
+        try:
+            config = MAGGConfig()
+            assert config.log_level == "DEBUG"
+        finally:
+            # Clean up
+            del os.environ["MAGG_LOG_LEVEL"]
+    
+    def test_invalid_server_in_config(self, temp_config_file):
+        """Test handling of servers with names that need prefix generation."""
+        # Write config with server that needs prefix adjustment
+        invalid_config = {
+            "servers": {
+                "valid": {
+                    "name": "valid",
+                    "url": "https://example.com"
+                },
+                "invalid": {
+                    "name": "123invalid",  # Name that needs prefix adjustment
+                    "url": "https://example.com"
+                }
+            }
+        }
+        
+        with open(temp_config_file, 'w') as f:
+            json.dump(invalid_config, f)
+        
+        config_manager = ConfigManager(str(temp_config_file))
+        config = config_manager.load_config()
+        
+        # Both servers should load now with auto-generated prefixes
+        assert len(config.servers) == 2
+        assert "valid" in config.servers
+        assert "invalid" in config.servers
+        
+        # Check that the problematic server got a valid prefix
+        assert config.servers["invalid"].name == "123invalid"
+        assert config.servers["invalid"].prefix == "srv123invalid"  # Auto-generated prefix

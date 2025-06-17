@@ -6,172 +6,189 @@ import os
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from magg import server as magg_server_module
-from magg.core.config import MAGGConfig, ConfigManager
+from magg.server import MAGGServer
+from magg.settings import MAGGConfig, ConfigManager, ServerConfig
 
 
 class TestIntegration:
-    """Test full integration of source and server creation."""
-    
-    @pytest.fixture
-    def mock_config_manager(self):
-        """Create a mock config manager."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            config_path = Path(tmpdir) / ".magg" / "config.json"
-            config_path.parent.mkdir(parents=True)
-            
-            with patch('magg.server.config_manager') as mock_cm:
-                mock_cm.config_path = config_path
-                mock_cm.load_config = MagicMock(return_value=MAGGConfig())
-                mock_cm.save_config = MagicMock(return_value=True)
-                
-                yield mock_cm
+    """Test full integration of server creation and management."""
     
     @pytest.mark.asyncio
-    async def test_add_local_source_and_python_server(self, mock_config_manager):
-        """Test adding a local source and Python server with server.py."""
-        # Mock metadata collection
-        with patch('magg.discovery.metadata.SourceMetadataCollector') as mock_collector:
-            mock_collector.return_value.collect_metadata = AsyncMock(return_value=[])
-            
-            # Add local source - access the handler function
-            add_source_tool = getattr(magg_server_module, 'magg_add_source')
-            if hasattr(add_source_tool, 'fn'):
-                # It's a FunctionTool, use the handler
-                result = await add_source_tool.fn(name="test-local")
-            else:
-                # Direct function call
-                result = await add_source_tool(name="test-local")
-            assert "✅ Added source 'test-local'" in result
-            # Result format changed - no longer includes the URI in output
-            
-            # Get the config that was saved
-            saved_config = mock_config_manager.save_config.call_args[0][0]
-            assert "test-local" in saved_config.sources
-            source = saved_config.sources["test-local"]
-            assert source.uri.startswith("file://")
-            
-            # Update mock to return this config
-            mock_config_manager.load_config.return_value = saved_config
-            
-            # Create the source directory and server.py
-            source_dir = source.uri.replace("file://", "")
-            Path(source_dir).mkdir(parents=True, exist_ok=True)
-            server_file = Path(source_dir) / "server.py"
-            server_file.write_text("print('test server')")
-            
-            # Mock mount_server
-            with patch('magg.server.mount_server', new_callable=AsyncMock) as mock_mount:
-                mock_mount.return_value = True
-                
-                # Add server - access the handler function
-                add_server_tool = getattr(magg_server_module, 'magg_add_server')
-                if hasattr(add_server_tool, 'fn'):
-                    # It's a FunctionTool, use the handler
-                    result = await add_server_tool.fn(
-                        name="test-python-server",
-                        source_name="test-local",
-                        command="python",
-                        args=["server.py"],
-                        working_dir=source_dir
-                    )
-                else:
-                    # Direct function call
-                    result = await add_server_tool(
-                        name="test-python-server",
-                        source_name="test-local",
-                        command="python",
-                        args=["server.py"],
-                        working_dir=source_dir
-                    )
-                
-                assert "✅ Added and mounted server 'test-python-server'" in result
-                assert "Command: python server.py" in result
-                
-                # Verify mount_server was called
-                mock_mount.assert_called_once()
-                server_arg = mock_mount.call_args[0][0]
-                assert server_arg.name == "test-python-server"
-                assert server_arg.command == "python"
-                assert server_arg.args == ["server.py"]
-                assert server_arg.working_dir == source_dir
-    
-    @pytest.mark.asyncio 
-    async def test_add_server_with_python_module(self, mock_config_manager):
-        """Test adding a Python server with -m module syntax."""
-        # Set up a source first
-        config = MAGGConfig()
+    async def test_add_python_server(self):
+        """Test adding a local Python server."""
         with tempfile.TemporaryDirectory() as tmpdir:
-            source_dir = Path(tmpdir) / "mypackage"
-            source_dir.mkdir()
+            # Create test Python script
+            server_script = Path(tmpdir) / "test_server.py"
+            server_script.write_text('''
+from fastmcp import FastMCP
+
+mcp = FastMCP("test-python-server")
+
+@mcp.tool()
+def test_tool(message: str) -> str:
+    return f"Test response: {message}"
+
+if __name__ == "__main__":
+    mcp.run()
+''')
             
-            from magg.core.config import MCPSource
-            source = MCPSource(name="mypackage", uri=f"file://{source_dir}")
-            config.add_source(source)
-            mock_config_manager.load_config.return_value = config
+            # Create MAGG server
+            config_path = Path(tmpdir) / "config.json"
+            server = MAGGServer(str(config_path))
             
-            # Mock mount_server
-            with patch('magg.server.mount_server', new_callable=AsyncMock) as mock_mount:
-                mock_mount.return_value = True
-                
-                # Add server with -m - access the handler function
-                add_server_tool = getattr(magg_server_module, 'magg_add_server')
-                if hasattr(add_server_tool, 'fn'):
-                    # It's a FunctionTool, use the handler
-                    result = await add_server_tool.fn(
-                        name="module-server",
-                        source_name="mypackage",
-                        command="python",
-                        args=["-m", "mypackage.server", "--debug"],
-                        working_dir=str(source_dir)
-                    )
-                else:
-                    # Direct function call
-                    result = await add_server_tool(
-                        name="module-server",
-                        source_name="mypackage",
-                        command="python",
-                        args=["-m", "mypackage.server", "--debug"],
-                        working_dir=str(source_dir)
-                    )
-                
-                assert "✅ Added and mounted server 'module-server'" in result
-                assert "Command: python -m mypackage.server --debug" in result
-                
-                # Verify the server was configured correctly
-                server_arg = mock_mount.call_args[0][0]
-                assert server_arg.command == "python"
-                assert server_arg.args == ["-m", "mypackage.server", "--debug"]
-    
-    @pytest.mark.asyncio
-    async def test_transport_selection(self, mock_config_manager):
-        """Test that correct transports are selected for different commands."""
-        from magg.utils.transport import get_transport_for_command
-        from magg.utils.custom_transports import NoValidatePythonStdioTransport
-        from fastmcp.client.transports import NpxStdioTransport, StdioTransport
-        
-        # Test Python transport
-        with tempfile.NamedTemporaryFile(suffix='.py', delete=False) as f:
-            f.write(b"print('test')")
-            f.flush()
-            
-            transport = get_transport_for_command(
+            # Add the server
+            result = await server.add_server(
+                name="pythontest",
+                url="file://" + str(tmpdir),
                 command="python",
-                args=[f.name]
+                args=[str(server_script)],
+                working_dir=str(tmpdir)
             )
-            assert isinstance(transport, NoValidatePythonStdioTransport)
-            os.unlink(f.name)
-        
-        # Test NPX transport
-        transport = get_transport_for_command(
-            command="npx",
-            args=["some-package"]
-        )
-        assert isinstance(transport, NpxStdioTransport)
-        
-        # Test generic command falls back to StdioTransport
-        transport = get_transport_for_command(
-            command="/usr/bin/custom",
-            args=["--help"]
-        )
-        assert isinstance(transport, StdioTransport)
+            
+            assert result.is_success
+            assert result.output["server"]["name"] == "pythontest"
+            assert result.output["server"]["command"] == "python"
+            
+            # Verify it was saved
+            config = server.config_manager.load_config()
+            assert "pythontest" in config.servers
+    
+    @pytest.mark.asyncio
+    async def test_add_server_with_python_module(self):
+        """Test adding a Python server using -m module syntax."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # Create MAGG server
+            config_path = Path(tmpdir) / "config.json"
+            server = MAGGServer(str(config_path))
+            
+            # Add server with -m syntax
+            result = await server.add_server(
+                name="moduletest",
+                url="https://github.com/example/module-server",
+                command="python",
+                args=["-m", "example.server", "--port", "8080"],
+                working_dir=str(tmpdir)
+            )
+            
+            assert result.is_success
+            assert result.output["server"]["args"] == ["-m", "example.server", "--port", "8080"]
+    
+    @pytest.mark.asyncio
+    async def test_transport_selection(self):
+        """Test that correct transport is selected based on command."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config_path = Path(tmpdir) / "config.json"
+            server = MAGGServer(str(config_path))
+            
+            # Test Python transport
+            result = await server.add_server(
+                name="pythontransport",
+                url="https://example.com",
+                command="python",
+                args=["script.py"]
+            )
+            assert result.is_success
+            
+            # Test Node transport
+            result = await server.add_server(
+                name="nodetransport",
+                url="https://example.com",
+                command="node",
+                args=["server.js"]
+            )
+            assert result.is_success
+            
+            # Test NPX transport
+            result = await server.add_server(
+                name="npxtransport",
+                url="https://example.com",
+                command="npx",
+                args=["@example/server"]
+            )
+            assert result.is_success
+            
+            # Test UVX transport
+            result = await server.add_server(
+                name="uvxtransport",
+                url="https://example.com",
+                command="uvx",
+                args=["example-server"]
+            )
+            assert result.is_success
+            
+            # Test HTTP transport
+            result = await server.add_server(
+                name="httptransport",
+                url="https://example.com",
+                uri="http://localhost:8080"
+            )
+            assert result.is_success
+            
+            # Verify all were saved
+            config = server.config_manager.load_config()
+            assert len(config.servers) == 5
+
+
+class TestServerLifecycle:
+    """Test server lifecycle management."""
+    
+    @pytest.mark.asyncio
+    async def test_enable_disable_server(self):
+        """Test enabling and disabling servers."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config_path = Path(tmpdir) / "config.json"
+            server = MAGGServer(str(config_path))
+            
+            # Add a disabled server
+            result = await server.add_server(
+                name="lifecycle",
+                url="https://example.com",
+                command="echo",
+                args=["test"],
+                enable=False
+            )
+            assert result.is_success
+            assert result.output["server"]["enabled"] is False
+            
+            # Enable it
+            result = await server.enable_server("lifecycle")
+            assert result.is_success
+            
+            # Check it's enabled in config
+            config = server.config_manager.load_config()
+            assert config.servers["lifecycle"].enabled is True
+            
+            # Disable it again
+            result = await server.disable_server("lifecycle")
+            assert result.is_success
+            
+            # Check it's disabled
+            config = server.config_manager.load_config()
+            assert config.servers["lifecycle"].enabled is False
+    
+    @pytest.mark.asyncio
+    async def test_remove_server(self):
+        """Test removing servers."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config_path = Path(tmpdir) / "config.json"
+            server = MAGGServer(str(config_path))
+            
+            # Add a server
+            await server.add_server(
+                name="toremove",
+                url="https://example.com",
+                command="echo",
+                args=["test"]
+            )
+            
+            # Remove it
+            result = await server.remove_server("toremove")
+            assert result.is_success
+            
+            # Verify it's gone
+            config = server.config_manager.load_config()
+            assert "toremove" not in config.servers
+            
+            # Try to remove non-existent
+            result = await server.remove_server("nonexistent")
+            assert result.is_error

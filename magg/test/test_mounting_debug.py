@@ -1,6 +1,7 @@
 """Debug test for FastMCP mounting."""
 
 import asyncio
+import pytest
 import tempfile
 from pathlib import Path
 
@@ -8,6 +9,7 @@ from fastmcp import FastMCP, Client
 from magg.utils.custom_transports import NoValidatePythonStdioTransport
 
 
+@pytest.mark.asyncio
 async def test_mounting_debug():
     """Debug mounting behavior."""
     

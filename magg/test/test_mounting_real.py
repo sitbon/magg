@@ -67,18 +67,18 @@ if __name__ == "__main__":
             except Exception as e:
                 print(f"✗ Client mount with as_proxy=True failed: {e}")
             
-            # Approach 3: Try from_client
+            # Approach 3: Try as_proxy (new way)
             try:
                 transport = NoValidatePythonStdioTransport(
                     script_path=str(server_file),
                     cwd=tmpdir
                 )
                 client = Client(transport)
-                proxy = FastMCP.from_client(client)
+                proxy = FastMCP.as_proxy(client)
                 main_server.mount("test3", proxy)
-                print("✓ from_client mount succeeded")
+                print("✓ as_proxy mount succeeded")
             except Exception as e:
-                print(f"✗ from_client mount failed: {e}")
+                print(f"✗ as_proxy mount failed: {e}")
             
             # Get tool names properly
             print("\nAvailable tools on main server:")

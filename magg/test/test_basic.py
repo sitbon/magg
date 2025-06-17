@@ -2,7 +2,7 @@
 
 import pytest
 from fastmcp import Client
-from magg.server import mcp, setup_magg
+from magg.server import create_server
 
 
 class TestMAGGBasicFunctionality:
@@ -11,12 +11,13 @@ class TestMAGGBasicFunctionality:
     @pytest.mark.asyncio
     async def test_basic_setup_and_tools(self):
         """Test MAGG setup and tool availability."""
-        await setup_magg()
+        server = create_server()
+        await server.setup()
         
-        # Check for core MAGG tools
-        expected_tools = ["magg_list_servers", "magg_add_source", "magg_add_server", "magg_list_tools"]
+        # Check for core MAGG tools - no more sources
+        expected_tools = ["magg_list_servers", "magg_add_server", "magg_list_tools"]
         
-        async with Client(mcp) as client:
+        async with Client(server.mcp) as client:
             tools = await client.list_tools()
             tool_names = [tool.name for tool in tools]
             
@@ -26,9 +27,10 @@ class TestMAGGBasicFunctionality:
     @pytest.mark.asyncio
     async def test_magg_list_tools(self):
         """Test MAGG list tools functionality."""
-        await setup_magg()
+        server = create_server()
+        await server.setup()
         
-        async with Client(mcp) as client:
+        async with Client(server.mcp) as client:
             result = await client.call_tool("magg_list_tools", {})
             assert len(result) > 0
             assert hasattr(result[0], 'text')
@@ -37,9 +39,10 @@ class TestMAGGBasicFunctionality:
     @pytest.mark.asyncio
     async def test_list_servers(self):
         """Test listing servers."""
-        await setup_magg()
+        server = create_server()
+        await server.setup()
         
-        async with Client(mcp) as client:
+        async with Client(server.mcp) as client:
             result = await client.call_tool("magg_list_servers", {})
             assert len(result) > 0
             assert hasattr(result[0], 'text')
@@ -50,31 +53,23 @@ class TestMAGGServerManagement:
     """Test server management functionality."""
     
     @pytest.mark.asyncio
-    async def test_add_source_and_server(self):
-        """Test adding a source and then a server."""
-        await setup_magg()
+    async def test_add_server(self):
+        """Test adding a server."""
+        server = create_server()
+        await server.setup()
         
         import time
         unique_id = str(int(time.time()))
         
-        async with Client(mcp) as client:
-            # First add a source with unique URL
-            source_url = f"https://github.com/example/test-server-{unique_id}"
-            result = await client.call_tool("magg_add_source", {
-                "url": source_url,
-                "name": f"test-server-{unique_id}"
-            })
-            assert len(result) > 0
-            # Should either succeed or already exist
-            assert "✅" in result[0].text or "⚠️" in result[0].text
-            
-            # Then add a server that references this source
-            server_name = f"test_server_{unique_id}"
+        async with Client(server.mcp) as client:
+            # Add a server directly
+            server_name = f"testserver{unique_id}"
             result = await client.call_tool("magg_add_server", {
                 "name": server_name,
-                "source_url": source_url,
+                "url": f"https://github.com/example/test-{unique_id}",
                 "prefix": "test",
-                "command": "echo test"
+                "command": "echo",
+                "args": ["test"]
             })
             
             assert len(result) > 0
@@ -85,18 +80,19 @@ class TestMAGGServerManagement:
             assert server_name in result[0].text
 
 
-class TestMAGGSourceSearch:
-    """Test source search functionality."""
+class TestMAGGServerSearch:
+    """Test server search functionality."""
     
     @pytest.mark.integration
     @pytest.mark.asyncio
-    async def test_search_sources(self):
-        """Test source search (requires internet)."""
-        await setup_magg()
+    async def test_search_servers(self):
+        """Test server search (requires internet)."""
+        server = create_server()
+        await server.setup()
         
-        async with Client(mcp) as client:
+        async with Client(server.mcp) as client:
             try:
-                result = await client.call_tool("magg_search_sources", {
+                result = await client.call_tool("magg_search_servers", {
                     "query": "filesystem",
                     "limit": 3
                 })

@@ -331,6 +331,7 @@ dependencies = [
     { name = "fastmcp" },
     { name = "mcp" },
     { name = "pydantic" },
+    { name = "pydantic-settings" },
 ]
 
 [package.dev-dependencies]
@@ -345,6 +346,7 @@ requires-dist = [
     { name = "fastmcp", specifier = "<3" },
     { name = "mcp", specifier = ">=1.0.0" },
     { name = "pydantic" },
+    { name = "pydantic-settings" },
 ]
 
 [package.metadata.requires-dev]

@@ -5,208 +5,209 @@ import tempfile
 import json
 from pathlib import Path
 
-from magg.core.config import ConfigManager, MCPSource, MCPServer, MAGGConfig
+from magg.settings import ConfigManager, ServerConfig, MAGGConfig
 
 
-class TestMCPSource:
-    """Test MCPSource functionality."""
+class TestServerConfig:
+    """Test ServerConfig functionality."""
     
-    def test_source_creation_with_name(self):
-        """Test creating a source with explicit name."""
-        source = MCPSource(url="https://github.com/example/repo", name="test-source")
-        assert source.url == "https://github.com/example/repo"
-        assert source.name == "test-source"
-    
-    def test_source_auto_name_from_github(self):
-        """Test auto-generating name from GitHub URL."""
-        source = MCPSource(url="https://github.com/example/weather-mcp")
-        assert source.name == "weather-mcp"
-    
-    def test_source_auto_name_from_npm(self):
-        """Test auto-generating name from NPM URL."""
-        source = MCPSource(url="https://www.npmjs.com/package/calculator-mcp")
-        assert source.name == "calculator-mcp"
-    
-    def test_source_auto_name_fallback(self):
-        """Test fallback name generation."""
-        source = MCPSource(url="https://example.com/some/path")
-        assert source.name == "example_com"
-
-
-class TestMCPServer:
-    """Test MCPServer functionality."""
-    
-    def test_server_creation(self):
-        """Test creating a server configuration."""
-        server = MCPServer(
-            name="test-server",
-            source_url="https://github.com/example/repo",
-            prefix="test",
-            command=["./server"],
-            notes="Test server"
+    def test_server_creation_basic(self):
+        """Test creating a basic server config."""
+        server = ServerConfig(
+            name="testserver",
+            url="https://github.com/example/repo",
+            prefix="testserver",
+            command="python",
+            args=["server.py"]
         )
-        assert server.name == "test-server"
-        assert server.source_url == "https://github.com/example/repo"
-        assert server.prefix == "test"
-        assert server.command == ["./server"]
-        assert server.notes == "Test server"
+        assert server.name == "testserver"
+        assert server.url == "https://github.com/example/repo"
+        assert server.command == "python"
+        assert server.args == ["server.py"]
+        assert server.prefix == "testserver"
+        assert server.enabled is True  # Default enabled
     
-    def test_server_auto_prefix(self):
-        """Test auto-setting prefix to name."""
-        server = MCPServer(
-            name="weather",
-            source_url="https://github.com/example/repo"
-            # Don't pass prefix, should auto-set to name
+    def test_server_with_custom_prefix(self):
+        """Test server with custom prefix."""
+        server = ServerConfig(
+            name="myserver",
+            url="https://github.com/example/repo",
+            prefix="custom"
         )
-        # The prefix should be auto-set to name in __post_init__
-        assert server.prefix == "weather"
+        assert server.prefix == "custom"
+    
+    def test_server_name_validation(self):
+        """Test that server names can be anything and prefix generation works."""
+        # Any name is now valid - prefix auto-generated from name
+        server1 = ServerConfig(name="valid", url="test")
+        assert server1.prefix == "valid"
+        
+        server2 = ServerConfig(name="valid123", url="test")
+        assert server2.prefix == "valid123"
+        
+        server3 = ServerConfig(name="valid-name", url="test")
+        assert server3.prefix == "validname"  # Hyphens removed from prefix
+        
+        # Names that would have been invalid before are now accepted
+        server4 = ServerConfig(name="123invalid", url="test")
+        assert server4.prefix == "srv123invalid"  # Prefix adjusted to be valid
+        
+        server5 = ServerConfig(name="invalid!", url="test")
+        assert server5.prefix == "invalid"  # Special chars removed
+        
+        server6 = ServerConfig(name="@namespace/package", url="test")
+        assert server6.prefix == "namespacepackage"  # Cleaned up
+    
+    def test_server_prefix_validation(self):
+        """Test server prefix validation."""
+        # Valid prefixes
+        ServerConfig(name="test", url="test", prefix="validprefix")
+        
+        # Invalid prefixes - no underscores allowed
+        with pytest.raises(ValueError, match="cannot contain underscores"):
+            ServerConfig(name="test", url="test", prefix="invalid_prefix")
+        
+        # Invalid prefixes - must be identifier
+        with pytest.raises(ValueError, match="must be a valid Python identifier"):
+            ServerConfig(name="test", url="test", prefix="123invalid")
+    
+    def test_prefix_generation(self):
+        """Test the generate_prefix_from_name helper method."""
+        # Test various name patterns
+        assert ServerConfig.generate_prefix_from_name("simple") == "simple"
+        assert ServerConfig.generate_prefix_from_name("weather-mcp") == "weathermcp"
+        assert ServerConfig.generate_prefix_from_name("test_server") == "testserver"
+        assert ServerConfig.generate_prefix_from_name("my.package.name") == "mypackagename"
+        assert ServerConfig.generate_prefix_from_name("123-start") == "srv123start"
+        assert ServerConfig.generate_prefix_from_name("@namespace/package") == "namespacepackage"
+        assert ServerConfig.generate_prefix_from_name("UPPERCASE") == "uppercase"
+        assert ServerConfig.generate_prefix_from_name("") == "server"
+        assert ServerConfig.generate_prefix_from_name("!!!") == "server"
 
 
 class TestMAGGConfig:
     """Test MAGGConfig functionality."""
     
-    def test_config_creation(self):
-        """Test creating empty configuration."""
+    def test_config_defaults(self):
+        """Test default configuration values."""
         config = MAGGConfig()
-        assert len(config.sources) == 0
-        assert len(config.servers) == 0
+        assert config.config_path == Path.cwd() / ".magg" / "config.json"
+        assert config.log_level == "INFO"
+        assert config.servers == {}
     
-    def test_add_source(self):
-        """Test adding a source."""
+    def test_add_remove_server(self):
+        """Test adding and removing servers."""
         config = MAGGConfig()
-        source = MCPSource(url="https://github.com/example/repo", name="test")
         
-        config.add_source(source)
-        assert len(config.sources) == 1
-        assert config.sources["https://github.com/example/repo"] == source
-    
-    def test_add_server(self):
-        """Test adding a server."""
-        config = MAGGConfig()
-        server = MCPServer(name="test", source_url="https://github.com/example/repo")
-        
+        server = ServerConfig(name="test", url="https://example.com")  # prefix auto-generated
         config.add_server(server)
-        assert len(config.servers) == 1
+        
+        assert "test" in config.servers
         assert config.servers["test"] == server
+        
+        # Remove server
+        assert config.remove_server("test") is True
+        assert "test" not in config.servers
+        
+        # Remove non-existent
+        assert config.remove_server("nonexistent") is False
     
-    def test_remove_source_with_servers(self):
-        """Test removing a source also removes associated servers."""
+    def test_get_enabled_servers(self):
+        """Test getting only enabled servers."""
         config = MAGGConfig()
         
-        # Add source
-        source = MCPSource(url="https://github.com/example/repo", name="test")
-        config.add_source(source)
-        
-        # Add servers for this source
-        server1 = MCPServer(name="server1", source_url="https://github.com/example/repo")
-        server2 = MCPServer(name="server2", source_url="https://github.com/example/repo")
-        config.add_server(server1)
-        config.add_server(server2)
-        
-        # Remove source
-        removed = config.remove_source("https://github.com/example/repo")
-        assert removed is True
-        assert len(config.sources) == 0
-        assert len(config.servers) == 0  # Servers should be removed too
-    
-    
-    def test_get_servers_for_source(self):
-        """Test getting servers for a specific source."""
-        config = MAGGConfig()
-        
-        source1_url = "https://github.com/example/repo1"
-        source2_url = "https://github.com/example/repo2"
-        
-        server1 = MCPServer(name="server1", source_url=source1_url)
-        server2 = MCPServer(name="server2", source_url=source1_url)
-        server3 = MCPServer(name="server3", source_url=source2_url)
+        server1 = ServerConfig(name="enabled1", url="test", enabled=True)  # prefix auto-generated
+        server2 = ServerConfig(name="disabled", url="test", enabled=False)  # prefix auto-generated
+        server3 = ServerConfig(name="enabled2", url="test", enabled=True)  # prefix auto-generated
         
         config.add_server(server1)
         config.add_server(server2)
         config.add_server(server3)
         
-        source1_servers = config.get_servers_for_source(source1_url)
-        assert len(source1_servers) == 2
-        assert all(s.source_url == source1_url for s in source1_servers)
+        enabled = config.get_enabled_servers()
+        assert len(enabled) == 2
+        assert "enabled1" in enabled
+        assert "enabled2" in enabled
+        assert "disabled" not in enabled
 
 
 class TestConfigManager:
     """Test ConfigManager functionality."""
     
-    @pytest.fixture
-    def temp_config_file(self):
-        """Create a temporary config file."""
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
-            config_path = Path(f.name)
-        yield config_path
-        if config_path.exists():
-            config_path.unlink()
+    def test_config_manager_initialization(self):
+        """Test ConfigManager initialization."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config_path = Path(tmpdir) / "config.json"
+            manager = ConfigManager(str(config_path))
+            
+            assert manager.config_path == config_path
+            assert config_path.parent.exists()
     
-    def test_load_empty_config(self, temp_config_file):
-        """Test loading configuration when file doesn't exist."""
-        # Remove the file so it doesn't exist
-        temp_config_file.unlink()
-        
-        manager = ConfigManager(str(temp_config_file))
-        config = manager.load_config()
-        
-        assert isinstance(config, MAGGConfig)
-        assert len(config.sources) == 0
-        assert len(config.servers) == 0
-    
-    def test_save_and_load_config(self, temp_config_file):
+    def test_save_load_config(self):
         """Test saving and loading configuration."""
-        manager = ConfigManager(str(temp_config_file))
-        
-        # Create config with data
-        config = MAGGConfig()
-        source = MCPSource(url="https://github.com/example/repo", name="test")
-        server = MCPServer(name="test-server", source_url="https://github.com/example/repo")
-        config.add_source(source)
-        config.add_server(server)
-        
-        # Save config
-        success = manager.save_config(config)
-        assert success is True
-        assert temp_config_file.exists()
-        
-        # Load config
-        loaded_config = manager.load_config()
-        assert len(loaded_config.sources) == 1
-        assert len(loaded_config.servers) == 1
-        assert loaded_config.sources["https://github.com/example/repo"].name == "test"
-        assert loaded_config.servers["test-server"].name == "test-server"
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config_path = Path(tmpdir) / "config.json"
+            manager = ConfigManager(str(config_path))
+            
+            # Create config with servers
+            config = MAGGConfig()
+            server1 = ServerConfig(
+                name="server1",
+                url="https://example.com/1",
+                command="python",
+                args=["test.py"]
+            )  # prefix auto-generated as "server1"
+            server2 = ServerConfig(
+                name="server2",
+                url="https://example.com/2",
+                uri="http://localhost:8080",
+                enabled=False
+            )  # prefix auto-generated as "server2"
+            
+            config.add_server(server1)
+            config.add_server(server2)
+            
+            # Save config
+            assert manager.save_config(config) is True
+            assert config_path.exists()
+            
+            # Load config
+            loaded_config = manager.load_config()
+            assert len(loaded_config.servers) == 2
+            assert "server1" in loaded_config.servers
+            assert "server2" in loaded_config.servers
+            
+            # Check server details preserved
+            loaded_server1 = loaded_config.servers["server1"]
+            assert loaded_server1.name == "server1"
+            assert loaded_server1.command == "python"
+            assert loaded_server1.args == ["test.py"]
+            assert loaded_server1.enabled is True
+            
+            loaded_server2 = loaded_config.servers["server2"]
+            assert loaded_server2.uri == "http://localhost:8080"
+            assert loaded_server2.enabled is False
     
-    def test_save_load_complex_config(self, temp_config_file):
-        """Test saving and loading complex configuration."""
-        manager = ConfigManager(str(temp_config_file))
-        
-        config = MAGGConfig()
-        
-        # Add source
-        source = MCPSource(url="https://github.com/example/weather", name="weather")
-        config.add_source(source)
-        
-        # Add server with all fields
-        server = MCPServer(
-            name="weather-server",
-            source_url="https://github.com/example/weather",
-            prefix="weather",
-            command=["./weather-server"],
-            env={"API_KEY": "test"},
-            working_dir="/tmp",
-            notes="Weather server with API key"
-        )
-        config.add_server(server)
-        
-        # Save and reload
-        manager.save_config(config)
-        loaded_config = manager.load_config()
-        
-        loaded_server = loaded_config.servers["weather-server"]
-        assert loaded_server.name == "weather-server"
-        assert loaded_server.prefix == "weather"
-        assert loaded_server.command == ["./weather-server"]
-        assert loaded_server.env == {"API_KEY": "test"}
-        assert loaded_server.working_dir == "/tmp"
-        assert loaded_server.notes == "Weather server with API key"
+    def test_load_nonexistent_config(self):
+        """Test loading when config doesn't exist."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config_path = Path(tmpdir) / "nonexistent.json"
+            manager = ConfigManager(str(config_path))
+            
+            config = manager.load_config()
+            assert config.servers == {}
+    
+    def test_load_invalid_config(self):
+        """Test loading invalid config gracefully."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config_path = Path(tmpdir) / "invalid.json"
+            
+            # Write invalid JSON
+            with open(config_path, 'w') as f:
+                f.write("{invalid json")
+            
+            manager = ConfigManager(str(config_path))
+            config = manager.load_config()
+            
+            # Should return empty config on error
+            assert config.servers == {}

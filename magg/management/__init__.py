@@ -1,1 +1,0 @@
-"""Tool lifecycle management and notification system."""

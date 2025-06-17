@@ -1,1 +1,0 @@
-"""Core MAGG configuration components."""

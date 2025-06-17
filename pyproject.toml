@@ -9,10 +9,11 @@ dependencies = [
     "mcp>=1.0.0",
     "aiohttp",
     "pydantic",
+    "pydantic-settings",
 ]
 
 [project.scripts]
-magg = "magg.cli.__main__:main"
+magg = "magg.cli:main"
 mbro = "mbro.cli:main"
 
 [build-system]
@@ -23,4 +24,9 @@ build-backend = "poetry.core.masonry.api"
 dev = [
     "pytest>=8.4.0",
     "pytest-asyncio>=1.0.0",
+]
+
+[tool.pytest.ini_options]
+markers = [
+    "integration: marks tests as integration tests (deselect with '-m \"not integration\"')",
 ]

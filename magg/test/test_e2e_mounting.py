@@ -8,18 +8,21 @@ import subprocess
 import time
 import sys
 
+import pytest
 from fastmcp import Client
-from magg.core.config import ConfigManager, MCPSource, MCPServer, MAGGConfig
+from magg.settings import ConfigManager, ServerConfig, MAGGConfig
 
 
+@pytest.mark.asyncio
+@pytest.mark.integration
 async def test_e2e_mounting():
     """Test MAGG with real server mounting end-to-end."""
     
     with tempfile.TemporaryDirectory() as tmpdir:
         tmpdir = Path(tmpdir)
         
-        # 1. Create a calculator MCP server
-        calc_dir = tmpdir / "calculator"
+        # 1. Create a simple test MCP server
+        calc_dir = tmpdir / "calculator_server"
         calc_dir.mkdir()
         
         calc_server = calc_dir / "server.py"
@@ -50,18 +53,11 @@ if __name__ == "__main__":
         
         config = MAGGConfig()
         
-        # Add calculator source
-        source = MCPSource(
-            name="calculator",
-            uri=f"file://{calc_dir}"
-        )
-        config.add_source(source)
-        
-        # Add calculator server
-        server = MCPServer(
+        # Add calculator server (no sources anymore)
+        server = ServerConfig(
             name="calc",
-            source_name="calculator",
-            prefix="calc",
+            url=f"file://{calc_dir}",
+            prefix="calc",  # Explicit prefix
             command="python",
             args=["server.py"],
             working_dir=str(calc_dir)
@@ -72,15 +68,7 @@ if __name__ == "__main__":
         config_path = config_dir / "config.json"
         with open(config_path, 'w') as f:
             json.dump({
-                'sources': {s.name: {'name': s.name, 'uri': s.uri} for s in [source]},
-                'servers': {s.name: {
-                    'name': s.name,
-                    'source_name': s.source_name,
-                    'prefix': s.prefix,
-                    'command': s.command,
-                    'args': s.args,
-                    'working_dir': s.working_dir
-                } for s in [server]}
+                'servers': {s.name: s.model_dump() for s in config.servers.values()}
             }, f, indent=2)
         
         print(f"Config saved to: {config_path}")
@@ -93,66 +81,109 @@ import os
 sys.path.insert(0, "{Path.cwd()}")
 os.chdir("{magg_dir}")
 
-from magg.server import setup_magg, mcp
+from magg.server import create_server
 import asyncio
 
 async def main():
-    await setup_magg()
-    await mcp.run_async(transport="stdio")
+    server = create_server()
+    await server.setup()
+    print("MAGG server started", flush=True)
+    await server.mcp.run_http_async(host="localhost", port=54321)
 
-if __name__ == "__main__":
-    asyncio.run(main())
+asyncio.run(main())
 ''')
         
-        try:
-            # 3. Connect to MAGG as a client using custom transport
-            print("\nConnecting to MAGG...")
-            from magg.utils.custom_transports import NoValidatePythonStdioTransport
-            transport = NoValidatePythonStdioTransport(
-                script_path=str(magg_script),
-                python_cmd=sys.executable,
-                cwd=str(magg_dir)
-            )
-            client = Client(transport)
+        # Start MAGG
+        print("Starting MAGG server...")
+        magg_proc = subprocess.Popen(
+            [sys.executable, str(magg_script)],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True
+        )
+        
+        # Wait for startup and check if process started
+        started = False
+        for i in range(10):  # Try for up to 10 seconds
+            if magg_proc.poll() is not None:
+                # Process ended
+                stdout, stderr = magg_proc.communicate()
+                print(f"MAGG process ended with code {magg_proc.returncode}")
+                print(f"STDOUT:\n{stdout}")
+                print(f"STDERR:\n{stderr}")
+                pytest.fail(f"MAGG server failed to start: {stderr}")
             
+            # Check if server is listening on the port
+            import socket
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            result = sock.connect_ex(('localhost', 54321))
+            sock.close()
+            
+            if result == 0:
+                print("Server is listening on port 54321")
+                started = True
+                break
+            
+            time.sleep(1)
+        
+        if not started:
+            # Get any output so far
+            stdout, stderr = magg_proc.communicate(timeout=1)
+            print(f"Server didn't start in time. STDOUT:\n{stdout}")
+            print(f"STDERR:\n{stderr}")
+            pytest.fail("MAGG server didn't start listening on port 54321")
+        
+        try:
+            # 4. Connect to MAGG as client
+            print("\nConnecting to MAGG...")
+            client = Client("http://localhost:54321/mcp/")
+            
+            # Use the client in async context
             async with client:
-                print("Connected to MAGG")
-                
-                # List tools
                 tools = await client.list_tools()
-                print(f"\nFound {len(tools)} tools:")
-                for tool in tools:
-                    print(f"  - {tool.name}: {tool.description}")
+                tool_names = [tool.name for tool in tools]
+                print(f"\nAvailable tools: {tool_names}")
+            
+                # Verify calculator tools are mounted with prefix
+                assert "calc_add" in tool_names
+                assert "calc_multiply" in tool_names
                 
-                # Filter for calculator tools
-                calc_tools = [t for t in tools if t.name.startswith('calc')]
-                print(f"\nCalculator tools: {[t.name for t in calc_tools]}")
-                
-                # Test calling a calculator tool
-                if any(t.name == 'calc_add' for t in tools):
-                    print("\nTesting calc_add(5, 3):")
-                    result = await client.call_tool('calc_add', {'a': 5, 'b': 3})
-                    print(f"  Result: {result}")
-                    
-                    print("\nTesting calc_multiply(4, 7):")
-                    result = await client.call_tool('calc_multiply', {'a': 4, 'b': 7})
-                    print(f"  Result: {result}")
+                # Test calling a mounted tool
+                result = await client.call_tool("calc_add", {"a": 5, "b": 3})
+                print(f"\ncalc_add(5, 3) = {result}")
+                # Parse the result - calculator returns raw value, not JSON
+                if isinstance(result, list) and result:
+                    result_text = result[0].text
+                    assert result_text == "8"
                 else:
-                    print("\nWARNING: calc_add tool not found!")
+                    assert False, f"Unexpected result format: {result}"
                 
-                # Also test MAGG's own tools
-                magg_tools = [t for t in tools if t.name.startswith('magg_')]
-                print(f"\nMAGG tools: {[t.name for t in magg_tools][:5]}...")  # First 5
+                result = await client.call_tool("calc_multiply", {"a": 4, "b": 7})
+                print(f"calc_multiply(4, 7) = {result}")
+                if isinstance(result, list) and result:
+                    result_text = result[0].text
+                    assert result_text == "28"
+                else:
+                    assert False, f"Unexpected result format: {result}"
                 
-                return len(calc_tools) > 0
+                # Test MAGG's own tools
+                assert "magg_list_servers" in tool_names
+                servers_result = await client.call_tool("magg_list_servers", {})
+                print(f"\nServers: {servers_result}")
+                if isinstance(servers_result, list) and servers_result:
+                    servers_text = servers_result[0].text
+                    servers_data = json.loads(servers_text)
+                    print(f"Servers data: {servers_data}")
+                    assert len(servers_data["output"]["servers"]) == 1
+                    assert servers_data["output"]["servers"][0]["name"] == "calc"
                 
-        except Exception as e:
-            print(f"\nError: {e}")
-            import traceback
-            traceback.print_exc()
-            return False
+                print("\n✅ All tests passed!")
+            
+        finally:
+            # Cleanup
+            magg_proc.terminate()
+            magg_proc.wait()
 
 
 if __name__ == "__main__":
-    success = asyncio.run(test_e2e_mounting())
-    print(f"\nTest {'PASSED' if success else 'FAILED'}: {'Found' if success else 'Did not find'} calculator tools")
+    asyncio.run(test_e2e_mounting())

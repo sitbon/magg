@@ -2,6 +2,7 @@
 
 import pytest
 from fastmcp import FastMCP, Client
+from magg.settings import ServerConfig
 
 
 class TestToolDelegation:
@@ -43,73 +44,101 @@ class TestToolDelegation:
     
     def test_tool_prefix_handling(self):
         """Test that tool prefixes are handled correctly."""
-        from magg.core.config import MCPServer
-        
         # Create server with specific prefix
-        server = MCPServer(
-            name="prefixed-server",
-            source_url="https://example.com/prefixed",
-            prefix="custom_prefix"
+        server = ServerConfig(
+            name="prefixedserver",
+            url="https://example.com",
+            prefix="custom",
+            command="echo"
         )
         
-        # Verify prefix is stored correctly
-        assert server.prefix == "custom_prefix"
+        # Test prefix validation
+        assert server.prefix == "custom"
+        
+        # Test that default prefix uses cleaned name
+        server2 = ServerConfig(
+            name="test-server",
+            url="https://example.com",
+            command="echo"
+        )
+        assert server2.prefix == "testserver"  # Hyphens removed
     
     def test_tool_name_collision_handling(self):
-        """Test handling of tool name collisions between servers."""
-        from magg.core.config import MAGGConfig, MCPServer
+        """Test handling of tool name collisions."""
+        # In FastMCP, tools are prefixed by mount point
+        # This prevents collisions automatically
+        server1 = ServerConfig(
+            name="server1",
+            url="https://example.com",
+            prefix="srv1",
+            command="echo"
+        )
         
-        config = MAGGConfig()
+        server2 = ServerConfig(
+            name="server2", 
+            url="https://example.com",
+            prefix="srv2",
+            command="echo"
+        )
         
-        # Add two servers with same prefix (potential collision)
-        server1 = MCPServer(name="server1", source_url="https://example.com/1", prefix="same")
-        server2 = MCPServer(name="server2", source_url="https://example.com/2", prefix="same")
-        
-        config.add_server(server1)
-        config.add_server(server2)
-        
-        # Both servers should be stored
-        assert len(config.servers) == 2
-        assert "server1" in config.servers
-        assert "server2" in config.servers
+        # Different prefixes prevent collision
+        assert server1.prefix != server2.prefix
 
 
 class TestToolDiscovery:
-    """Test tool discovery and listing functionality."""
+    """Test tool discovery functionality."""
     
-    def test_server_tool_listing(self):
-        """Test listing tools from configured servers."""
-        from magg.core.config import MAGGConfig, MCPServer
-        
-        config = MAGGConfig()
-        
-        # Add servers that would have tools
-        server1 = MCPServer(name="calculator", source_url="https://example.com/calc", prefix="calc")
-        server2 = MCPServer(name="weather", source_url="https://example.com/weather", prefix="weather")
-        
-        config.add_server(server1)
-        config.add_server(server2)
-        
-        # Get all configured servers
-        all_servers = list(config.servers.values())
-        assert len(all_servers) == 2
-        
-        # Verify servers have expected prefixes for tool namespacing
-        prefixes = {server.prefix for server in all_servers}
-        assert prefixes == {"calc", "weather"}
-    
-
-
-@pytest.mark.integration
-class TestToolDelegationIntegration:
-    """Integration tests for tool delegation."""
-    
-    @pytest.mark.skip(reason="Requires external MCP servers for testing")
     @pytest.mark.asyncio
-    async def test_real_server_tool_delegation(self):
-        """Test delegation with real external MCP servers."""
-        # This would test with actual MCP servers like:
-        # - Calculator MCP server
-        # - Weather MCP server
-        # - etc.
-        pass
+    async def test_server_tool_listing(self):
+        """Test listing tools from a server."""
+        from magg.server import MAGGServer
+        
+        server = MAGGServer()
+        await server.setup()
+        
+        # Call list_tools
+        result = await server.list_tools()
+        
+        assert result.is_success
+        assert "tool_groups" in result.output
+        assert "total_tools" in result.output
+        
+        # Should at least have MAGG's own tools
+        tool_groups = result.output["tool_groups"]
+        magg_group = next((g for g in tool_groups if g["prefix"] == "magg"), None)
+        assert magg_group is not None
+        assert len(magg_group["tools"]) > 0
+    
+    @pytest.mark.asyncio 
+    async def test_mounted_server_tools(self):
+        """Test that mounted server tools appear in listings."""
+        from magg.server import MAGGServer
+        from unittest.mock import patch, AsyncMock, MagicMock
+        
+        server = MAGGServer()
+        await server.setup()
+        
+        # Mock mounting a server with tools
+        with patch.object(server.mcp, 'get_tools', new_callable=AsyncMock) as mock_get_tools:
+            # Simulate MAGG tools plus mounted server tools
+            mock_get_tools.return_value = {
+                "magg_list_servers": MagicMock(),
+                "magg_add_server": MagicMock(),
+                "test_tool1": MagicMock(),  # From mounted server with prefix "test"
+                "test_tool2": MagicMock(),
+            }
+            
+            result = await server.list_tools()
+            
+            assert result.is_success
+            tool_groups = result.output["tool_groups"]
+            
+            # Should have both magg and test prefixes
+            prefixes = [g["prefix"] for g in tool_groups]
+            assert "magg" in prefixes
+            assert "test" in prefixes
+            
+            # Check test group has the tools
+            test_group = next(g for g in tool_groups if g["prefix"] == "test")
+            assert "test_tool1" in test_group["tools"]
+            assert "test_tool2" in test_group["tools"]

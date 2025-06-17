@@ -660,6 +660,10 @@ async def main_async():
 
 def main():
     """Sync entry point."""
+    # Setup logging first
+    from magg import process
+    process.setup()
+    
     asyncio.run(main_async())
 
 

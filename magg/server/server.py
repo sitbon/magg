@@ -12,7 +12,8 @@ from ..response import MAGGResponse
 from ..util import (
     get_transport_for_command, 
     get_transport_for_uri,
-    validate_working_directory
+    validate_working_directory,
+    TRANSPORT_DOCS,
 )
 
 from .defaults import MAGG_INSTRUCTIONS
@@ -344,7 +345,9 @@ Consider the URL type:
             
         except Exception as e:
             return MAGGResponse.error(f"Failed to add server: {str(e)}")
-    
+
+    add_server.__doc__ += f"\n\nTransport documentation:\n{TRANSPORT_DOCS}\n"
+
     async def remove_server(self, name: str) -> MAGGResponse:
         """Remove a server."""
         try:

@@ -98,6 +98,7 @@ class MAGGConfig(BaseSettings):
         arbitrary_types_allowed=True
     )
 
+    debug: bool = Field(default=False, description="Enable debug mode for MAGG")
     log_level: str = Field(default="INFO", description="Logging level for MAGG")
     config_path: Path = Field(default_factory=lambda: Path.cwd() / ".magg" / "config.json", description="Configuration file path (can be overridden by MAGG_CONFIG_PATH)")
     servers: dict[str, ServerConfig] = Field(default_factory=dict, description="Servers configuration (loaded from JSON file)")
@@ -170,6 +171,7 @@ class ConfigManager:
             servers = {}
             for name, server_data in data.get('servers', {}).items():
                 try:
+                    server_data['name'] = name  # Ensure name is set and same as key
                     servers[name] = ServerConfig(**server_data)
                 except Exception as e:
                     self.logger.error(f"Error loading server '{name}': {e}")
@@ -188,7 +190,13 @@ class ConfigManager:
         try:
             # Only save servers to JSON, other settings come from env
             data = {
-                'servers': {name: server.model_dump() for name, server in config.servers.items()}
+                'servers': {
+                    name: server.model_dump(
+                        exclude_unset=True, exclude_none=True, exclude_defaults=True, by_alias=True,
+                        exclude={'name'},
+                    )
+                    for name, server in config.servers.items()
+                }
             }
             
             with open(self.config_path, 'w') as f:

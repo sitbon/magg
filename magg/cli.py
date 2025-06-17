@@ -122,7 +122,7 @@ async def cmd_remove_server(args) -> None:
     # Show server details before removal
     server = config.servers[args.name]
     print_info(f"Server to remove: {args.name}")
-    print(f"  URL: {server.url}")
+    print(f"  Source: {server.source}")
     print(f"  Prefix: {server.prefix}")
     
     if not args.force and not confirm_action("Are you sure you want to remove this server?"):
@@ -210,8 +210,12 @@ async def cmd_export(args) -> None:
     config = config_manager.load_config()
     
     export_data = {
-        'servers': {name: server.model_dump(exclude_none=True) 
-                   for name, server in config.servers.items()}
+        'servers': {
+            name: server.model_dump(
+                exclude_none=True, exclude_unset=True, exclude_defaults=True, by_alias=True
+            )
+            for name, server in config.servers.items()
+        }
     }
     
     if args.output:
@@ -352,9 +356,9 @@ def main():
         sys.exit(130)  # Standard exit code for SIGINT
     except Exception as e:
         print_error(f"Unexpected error: {e}")
-        # if "--log-level" in sys.argv and "DEBUG" in sys.argv:
-        #     import traceback
-        #     traceback.print_exc()
+        if os.getenv('MAGG_DEBUG').lower() in {'1', 'true', 'yes'}:
+            import traceback
+            traceback.print_exc()
         sys.exit(1)
 
 

@@ -1,5 +1,5 @@
-"""Transport utilities for MAGG - handles FastMCP transport selection and configuration."""
-
+"""Transport utilities for MAGG - handles FastMCP transport selection and configuration.
+"""
 import sys
 from typing import Any
 from fastmcp.client.transports import (
@@ -157,24 +157,24 @@ def get_transport_for_uri(
 TRANSPORT_DOCS = """
 For command-based servers, the 'transport' parameter accepts a JSON object with transport-specific options:
 
-**Common options for all command-based servers:**
+Common options for all command-based servers:
 - `keep_alive` (boolean): Keep the process alive between requests (default: true)
 
-**Python servers (command="python"):**
+Python servers (command="python"):
 - `python_cmd` (string): Python executable path (default: sys.executable)
 
-**Node.js servers (command="node"):**
+Node.js servers (command="node"):
 - `node_cmd` (string): Node executable path (default: "node")
 
-**NPX servers (command="npx"):**
+NPX servers (command="npx"):
 - `use_package_lock` (boolean): Use package-lock.json if present (default: true)
 
-**UVX servers (command="uvx"):**
+UVX servers (command="uvx"):
 - `python_version` (string): Python version to use (e.g., "3.11")
 - `with_packages` (array): Additional packages to install
 - `from_package` (string): Install tool from specific package
 
-**HTTP/SSE servers (uri-based):**
+HTTP/SSE servers (uri-based):
 - `headers` (object): HTTP headers to include
 - `auth` (string): Authentication method ("oauth" or bearer token)
 - `sse_read_timeout` (number): Timeout for SSE reads in seconds

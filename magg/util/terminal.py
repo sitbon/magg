@@ -73,7 +73,7 @@ def print_server_list(servers: Dict[str, Any]):
         status_text = "enabled" if server.enabled else "disabled"
         
         print(f"\n  {Colors.BOLD}{name}{Colors.ENDC} ({server.prefix}) - {status_color}{status_text}{Colors.ENDC}")
-        print(f"    URL: {server.url}")
+        print(f"    Source: {server.source}")
         
         if server.command:
             full_command = server.command

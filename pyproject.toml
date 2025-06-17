@@ -3,7 +3,7 @@ name = "magg"
 version = "0.1.0"
 description = "MCP Aggregator"
 requires-python = ">=3.13"
-packages = [{include = "magg"}, {include = "mbro"}]
+packages = [{include = "magg"}]
 dependencies = [
     "fastmcp<3",
     "aiohttp<4",
@@ -13,7 +13,7 @@ dependencies = [
 
 [project.scripts]
 magg = "magg.cli:main"
-mbro = "mbro.cli:main"
+mbro = "magg.mbro.cli:main"
 
 [build-system]
 requires = ["poetry-core"]

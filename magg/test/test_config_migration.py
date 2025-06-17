@@ -89,7 +89,7 @@ class TestConfigStructure:
         assert "testserver" in raw_data["servers"]
         
         server_data = raw_data["servers"]["testserver"]
-        assert server_data["name"] == "testserver"
+        assert "name" not in server_data  # Name left out and used as a key
         assert server_data["source"] == "https://github.com/test/test-mcp"
         assert server_data["prefix"] == "test"
         assert server_data["command"] == "python"
@@ -148,11 +148,9 @@ class TestConfigStructure:
         invalid_config = {
             "servers": {
                 "valid": {
-                    "name": "valid",
                     "source": "https://example.com"
                 },
-                "invalid": {
-                    "name": "123invalid",  # Name that needs prefix adjustment
+                "123invalid": {
                     "source": "https://example.com"
                 }
             }
@@ -167,8 +165,8 @@ class TestConfigStructure:
         # Both servers should load now with auto-generated prefixes
         assert len(config.servers) == 2
         assert "valid" in config.servers
-        assert "invalid" in config.servers
+        assert "123invalid" in config.servers
         
         # Check that the problematic server got a valid prefix
-        assert config.servers["invalid"].name == "123invalid"
-        assert config.servers["invalid"].prefix == "srv123invalid"  # Auto-generated prefix
+        assert config.servers["123invalid"].name == "123invalid"
+        assert config.servers["123invalid"].prefix == "srv123invalid"  # Auto-generated prefix

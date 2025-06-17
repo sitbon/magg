@@ -1,10 +1,8 @@
 #!/usr/bin/env python3
 """Tests for mbro client functionality."""
 
-import asyncio
 import pytest
-from unittest.mock import Mock, AsyncMock
-from mbro.client import MCPConnection, MCPBrowser
+from magg.mbro.client import MCPConnection, MCPBrowser
 
 
 class TestMCPConnection:

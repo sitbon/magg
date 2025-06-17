@@ -56,7 +56,7 @@ if __name__ == "__main__":
         # Add calculator server (no sources anymore)
         server = ServerConfig(
             name="calc",
-            url=f"file://{calc_dir}",
+            source=f"file://{calc_dir}",
             prefix="calc",  # Explicit prefix
             command="python",
             args=["server.py"],
@@ -81,11 +81,11 @@ import os
 sys.path.insert(0, "{Path.cwd()}")
 os.chdir("{magg_dir}")
 
-from magg.server import create_server
+from magg.server import MAGGServer
 import asyncio
 
 async def main():
-    server = create_server()
+    server = MAGGServer("{config_path}")
     await server.setup()
     print("MAGG server started", flush=True)
     await server.mcp.run_http_async(host="localhost", port=54321)

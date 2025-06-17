@@ -15,13 +15,13 @@ class TestServerConfig:
         """Test creating a basic server config."""
         server = ServerConfig(
             name="testserver",
-            url="https://github.com/example/repo",
+            source="https://github.com/example/repo",
             prefix="testserver",
             command="python",
             args=["server.py"]
         )
         assert server.name == "testserver"
-        assert server.url == "https://github.com/example/repo"
+        assert server.source == "https://github.com/example/repo"
         assert server.command == "python"
         assert server.args == ["server.py"]
         assert server.prefix == "testserver"
@@ -31,7 +31,7 @@ class TestServerConfig:
         """Test server with custom prefix."""
         server = ServerConfig(
             name="myserver",
-            url="https://github.com/example/repo",
+            source="https://github.com/example/repo",
             prefix="custom"
         )
         assert server.prefix == "custom"
@@ -39,37 +39,37 @@ class TestServerConfig:
     def test_server_name_validation(self):
         """Test that server names can be anything and prefix generation works."""
         # Any name is now valid - prefix auto-generated from name
-        server1 = ServerConfig(name="valid", url="test")
+        server1 = ServerConfig(name="valid", source="test")
         assert server1.prefix == "valid"
         
-        server2 = ServerConfig(name="valid123", url="test")
+        server2 = ServerConfig(name="valid123", source="test")
         assert server2.prefix == "valid123"
         
-        server3 = ServerConfig(name="valid-name", url="test")
+        server3 = ServerConfig(name="valid-name", source="test")
         assert server3.prefix == "validname"  # Hyphens removed from prefix
         
         # Names that would have been invalid before are now accepted
-        server4 = ServerConfig(name="123invalid", url="test")
+        server4 = ServerConfig(name="123invalid", source="test")
         assert server4.prefix == "srv123invalid"  # Prefix adjusted to be valid
         
-        server5 = ServerConfig(name="invalid!", url="test")
+        server5 = ServerConfig(name="invalid!", source="test")
         assert server5.prefix == "invalid"  # Special chars removed
         
-        server6 = ServerConfig(name="@namespace/package", url="test")
+        server6 = ServerConfig(name="@namespace/package", source="test")
         assert server6.prefix == "namespacepackage"  # Cleaned up
     
     def test_server_prefix_validation(self):
         """Test server prefix validation."""
         # Valid prefixes
-        ServerConfig(name="test", url="test", prefix="validprefix")
+        ServerConfig(name="test", source="test", prefix="validprefix")
         
         # Invalid prefixes - no underscores allowed
         with pytest.raises(ValueError, match="cannot contain underscores"):
-            ServerConfig(name="test", url="test", prefix="invalid_prefix")
+            ServerConfig(name="test", source="test", prefix="invalid_prefix")
         
         # Invalid prefixes - must be identifier
         with pytest.raises(ValueError, match="must be a valid Python identifier"):
-            ServerConfig(name="test", url="test", prefix="123invalid")
+            ServerConfig(name="test", source="test", prefix="123invalid")
     
     def test_prefix_generation(self):
         """Test the generate_prefix_from_name helper method."""
@@ -99,7 +99,7 @@ class TestMAGGConfig:
         """Test adding and removing servers."""
         config = MAGGConfig()
         
-        server = ServerConfig(name="test", url="https://example.com")  # prefix auto-generated
+        server = ServerConfig(name="test", source="https://example.com")  # prefix auto-generated
         config.add_server(server)
         
         assert "test" in config.servers
@@ -116,9 +116,9 @@ class TestMAGGConfig:
         """Test getting only enabled servers."""
         config = MAGGConfig()
         
-        server1 = ServerConfig(name="enabled1", url="test", enabled=True)  # prefix auto-generated
-        server2 = ServerConfig(name="disabled", url="test", enabled=False)  # prefix auto-generated
-        server3 = ServerConfig(name="enabled2", url="test", enabled=True)  # prefix auto-generated
+        server1 = ServerConfig(name="enabled1", source="test", enabled=True)  # prefix auto-generated
+        server2 = ServerConfig(name="disabled", source="test", enabled=False)  # prefix auto-generated
+        server3 = ServerConfig(name="enabled2", source="test", enabled=True)  # prefix auto-generated
         
         config.add_server(server1)
         config.add_server(server2)
@@ -153,13 +153,13 @@ class TestConfigManager:
             config = MAGGConfig()
             server1 = ServerConfig(
                 name="server1",
-                url="https://example.com/1",
+                source="https://example.com/1",
                 command="python",
                 args=["test.py"]
             )  # prefix auto-generated as "server1"
             server2 = ServerConfig(
                 name="server2",
-                url="https://example.com/2",
+                source="https://example.com/2",
                 uri="http://localhost:8080",
                 enabled=False
             )  # prefix auto-generated as "server2"

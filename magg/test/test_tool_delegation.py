@@ -47,7 +47,7 @@ class TestToolDelegation:
         # Create server with specific prefix
         server = ServerConfig(
             name="prefixedserver",
-            url="https://example.com",
+            source="https://example.com",
             prefix="custom",
             command="echo"
         )
@@ -58,7 +58,7 @@ class TestToolDelegation:
         # Test that default prefix uses cleaned name
         server2 = ServerConfig(
             name="test-server",
-            url="https://example.com",
+            source="https://example.com",
             command="echo"
         )
         assert server2.prefix == "testserver"  # Hyphens removed
@@ -69,14 +69,14 @@ class TestToolDelegation:
         # This prevents collisions automatically
         server1 = ServerConfig(
             name="server1",
-            url="https://example.com",
+            source="https://example.com",
             prefix="srv1",
             command="echo"
         )
         
         server2 = ServerConfig(
             name="server2", 
-            url="https://example.com",
+            source="https://example.com",
             prefix="srv2",
             command="echo"
         )

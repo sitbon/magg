@@ -20,7 +20,7 @@ class TestErrorHandling:
         # Create a server config with invalid command
         invalid_server = ServerConfig(
             name="invalidserver",
-            url="https://example.com/invalid",
+            source="https://example.com/invalid",
             prefix="invalid",
             command="nonexistent-command",
             args=["--invalid-args"]
@@ -53,7 +53,7 @@ class TestErrorHandling:
         # This should be valid - server can be created without command/URI
         server = ServerConfig(
             name="nocommand",
-            url="https://example.com/test"
+            source="https://example.com/test"
         )
         
         assert server.command is None
@@ -69,18 +69,16 @@ class TestErrorHandling:
             # Add first server
             result1 = await server.add_server(
                 name="duplicate",
-                url="https://example.com/1",
-                command="echo",
-                args=["test1"]
+                source="https://example.com/1",
+                command="echo test1"
             )
             assert result1.is_success
             
             # Try to add duplicate
             result2 = await server.add_server(
                 name="duplicate",
-                url="https://example.com/2",
-                command="echo",
-                args=["test2"]
+                source="https://example.com/2",
+                command="echo test2"
             )
             assert result2.is_error
             assert "already exists" in result2.errors[0]
@@ -98,16 +96,16 @@ class TestErrorHandling:
         # URLs are just strings, no validation enforced
         server = ServerConfig(
             name="test",
-            url="not-a-valid-url"
+            source="not-a-valid-url"
         )
-        assert server.url == "not-a-valid-url"
+        assert server.source == "not-a-valid-url"
     
     @pytest.mark.asyncio
     async def test_environment_variable_handling(self):
         """Test handling of environment variables in server configs."""
         server = ServerConfig(
             name="envtest",
-            url="https://example.com",
+            source="https://example.com",
             env={"TEST_VAR": "value", "ANOTHER_VAR": "another"}
         )
         
@@ -133,11 +131,11 @@ class TestConfigValidation:
         # Only name and url are required
         server = ServerConfig(
             name="minimal",
-            url="https://example.com"
+            source="https://example.com"
         )
         
         assert server.name == "minimal"
-        assert server.url == "https://example.com"
+        assert server.source == "https://example.com"
         assert server.command is None
         assert server.args is None
 
@@ -155,9 +153,8 @@ class TestMountingErrors:
             
             result = await server.add_server(
                 name="badcommand",
-                url="https://example.com",
-                command="this-command-does-not-exist",
-                args=["--help"]
+                source="https://example.com",
+                command="this-command-does-not-exist --help"
             )
             
             assert result.is_error
@@ -173,9 +170,8 @@ class TestMountingErrors:
             
             result = await server.add_server(
                 name="badworkdir",
-                url="https://example.com",
-                command="python",
-                args=["test.py"],
+                source="https://example.com",
+                command="python test.py",
                 working_dir="/nonexistent/directory"
             )
             

@@ -28,7 +28,7 @@ class TestConfigStructure:
         # Test adding servers
         server1 = ServerConfig(
             name="weatherserver",
-            url="https://github.com/example/weather-mcp",
+            source="https://github.com/example/weather-mcp",
             command="npx",
             args=["weather-mcp"],
             prefix="weather"
@@ -36,7 +36,7 @@ class TestConfigStructure:
         
         server2 = ServerConfig(
             name="filesystemserver",
-            url="https://github.com/example/filesystem-mcp",
+            source="https://github.com/example/filesystem-mcp",
             uri="http://localhost:8080"
         )
         
@@ -51,7 +51,7 @@ class TestConfigStructure:
         
         # Verify servers loaded correctly
         weather = loaded_config.servers["weatherserver"]
-        assert weather.url == "https://github.com/example/weather-mcp"
+        assert weather.source == "https://github.com/example/weather-mcp"
         assert weather.command == "npx"
         assert weather.prefix == "weather"
         
@@ -67,7 +67,7 @@ class TestConfigStructure:
         # Add a server with all fields
         server = ServerConfig(
             name="testserver",
-            url="https://github.com/test/test-mcp",
+            source="https://github.com/test/test-mcp",
             prefix="test",
             command="python",
             args=["-m", "test_mcp"],
@@ -90,7 +90,7 @@ class TestConfigStructure:
         
         server_data = raw_data["servers"]["testserver"]
         assert server_data["name"] == "testserver"
-        assert server_data["url"] == "https://github.com/test/test-mcp"
+        assert server_data["source"] == "https://github.com/test/test-mcp"
         assert server_data["prefix"] == "test"
         assert server_data["command"] == "python"
         assert server_data["args"] == ["-m", "test_mcp"]
@@ -104,10 +104,10 @@ class TestConfigStructure:
         config_manager = ConfigManager(str(temp_config_file))
         config = MAGGConfig()
         
-        # Minimal server - just name and url
+        # Minimal server - just name and source
         server = ServerConfig(
             name="minimal",
-            url="https://example.com"
+            source="https://example.com"
         )
         
         config.add_server(server)
@@ -118,7 +118,7 @@ class TestConfigStructure:
         minimal = loaded_config.servers["minimal"]
         
         assert minimal.name == "minimal"
-        assert minimal.url == "https://example.com"
+        assert minimal.source == "https://example.com"
         assert minimal.prefix == "minimal"  # Defaults to name
         assert minimal.enabled is True  # Default enabled
         assert minimal.command is None
@@ -149,11 +149,11 @@ class TestConfigStructure:
             "servers": {
                 "valid": {
                     "name": "valid",
-                    "url": "https://example.com"
+                    "source": "https://example.com"
                 },
                 "invalid": {
                     "name": "123invalid",  # Name that needs prefix adjustment
-                    "url": "https://example.com"
+                    "source": "https://example.com"
                 }
             }
         }

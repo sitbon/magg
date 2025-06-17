@@ -62,16 +62,14 @@ class TestAddServer:
                 result = await magg_server.add_server(
                     name="testpythonserver",
                     source="https://github.com/example/test",
-                    command="python",
-                    args=["server.py", "--port", "8080"],
+                    command="python server.py --port 8080",
                     working_dir=str(temp_dirs["subdir"])
                 )
                 
                 assert result.is_success
                 assert result.output["action"] == "server_added"
                 assert result.output["server"]["name"] == "testpythonserver"
-                assert result.output["server"]["command"] == "python"
-                assert result.output["server"]["args"] == ["server.py", "--port", "8080"]
+                assert result.output["server"]["command"] == "python server.py --port 8080"
                 assert result.output["server"]["mounted"] is True
     
     @pytest.mark.asyncio
@@ -101,7 +99,7 @@ class TestAddServer:
             
             result = await magg_server.add_server(
                 name="testserver",
-                url="https://github.com/example/test",
+                source="https://github.com/example/test",
                 command="python server.py",
                 working_dir=str(temp_dirs["project_root"])
             )
@@ -119,7 +117,7 @@ class TestAddServer:
             # First server
             result1 = await magg_server.add_server(
                 name="existingserver",
-                url="https://github.com/example/test1",
+                source="https://github.com/example/test1",
                 command="python old.py"
             )
             assert result1.is_success
@@ -127,7 +125,7 @@ class TestAddServer:
             # Try to add duplicate
             result2 = await magg_server.add_server(
                 name="existingserver",
-                url="https://github.com/example/test2",
+                source="https://github.com/example/test2",
                 command="python new.py"
             )
             
@@ -139,7 +137,7 @@ class TestAddServer:
         """Test that invalid names are now accepted with auto-generated prefix."""
         result = await magg_server.add_server(
             name="123-invalid",
-            url="https://github.com/example/test",
+            source="https://github.com/example/test",
             command="python server.py"
         )
         
@@ -152,10 +150,9 @@ class TestAddServer:
         """Test error when prefix is invalid identifier."""
         result = await magg_server.add_server(
             name="validname",
-            url="https://github.com/example/test",
+            source="https://github.com/example/test",
             prefix="invalid-prefix",
-            command="python",
-            args=["server.py"]
+            command="python server.py"
         )
         
         assert result.is_error
@@ -169,9 +166,8 @@ class TestAddServer:
             
             result = await magg_server.add_server(
                 name="envtestserver",
-                url="https://github.com/example/test",
-                command="node",
-                args=["server.js"],
+                source="https://github.com/example/test",
+                command="node server.js",
                 env_vars={"NODE_ENV": "production", "PORT": "3000"}
             )
             
@@ -186,7 +182,7 @@ class TestAddServer:
             
             result = await magg_server.add_server(
                 name="httpserver",
-                url="https://github.com/example/test",
+                source="https://github.com/example/test",
                 uri="http://localhost:8080"
             )
             
@@ -202,9 +198,8 @@ class TestAddServer:
             
             result = await magg_server.add_server(
                 name="failserver",
-                url="https://github.com/example/test",
-                command="python",
-                args=["server.py"]
+                source="https://github.com/example/test",
+                command="python server.py"
             )
             
             assert result.is_error
@@ -218,9 +213,8 @@ class TestAddServer:
             
             result = await magg_server.add_server(
                 name="documentedserver",
-                url="https://github.com/example/test",
-                command="npm",
-                args=["start"],
+                source="https://github.com/example/test",
+                command="npm start",
                 notes="This server requires Node.js 18+"
             )
             
@@ -235,9 +229,8 @@ class TestAddServer:
             
             result = await magg_server.add_server(
                 name="disabledserver",
-                url="https://github.com/example/test",
-                command="python",
-                args=["server.py"],
+                source="https://github.com/example/test",
+                command="python server.py",
                 enable=False
             )
             

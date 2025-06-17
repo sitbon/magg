@@ -39,15 +39,14 @@ if __name__ == "__main__":
             # Add the server
             result = await server.add_server(
                 name="pythontest",
-                url="file://" + str(tmpdir),
-                command="python",
-                args=[str(server_script)],
+                source="file://" + str(tmpdir),
+                command=f"python {server_script}",
                 working_dir=str(tmpdir)
             )
             
             assert result.is_success
             assert result.output["server"]["name"] == "pythontest"
-            assert result.output["server"]["command"] == "python"
+            assert result.output["server"]["command"] == f"python {server_script}"
             
             # Verify it was saved
             config = server.config_manager.load_config()
@@ -64,7 +63,7 @@ if __name__ == "__main__":
             # Add server with -m syntax
             result = await server.add_server(
                 name="moduletest",
-                url="https://github.com/example/module-server",
+                source="https://github.com/example/module-server",
                 command="python -m example.server --port 8080",
                 working_dir=str(tmpdir)
             )
@@ -82,7 +81,7 @@ if __name__ == "__main__":
             # Test Python transport
             result = await server.add_server(
                 name="pythontransport",
-                url="https://example.com",
+                source="https://example.com",
                 command="python script.py"
             )
             assert result.is_success
@@ -90,7 +89,7 @@ if __name__ == "__main__":
             # Test Node transport
             result = await server.add_server(
                 name="nodetransport",
-                url="https://example.com",
+                source="https://example.com",
                 command="node server.js"
             )
             assert result.is_success
@@ -98,7 +97,7 @@ if __name__ == "__main__":
             # Test NPX transport
             result = await server.add_server(
                 name="npxtransport",
-                url="https://example.com",
+                source="https://example.com",
                 command="npx @example/server"
             )
             assert result.is_success
@@ -106,7 +105,7 @@ if __name__ == "__main__":
             # Test UVX transport
             result = await server.add_server(
                 name="uvxtransport",
-                url="https://example.com",
+                source="https://example.com",
                 command="uvx example-server"
             )
             assert result.is_success
@@ -114,7 +113,7 @@ if __name__ == "__main__":
             # Test HTTP transport
             result = await server.add_server(
                 name="httptransport",
-                url="https://example.com",
+                source="https://example.com",
                 uri="http://localhost:8080"
             )
             assert result.is_success
@@ -137,7 +136,7 @@ class TestServerLifecycle:
             # Add a disabled server
             result = await server.add_server(
                 name="lifecycle",
-                url="https://example.com",
+                source="https://example.com",
                 command="echo test",
                 enable=False
             )
@@ -170,7 +169,7 @@ class TestServerLifecycle:
             # Add a server
             await server.add_server(
                 name="toremove",
-                url="https://example.com",
+                source="https://example.com",
                 command="echo test"
             )
             

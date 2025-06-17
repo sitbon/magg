@@ -3,17 +3,12 @@
 These transports pass through script arguments without validation,
 letting the underlying command fail if the script doesn't exist.
 """
-
-from fastmcp.client.transports import (
-    PythonStdioTransport,
-    NodeStdioTransport,
-    StdioTransport
-)
+from fastmcp.client import PythonStdioTransport, StdioTransport, NodeStdioTransport
 
 
 class NoValidatePythonStdioTransport(PythonStdioTransport):
     """Python transport that doesn't validate script paths."""
-    
+
     def __init__(
         self,
         script_path: str,
@@ -24,7 +19,7 @@ class NoValidatePythonStdioTransport(PythonStdioTransport):
         keep_alive: bool = True
     ):
         """Initialize without script validation.
-        
+
         Args:
             script_path: Script path or module argument (e.g., "-m", "script.py")
             args: Additional arguments
@@ -37,7 +32,7 @@ class NoValidatePythonStdioTransport(PythonStdioTransport):
         full_args = [script_path] if script_path else []
         if args:
             full_args.extend(args)
-            
+
         # Initialize parent StdioTransport directly to skip PythonStdioTransport's validation
         StdioTransport.__init__(
             self,
@@ -51,7 +46,7 @@ class NoValidatePythonStdioTransport(PythonStdioTransport):
 
 class NoValidateNodeStdioTransport(NodeStdioTransport):
     """Node.js transport that doesn't validate script paths."""
-    
+
     def __init__(
         self,
         script_path: str,
@@ -62,7 +57,7 @@ class NoValidateNodeStdioTransport(NodeStdioTransport):
         keep_alive: bool = True
     ):
         """Initialize without script validation.
-        
+
         Args:
             script_path: Script path or other node argument
             args: Additional arguments
@@ -75,7 +70,7 @@ class NoValidateNodeStdioTransport(NodeStdioTransport):
         full_args = [script_path] if script_path else []
         if args:
             full_args.extend(args)
-            
+
         # Initialize parent StdioTransport directly to skip NodeStdioTransport's validation
         StdioTransport.__init__(
             self,

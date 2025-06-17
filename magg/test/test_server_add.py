@@ -56,7 +56,7 @@ class TestAddServer:
             mock_mount.return_value = True
             
             # Mock validate_working_directory
-            with patch('magg.server.validate_working_directory') as mock_validate:
+            with patch('magg.server.server.validate_working_directory') as mock_validate:
                 mock_validate.return_value = (Path(temp_dirs["subdir"]), None)
                 
                 result = await magg_server.add_server(
@@ -78,7 +78,7 @@ class TestAddServer:
         with patch.object(magg_server.server_manager, 'mount_server', new_callable=AsyncMock) as mock_mount:
             mock_mount.return_value = True
             
-            with patch('magg.server.validate_working_directory') as mock_validate:
+            with patch('magg.server.server.validate_working_directory') as mock_validate:
                 mock_validate.return_value = (Path(temp_dirs["working_dir"]), None)
                 
                 result = await magg_server.add_server(
@@ -94,7 +94,7 @@ class TestAddServer:
     @pytest.mark.asyncio
     async def test_add_server_working_dir_validation_error(self, magg_server, temp_dirs):
         """Test working directory validation error."""
-        with patch('magg.server.validate_working_directory') as mock_validate:
+        with patch('magg.server.server.validate_working_directory') as mock_validate:
             mock_validate.return_value = (None, "Working directory cannot be the project root")
             
             result = await magg_server.add_server(

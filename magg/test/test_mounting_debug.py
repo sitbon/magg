@@ -6,7 +6,7 @@ import tempfile
 from pathlib import Path
 
 from fastmcp import FastMCP, Client
-from magg.util.custom_transports import NoValidatePythonStdioTransport
+from magg.transport import NoValidatePythonStdioTransport
 
 
 @pytest.mark.asyncio

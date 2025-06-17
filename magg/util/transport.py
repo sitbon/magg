@@ -12,7 +12,7 @@ from fastmcp.client.transports import (
     StreamableHttpTransport,
     ClientTransport
 )
-from .custom_transports import NoValidatePythonStdioTransport, NoValidateNodeStdioTransport
+from ..transport import NoValidatePythonStdioTransport, NoValidateNodeStdioTransport
 
 
 def get_transport_for_command(

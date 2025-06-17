@@ -40,8 +40,8 @@ if __name__ == "__main__":
             # Try different approaches to mount the server
             
             # Import the custom transport
-            from magg.util.custom_transports import NoValidatePythonStdioTransport
-            
+            from magg.transport import NoValidatePythonStdioTransport
+
             # Approach 1: Using Client with custom transport
             try:
                 transport = NoValidatePythonStdioTransport(

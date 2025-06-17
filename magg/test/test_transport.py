@@ -7,7 +7,7 @@ import tempfile
 import os
 
 from magg.util.transport import get_transport_for_command, get_transport_for_uri
-from magg.util.custom_transports import NoValidatePythonStdioTransport, NoValidateNodeStdioTransport
+from magg.transport import NoValidatePythonStdioTransport, NoValidateNodeStdioTransport
 from fastmcp.client.transports import (
     StdioTransport,
     NpxStdioTransport,

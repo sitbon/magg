@@ -165,7 +165,7 @@ class TestMountingErrors:
         """Test mounting server with invalid working directory."""
         server = MAGGServer()
         
-        with patch('magg.server.validate_working_directory') as mock_validate:
+        with patch('magg.server.server.validate_working_directory') as mock_validate:
             mock_validate.return_value = (None, "Invalid working directory")
             
             result = await server.add_server(

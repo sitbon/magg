@@ -2,6 +2,7 @@
 
 import json
 import logging
+from functools import cached_property
 from typing import Any, Annotated
 from pathlib import Path
 
@@ -68,7 +69,7 @@ class ServerManager:
                 'client': client
             }
             
-            self.logger.info("Mounted server %s with prefix %s", server.name, server.prefix)
+            self.logger.debug("Mounted server %s with prefix %s", server.name, server.prefix)
             return True
         
         except Exception as e:
@@ -116,76 +117,83 @@ class ServerManager:
 
 class MAGGServer:
     """Main MAGG server with tools for managing other MCP servers."""
+    _is_setup = False
     
     def __init__(self, config_path: str | None = None):
-        self.mcp = FastMCP(
-            name="magg", 
-            instructions=MAGG_INSTRUCTIONS
-        )
         self.config_manager = ConfigManager(config_path)
+
+        self.mcp = FastMCP(
+            name=self.self_prefix,
+            instructions=MAGG_INSTRUCTIONS.format(self_prefix=self.self_prefix),
+        )
+
         self.server_manager = ServerManager(self.mcp, self.config_manager)
         
-        # Register tools
         self._register_tools()
-    
+
+    @property
+    def is_setup(self) -> bool:
+        """Check if the server is fully set up with tools and resources."""
+        return self._is_setup
+
+    @cached_property
+    def self_prefix(self) -> str:
+        """Get the self prefix for this MAGG server."""
+        config = self.config_manager.load_config()
+        return config.self_prefix
+
     def _register_tools(self):
         """Register all MAGG management tools programmatically."""
-        # Define tool mappings: (method_name, tool_name)
+        self_prefix = self.self_prefix
+        
         tools = [
-            (self.add_server, "magg_add_server"),
-            (self.remove_server, "magg_remove_server"),
-            (self.list_servers, "magg_list_servers"),
-            (self.enable_server, "magg_enable_server"),
-            (self.disable_server, "magg_disable_server"),
-            (self.list_tools, "magg_list_tools"),
-            (self.list_resources, "magg_list_resources"),
-            (self.get_resource, "magg_get_resource"),
-            (self.list_prompts, "magg_list_prompts"),
-            (self.search_servers, "magg_search_servers"),
-            (self.smart_configure, "magg_smart_configure"),
+            (self.add_server, f"{self_prefix}_add_server", None),
+            (self.remove_server, f"{self_prefix}_remove_server", None),
+            (self.list_servers, f"{self_prefix}_list_servers", None),
+            (self.enable_server, f"{self_prefix}_enable_server", None),
+            (self.disable_server, f"{self_prefix}_disable_server", None),
+            (self.list_tools, f"{self_prefix}_list_tools", None),
+            (self.list_resources, f"{self_prefix}_list_resources", None),
+            (self.get_resource, f"{self_prefix}_get_resource", None),
+            (self.list_prompts, f"{self_prefix}_list_prompts", None),
+            (self.search_servers, f"{self_prefix}_search_servers", None),
+            (self.smart_configure, f"{self_prefix}_smart_configure", None),
+            (self.analyze_servers, f"{self_prefix}_analyze_servers", None),
         ]
         
-        # Register each tool with the MCP server
-        for method, tool_name in tools:
+        for method, tool_name, options in tools:
             # FastMCP's @tool decorator can be applied programmatically
-            self.mcp.tool(name=tool_name)(method)
+            self.mcp.tool(name=tool_name, **(options or {}))(method)
             
         # Register resources
-        self._register_resources()
+        self._register_resources(self_prefix)
         
         # Register prompts
-        self._register_prompts()
-        
-        # Register the analyze_servers tool
-        self.mcp.tool(name="magg_analyze_servers")(self.analyze_servers)
+        self._register_prompts(self_prefix)
     
-    def _register_resources(self):
+    def _register_resources(self, self_prefix: str):
         """Register MCP resources for server metadata."""
         # Define resource mappings: (method, uri_pattern)
         resources = [
-            (self.get_server_metadata, "magg://server/{name}"),
-            (self.get_all_servers_metadata, "magg://servers/all"),
+            (self.get_server_metadata, f"{self_prefix}://server/{{name}}"),
+            (self.get_all_servers_metadata, f"{self_prefix}://servers/all"),
         ]
         
         # Register each resource with the MCP server
         for method, uri_pattern in resources:
             self.mcp.resource(uri_pattern)(method)
     
-    def _register_prompts(self):
+    def _register_prompts(self, self_prefix: str):
         """Register MCP prompts for intelligent configuration."""
         # Define prompt mappings: (method, name)
         prompts = [
-            (self.configure_server_prompt, "configure_server"),
+            (self.configure_server_prompt, f"{self_prefix}_configure_server"),
         ]
         
         # Register each prompt with the MCP server
         for method, name in prompts:
             self.mcp.prompt(name)(method)
 
-    @classmethod
-    def _is_name_valid(cls, name: str) -> bool:
-        return name.isidentifier()
-    
     # ============================================================================
     # MCP Resource Methods - Expose server metadata for LLM consumption
     # ============================================================================
@@ -463,10 +471,10 @@ Consider the URL type:
             # Group by prefix
             by_prefix = {}
             for tool_name in tools.keys():
-                if '_' in tool_name and not tool_name.startswith('magg_'):
+                if '_' in tool_name and not tool_name.startswith(f'{self.self_prefix}_'):
                     prefix = tool_name.split('_', 1)[0]
                 else:
-                    prefix = 'magg'
+                    prefix = self.self_prefix
                 
                 if prefix not in by_prefix:
                     by_prefix[prefix] = []
@@ -671,23 +679,24 @@ Return ONLY valid JSON, no explanations."""
             resources_by_server = {}
             
             # First, add MAGG's own resources
-            magg_resources = []
+            resources = []
+
             for uri_pattern, method in [
-                ("magg://servers/all", self.get_all_servers_metadata),
-                ("magg://server/{name}", self.get_server_metadata),
+                (f"{self.self_prefix}://servers/all", self.get_all_servers_metadata),
+                (f"{self.self_prefix}://server/{{name}}", self.get_server_metadata),
             ]:
-                magg_resources.append({
+                resources.append({
                     "uri": uri_pattern,
                     "name": uri_pattern.split("/")[-1],
                     "description": method.__doc__.strip() if method.__doc__ else "",
                     "mimeType": "application/json"
                 })
             
-            if not prefix or prefix == "magg":
-                resources_by_server["magg"] = {
-                    "server_name": "magg",
-                    "prefix": "magg",
-                    "resources": magg_resources,
+            if not prefix or prefix == self.self_prefix:
+                resources_by_server[self.self_prefix] = {
+                    "server_name": self.self_prefix,
+                    "prefix": self.self_prefix,
+                    "resources": resources,
                     "resource_templates": []
                 }
             
@@ -769,14 +778,14 @@ Return ONLY valid JSON, no explanations."""
         """Get a specific resource from an MCP server."""
         try:
             # Check if it's a MAGG resource
-            if uri.startswith("magg://"):
-                if uri == "magg://servers/all":
+            if uri.startswith(f"{self.self_prefix}://"):
+                if uri == f"{self.self_prefix}://servers/all":
                     content = await self.get_all_servers_metadata()
-                elif uri.startswith("magg://server/"):
+                elif uri.startswith(f"{self.self_prefix}://server/"):
                     server_name = uri.split("/")[-1]
                     content = await self.get_server_metadata(server_name)
                 else:
-                    return MAGGResponse.error(f"Unknown MAGG resource: {uri}")
+                    return MAGGResponse.error(f"Unknown {self.self_prefix} resource: {uri}")
                 
                 return MAGGResponse.success({
                     "uri": uri,
@@ -903,11 +912,11 @@ Return ONLY valid JSON, no explanations."""
             prompts_by_server = {}
             
             # First, add MAGG's own prompts
-            magg_prompts = []
+            prompts = []
             for prompt_name, method in [
                 ("configure_server", self.configure_server_prompt),
             ]:
-                magg_prompts.append({
+                prompts.append({
                     "name": prompt_name,
                     "description": method.__doc__.strip() if method.__doc__ else "",
                     "arguments": [
@@ -916,11 +925,11 @@ Return ONLY valid JSON, no explanations."""
                     ]
                 })
             
-            if not prefix or prefix == "magg":
-                prompts_by_server["magg"] = {
-                    "server_name": "magg",
-                    "prefix": "magg",
-                    "prompts": magg_prompts
+            if not prefix or prefix == self.self_prefix:
+                prompts_by_server[self.self_prefix] = {
+                    "server_name": self.self_prefix,
+                    "prefix": self.self_prefix,
+                    "prompts": prompts
                 }
             
             # Then add prompts from mounted servers
@@ -992,7 +1001,7 @@ Return ONLY valid JSON, no explanations."""
             
             if not config.servers:
                 return MAGGResponse.success({
-                    "analysis": "No servers configured yet. Use magg_add_server to add servers."
+                    "analysis": f"No servers configured yet. Use {self.self_prefix}_add_server to add servers."
                 })
             
             # Build analysis data
@@ -1043,7 +1052,10 @@ Please provide:
     
     async def setup(self):
         """Initialize MAGG and mount existing servers."""
-        await self.server_manager.mount_all_enabled()
+        if not self._is_setup:
+            self._is_setup = True
+            # Mount all enabled servers
+            await self.server_manager.mount_all_enabled()
     
     async def run_stdio(self):
         """Run MAGG in stdio mode."""

@@ -96,8 +96,8 @@ class ServerRunner:
 
         finally:
             self._restore_signal_handlers()
-            logger.info("MAGG server stopped")
-            print("\nMAGG server stopped.", file=sys.stderr)
+            logger.debug("MAGG server stopped")
+            # print("\nMAGG server stopped.", file=sys.stderr)
 
     async def run_http(self, host: str = "localhost", port: int = 8000):
         """Run server in HTTP mode with proper signal handling."""
@@ -105,11 +105,11 @@ class ServerRunner:
 
         try:
             async with self.server_context() as server:
-                logger.info("Starting MAGG HTTP server on %s:%s", host, port)
-                print(f"Starting MAGG HTTP server on {host}:{port}", file=sys.stderr)
-                print(f"Server URL: http://{host}:{port}/", file=sys.stderr)
-                print("Press Ctrl+C to stop gracefully", file=sys.stderr)
-                print("-" * 50, file=sys.stderr)
+                logger.debug("Starting MAGG HTTP server on %s:%s", host, port)
+                # print(f"Starting MAGG HTTP server on {host}:{port}", file=sys.stderr)
+                # print(f"Server URL: http://{host}:{port}/", file=sys.stderr)
+                # print("Press Ctrl+C to stop gracefully", file=sys.stderr)
+                # print("-" * 50, file=sys.stderr)
 
                 # Create task for the server
                 server_task = asyncio.create_task(server.run_http(host, port))
@@ -137,8 +137,8 @@ class ServerRunner:
 
         finally:
             self._restore_signal_handlers()
-            logger.info("MAGG HTTP server stopped")
-            print("\nMAGG HTTP server stopped.", file=sys.stderr)
+            logger.debug("MAGG HTTP server stopped")
+            # print("\nMAGG HTTP server stopped.", file=sys.stderr)
 
 
 def print_startup_banner():

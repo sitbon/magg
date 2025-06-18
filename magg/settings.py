@@ -98,9 +98,10 @@ class MAGGConfig(BaseSettings):
         arbitrary_types_allowed=True
     )
 
+    config_path: Path = Field(default_factory=lambda: Path.cwd() / ".magg" / "config.json", description="Configuration file path (can be overridden by MAGG_CONFIG_PATH)")
     debug: bool = Field(default=False, description="Enable debug mode for MAGG")
     log_level: str = Field(default="INFO", description="Logging level for MAGG")
-    config_path: Path = Field(default_factory=lambda: Path.cwd() / ".magg" / "config.json", description="Configuration file path (can be overridden by MAGG_CONFIG_PATH)")
+    self_prefix: str = Field(default="magg", description="Prefix for MAGG tools and commands - must be a valid Python identifier without underscores")
     servers: dict[str, ServerConfig] = Field(default_factory=dict, description="Servers configuration (loaded from JSON file)")
 
     @model_validator(mode='after')
@@ -116,6 +117,16 @@ class MAGGConfig(BaseSettings):
             os.environ['MAGG_CONFIG_PATH'] = str(self.config_path)
 
         return self
+
+    @field_validator('self_prefix')
+    def validate_self_prefix(cls, v: str) -> str:
+        """Validate that self_prefix is a valid Python identifier without underscores."""
+        if v:  # Only validate if non-empty
+            if not v.isidentifier():
+                raise ValueError(f"Server prefix '{v}' must be a valid Python identifier (letters and numbers only, not starting with a number)")
+            if '_' in v:
+                raise ValueError("Server prefix cannot contain underscores ('_')")
+        return v
 
     def add_server(self, server: ServerConfig) -> None:
         """Add a server."""

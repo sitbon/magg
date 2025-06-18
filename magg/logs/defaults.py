@@ -15,7 +15,7 @@ LOGGING_CONFIG = {
     "formatters": {
         "default": {
             "()": "magg.logs.formatter.DefaultFormatter",
-            "format": "{process} {thread} | [{asctime}] {levelname} {name} {message}",
+            "format": "{process} {thread} | [{asctime}.{msecs:03.0f}] {levelname} {name} {message}",
             "datefmt": "%Y-%m-%d %H:%M:%S",
             "style": "{",
             "defaults": {

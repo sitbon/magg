@@ -9,6 +9,6 @@ Key capabilities:
 - Smart configuration assistance using LLM sampling
 - Expose server metadata as resources for LLM consumption
 
-Use magg_add_server to register new MCP servers, then they will be automatically mounted.
+Use {self_prefix}_add_server to register new MCP servers, then they will be automatically mounted.
 Tools from mounted servers are available with their configured prefixes.
 """

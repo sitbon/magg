@@ -2,11 +2,14 @@
 
 import asyncio
 import json
+import logging
 from pathlib import Path
 from typing import Any
 
 import httpx
 from fastmcp import Client
+
+logger = logging.getLogger(__name__)
 
 
 class MCPConnection:
@@ -84,8 +87,24 @@ class MCPConnection:
                     }
                     for resource in resources_result
                 ]
-            except Exception:
+            except Exception as e:
+                logger.error(f"Failed to list resources: {e}")
                 self.resources = []
+
+            # Get resource templates
+            try:
+                resource_templates = await client.list_resource_templates()
+                for template in resource_templates:
+                    self.resources.append({
+                        "uriTemplate": template.uriTemplate,
+                        "name": template.name,
+                        "description": template.description,
+                        "mimeType": template.mimeType,
+                        "annotations": template.annotations,
+                    })
+
+            except Exception as e:
+                logger.error(f"Failed to list resource templates: {e}")
             
             # Get prompts
             try:

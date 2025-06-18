@@ -228,15 +228,15 @@ class MCPBrowserCLI:
             self.formatter.format_info("No tools available." + (f" (filtered by '{filter_term}')" if filter_term else ""))
             return
         
-        # Output as JSON array
-        tool_list = []
-        for tool in tools:
-            tool_list.append({
-                "name": tool['name'],
-                "description": tool.get('description', '').strip()
-            })
+        # # Output as JSON array
+        # tool_list = []
+        # for tool in tools:
+        #     tool_list.append({
+        #         "name": tool['name'],
+        #         "description": tool.get('description', '').strip()
+        #     })
         
-        self.formatter.format_json(tool_list)
+        self.formatter.format_json(tools)
     
     def cmd_resources(self, args: list[str]):
         """List available resources."""
@@ -249,23 +249,14 @@ class MCPBrowserCLI:
         
         resources = conn.resources
         if filter_term:
-            resources = [r for r in resources if filter_term in r["name"].lower() or filter_term in r["uri"].lower()]
+            resources = [r for r in resources if filter_term in r["name"].lower() or filter_term in r.get("uri", r.get("uriTemplate")).lower()]
         
         if not resources:
             self.formatter.format_info("No resources available." + (f" (filtered by '{filter_term}')" if filter_term else ""))
             return
+
         
-        # Output as JSON array
-        resource_list = []
-        for resource in resources:
-            resource_list.append({
-                "name": resource['name'],
-                "uri": resource['uri'],
-                "mimeType": resource['mimeType'],
-                "description": resource['description']
-            })
-        
-        self.formatter.format_json(resource_list)
+        self.formatter.format_json(resources)
     
     def cmd_prompts(self, args: list[str]):
         """List available prompts."""
@@ -283,19 +274,8 @@ class MCPBrowserCLI:
         if not prompts:
             self.formatter.format_info("No prompts available." + (f" (filtered by '{filter_term}')" if filter_term else ""))
             return
-        
-        # Output as JSON array
-        prompt_list = []
-        for prompt in prompts:
-            prompt_data = {
-                "name": prompt['name'],
-                "description": prompt['description']
-            }
-            if prompt['arguments']:
-                prompt_data["arguments"] = prompt['arguments']
-            prompt_list.append(prompt_data)
-        
-        self.formatter.format_json(prompt_list)
+
+        self.formatter.format_json(prompts)
     
     async def cmd_call(self, args: list[str]):
         """Call a tool."""

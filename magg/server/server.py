@@ -2,11 +2,13 @@
 
 import json
 import logging
+import os
 from functools import cached_property
 from typing import Any, Annotated
 from pathlib import Path
 
 from fastmcp import FastMCP, Client, Context
+from mcp.types import PromptMessage, TextContent
 from pydantic import Field
 
 from ..settings import ConfigManager, ServerConfig
@@ -217,41 +219,103 @@ class MAGGServer:
     # region MCP Prompt Methods - Templates for LLM-assisted configuration
     # ============================================================================
     
+    def _format_metadata_for_prompt(self, metadata_entries: list[dict]) -> str:
+        """Format metadata entries into a readable string for prompts."""
+        lines = []
+        for entry in metadata_entries:
+            source = entry.get("source", "unknown")
+            data = entry.get("data", {})
+            
+            if source == "github" and data:
+                lines.append(f"- GitHub Repository: {data.get('description', 'No description')}")
+                lines.append(f"  Language: {data.get('language', 'Unknown')}")
+                lines.append(f"  Stars: {data.get('stars', 0)}")
+                if data.get("setup_instructions"):
+                    lines.append("  Setup instructions found in README")
+                    
+            elif source == "filesystem" and data.get("exists"):
+                if data.get("is_directory"):
+                    lines.append(f"- Local Project: {data.get('project_type', 'unknown')} project")
+                    if data.get("setup_hints"):
+                        lines.append(f"  Setup commands: {', '.join(data['setup_hints'])}")
+                        
+            elif source == "http_check" and data.get("is_mcp_server"):
+                lines.append("- Direct MCP server endpoint detected (HTTP/SSE)")
+                
+            elif source == "npm" and data:
+                lines.append(f"- NPM Package: {data.get('name', 'Unknown')}")
+                if data.get("description"):
+                    lines.append(f"  Description: {data['description']}")
+                    
+        return "\n".join(lines) if lines else "No metadata available"
+    
     async def configure_server_prompt(
         self,
         source: Annotated[str, Field(description="URL of the server to configure")],
         server_name: Annotated[str | None, Field(description="Optional server name")] = None,
     ) -> list[dict[str, str]]:
-        """Generate a prompt for configuring a server from a URL."""
-        messages = [
-            {
-                "role": "system",
-                "content": "You are an expert at configuring MCP servers. Analyze the provided URL and generate optimal server configuration."
-            },
-            {
-                "role": "user",
-                "content": f"""Configure an MCP server for: {source}
+        """Generate an enriched prompt template for configuring a server from a URL.
+        
+        This prompt can be used with any LLM to generate server configuration.
+        For automatic configuration with LLM sampling, use the smart_configure tool instead.
+        """
+        # Collect metadata to enrich the prompt
+        from ..discovery.metadata import SourceMetadataCollector
+        collector = SourceMetadataCollector()
+        
+        try:
+            metadata_entries = await collector.collect_metadata(source, server_name)
+            metadata_info = self._format_metadata_for_prompt(metadata_entries)
+        except Exception:
+            metadata_info = "Unable to collect metadata"
+
+        messages = []
+
+        system_message = PromptMessage(
+            role="assistant",
+            content=TextContent(
+                type="text",
+                text="You are an expert at configuring MCP servers. Analyze the provided URL and metadata to generate optimal server configuration."
+            ),
+        )
+
+        messages.append(system_message)
+
+        user_prompt = f"""Configure an MCP server for: {source}
                 
 Server name: {server_name or 'auto-generate'}
 
-Please determine:
+Collected Metadata:
+{metadata_info}
+
+Please determine the following configuration:
 1. name: A string, potentially user provided (can be human-readable)
 2. prefix: A valid Python identifier (no underscores)
 3. command: The full command to run (e.g., "python server.py", "npx @playwright/mcp@latest", or null for HTTP)
 4. uri: For HTTP servers (if applicable)
 5. working_dir: If needed
-6. env: Environment variables as an object (if needed)
+6. env_vars: Environment variables as an object (if needed)
 7. notes: Helpful setup instructions
 8. transport: Any transport-specific configuration (optional dict)
 
-Consider the URL type:
+Consider the URL type and metadata:
 - GitHub repos may need cloning and setup
 - NPM packages use npx
 - Python packages may use uvx or python -m
 - HTTP/HTTPS URLs may be direct MCP servers
-                """
-            }
-        ]
+
+Return the configuration as a JSON object."""
+
+        messages.append(
+            PromptMessage(
+                role="user",
+                content=TextContent(
+                    type="text",
+                    text=user_prompt,
+                ),
+            )
+        )
+
         return messages
     
     # ============================================================================
@@ -505,7 +569,17 @@ Consider the URL type:
         )] = None,
         ctx: Context | None = None,
     ) -> MAGGResponse:
-        """Use LLM sampling to intelligently configure a server from a URL."""
+        """Use LLM sampling to intelligently configure and add a server from a URL.
+        
+        This tool performs the complete workflow:
+        1. Collects metadata about the source URL
+        2. Uses LLM sampling (if context provided) to generate optimal configuration
+        3. Automatically adds the server to your configuration
+        
+        Note: This requires an LLM context for intelligent configuration.
+        Without LLM context, it falls back to basic metadata-based heuristics.
+        For generating configuration prompts without sampling, use configure_server_prompt.
+        """
         try:
             # First, collect metadata about the URL
             from ..discovery.metadata import SourceMetadataCollector
@@ -561,31 +635,32 @@ Consider the URL type:
                     "suggested_config": config_suggestion
                 })
             
-            # Build enhanced prompt with metadata
-            prompt = f"""Configure an MCP server for: {source}
+            # Build enhanced prompt with metadata for LLM sampling
+            prompt = f"""You are being asked by the MAGG smart_configure tool to analyze metadata and generate an optimal MCP server configuration.
 
-source: The source url or URI of this server. Can be a GitHub repo, Glama listing, website, or local filesystem path.
+Configure an MCP server for: {source}
 
-Server name: {server_name or '<auto-generate>'}
+Server name requested: {server_name or '<auto-generate based on source>'}
 
-Collected metadata:
-{chr(10).join(f"- {item}" for item in metadata_summary)}
+=== METADATA COLLECTED ===
+{os.linesep.join(f"- {item}" for item in metadata_summary) if metadata_summary else "No metadata available"}
 
-Based on this metadata, please generate a complete JSON configuration with:
-0. source: (as above)
-1. name: A string (human-readable, can contain any characters)
-2. prefix: A valid Python identifier (no underscores)
-3. command: The appropriate command (python, node, npx, uvx, or null for HTTP)
-4. args: Required arguments as an array
-5. uri: For HTTP servers (if applicable)
-6. working_dir: If needed
-7. env_vars: Environment variables as an object (if needed)
-8. notes: Helpful setup instructions
-9. transport: Any transport-specific configuration (optional dict)
+=== TASK ===
+Based on the URL and metadata above, generate a complete JSON configuration that will be automatically added to the user's MAGG server configuration.
 
-Return ONLY valid JSON, no explanations."""
+Required fields:
+1. name: A human-readable string (can contain any characters)
+2. prefix: A valid Python identifier for tool prefixing (no underscores)
+3. command: The appropriate command (python, node, npx, uvx, or null for HTTP/SSE servers)
+4. uri: For HTTP/SSE servers (if applicable)
+5. working_dir: If needed
+6. env_vars: Environment variables as an object (if needed)
+7. notes: Helpful setup instructions for the user
+8. transport: Any transport-specific configuration (optional dict)
 
-            # Sample from the LLM using simple string format
+Return ONLY valid JSON, no explanations or markdown formatting."""
+
+            # Perform LLM sampling to generate the configuration
             result = await ctx.sample(
                 messages=prompt,
                 max_tokens=1000
@@ -909,84 +984,78 @@ Return ONLY valid JSON, no explanations."""
     ) -> MAGGResponse:
         """List all available prompts from mounted servers."""
         try:
-            prompts_by_server = {}
-            
-            # First, add MAGG's own prompts
-            prompts = []
-            for prompt_name, method in [
-                ("configure_server", self.configure_server_prompt),
-            ]:
-                prompts.append({
-                    "name": prompt_name,
-                    "description": method.__doc__.strip() if method.__doc__ else "",
-                    "arguments": [
-                        {"name": "source", "description": "URL of the server", "required": True},
-                        {"name": "server_name", "description": "Optional server name", "required": False}
-                    ]
-                })
-            
-            if not prefix or prefix == self.self_prefix:
-                prompts_by_server[self.self_prefix] = {
-                    "server_name": self.self_prefix,
-                    "prefix": self.self_prefix,
-                    "prompts": prompts
+            return MAGGResponse.success(
+                {
+                    "prompts": await self.mcp.get_prompts(),
                 }
-            
-            # Then add prompts from mounted servers
-            config = self.config_manager.load_config()
-            
-            for server_name, mount_info in self.server_manager.mounted_servers.items():
-                server = config.servers.get(server_name)
-                if not server:
-                    continue
-                    
-                # Apply filters
-                if name and server_name != name:
-                    continue
-                if prefix and server.prefix != prefix:
-                    continue
-                
-                server_prompts = []
-                
-                # Use the proxy server to get prompts
-                proxy = mount_info['proxy']
-                try:
-                    prompts_dict = await proxy.get_prompts()
-                    for prompt_name, prompt in prompts_dict.items():
-                        prompt_info = {
-                            "name": prompt_name,
-                            "description": prompt.description or "",
-                        }
-                        
-                        # Extract arguments from the prompt
-                        arguments = []
-                        if hasattr(prompt, 'arguments'):
-                            for arg in prompt.arguments:
-                                arguments.append({
-                                    "name": arg.name,
-                                    "description": arg.description or "",
-                                    "required": arg.required
-                                })
-                        
-                        prompt_info["arguments"] = arguments
-                        server_prompts.append(prompt_info)
-                        
-                except Exception as e:
-                    self.server_manager.logger.warning(f"Failed to list prompts for {server_name}: {e}")
-                    continue
-                
-                if server_prompts:
-                    prompts_by_server[server_name] = {
-                        "server_name": server_name,
-                        "prefix": server.prefix,
-                        "prompts": server_prompts
-                    }
-            
-            return MAGGResponse.success({
-                "servers": prompts_by_server,
-                "total_servers": len(prompts_by_server),
-                "total_prompts": sum(len(s["prompts"]) for s in prompts_by_server.values())
-            })
+            )
+            # prompts_by_server = {}
+            #
+            # # First, add MAGG's own prompts
+            # prompts = await self.mcp.get_prompts()
+            #
+            # if not prefix or prefix == self.self_prefix:
+            #     prompts_by_server[self.self_prefix] = {
+            #         "server_name": self.self_prefix,
+            #         "prefix": self.self_prefix,
+            #         "prompts": prompts
+            #     }
+            #
+            # # Then add prompts from mounted servers
+            # config = self.config_manager.load_config()
+            #
+            # for server_name, mount_info in self.server_manager.mounted_servers.items():
+            #     server = config.servers.get(server_name)
+            #     if not server:
+            #         continue
+            #
+            #     # Apply filters
+            #     if name and server_name != name:
+            #         continue
+            #     if prefix and server.prefix != prefix:
+            #         continue
+            #
+            #     server_prompts = []
+            #
+            #     # Use the proxy server to get prompts
+            #     proxy = mount_info['proxy']
+            #     try:
+            #         prompts_dict = await proxy.get_prompts()
+            #         for prompt_name, prompt in prompts_dict.items():
+            #             prompt_info = {
+            #                 "name": prompt_name,
+            #                 "description": prompt.description or "",
+            #             }
+            #
+            #             # Extract arguments from the prompt
+            #             arguments = []
+            #             if hasattr(prompt, 'arguments'):
+            #                 for arg in prompt.arguments:
+            #                     arguments.append({
+            #                         "name": arg.name,
+            #                         "description": arg.description or "",
+            #                         "required": arg.required
+            #                     })
+            #
+            #             prompt_info["arguments"] = arguments
+            #             server_prompts.append(prompt_info)
+            #
+            #     except Exception as e:
+            #         self.server_manager.logger.warning(f"Failed to list prompts for {server_name}: {e}")
+            #         continue
+            #
+            #     if server_prompts:
+            #         prompts_by_server[server_name] = {
+            #             "server_name": server_name,
+            #             "prefix": server.prefix,
+            #             "prompts": server_prompts
+            #         }
+            #
+            # return MAGGResponse.success({
+            #     "servers": prompts_by_server,
+            #     "total_servers": len(prompts_by_server),
+            #     "total_prompts": sum(len(s["prompts"]) for s in prompts_by_server.values())
+            # })
             
         except Exception as e:
             return MAGGResponse.error(f"Failed to list prompts: {str(e)}")

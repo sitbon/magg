@@ -324,13 +324,20 @@ wheels = [
 
 [[package]]
 name = "magg"
-version = "0.1.0"
+version = "0.2.0"
 source = { editable = "." }
 dependencies = [
     { name = "aiohttp" },
     { name = "fastmcp" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
+    { name = "rich" },
+]
+
+[package.optional-dependencies]
+test = [
+    { name = "pytest" },
+    { name = "pytest-asyncio" },
 ]
 
 [package.dev-dependencies]
@@ -345,7 +352,11 @@ requires-dist = [
     { name = "fastmcp", specifier = "<3" },
     { name = "pydantic", specifier = "<3" },
     { name = "pydantic-settings", specifier = "<3" },
+    { name = "pytest", marker = "extra == 'test'", specifier = ">=8.4.0" },
+    { name = "pytest-asyncio", marker = "extra == 'test'", specifier = ">=1.0.0" },
+    { name = "rich", specifier = ">=14.0.0" },
 ]
+provides-extras = ["test"]
 
 [package.metadata.requires-dev]
 dev = [

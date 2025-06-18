@@ -26,7 +26,7 @@ class ServerManager:
     def __init__(self, mcp: FastMCP, config_manager: ConfigManager):
         self.mcp = mcp
         self.config_manager = config_manager
-        self.mounted_servers = {}  # name -> proxy server
+        self.mounted_servers = {}
         self.logger = logging.getLogger(__name__)
     
     async def mount_server(self, server: ServerConfig) -> bool:

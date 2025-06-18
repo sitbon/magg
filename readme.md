@@ -6,7 +6,7 @@ An MCP server that manages and aggregates other MCP servers, enabling LLMs to dy
 
 MAGG (MCP Aggregator) is a meta-MCP server that acts as a central hub for managing multiple MCP servers. It provides tools that allow LLMs to:
 
-- Discover and search for new MCP servers
+- Search for new MCP servers and discover setup instructions
 - Add and configure MCP servers dynamically
 - Enable/disable servers on demand
 - Aggregate tools from multiple servers under unified prefixes

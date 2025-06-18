@@ -1,6 +1,6 @@
 [project]
 name = "magg"
-version = "0.1.0"
+version = "0.2.0"
 description = "MCP Aggregator"
 requires-python = ">=3.13"
 packages = [{include = "magg"}]
@@ -9,11 +9,18 @@ dependencies = [
     "aiohttp<4",
     "pydantic<3",
     "pydantic-settings<3",
+    "rich>=14.0.0",
 ]
 
 [project.scripts]
 magg = "magg.cli:main"
 mbro = "magg.mbro.cli:main"
+
+[project.optional-dependencies]
+test = [
+    "pytest>=8.4.0",
+    "pytest-asyncio>=1.0.0",
+]
 
 [build-system]
 requires = ["poetry-core"]

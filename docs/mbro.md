@@ -54,7 +54,7 @@ mbro:memory> tools
 # Get detailed information about a tool
 mbro:memory> tool create_memory
 
-# Call a tool with arguments
+# Call a tool with arguments (no quotes needed in REPL)
 mbro:memory> call create_memory {"content": "Remember this important note"}
 
 # List resources
@@ -128,11 +128,8 @@ mbro:memory> prompt summarize {"topic": "recent_memories"}
 mbro supports multiple ways to provide tool arguments:
 
 ```bash
-# JSON object notation
+# In the REPL, use JSON directly (no surrounding quotes)
 call search {"query": "python tutorials", "limit": 10}
-
-# Single string argument (automatically wrapped in JSON)
-call echo "Hello, World!"
 
 # Complex nested structures
 call create_task {
@@ -143,6 +140,9 @@ call create_task {
   },
   "tags": ["urgent", "review"]
 }
+
+# From command line, quotes may be needed for shell parsing
+mbro --call-tool search '{"query": "python tutorials"}'
 ```
 
 ### Server Connection Strings
@@ -246,18 +246,66 @@ mbro:magg> call weather_current {"location": "London"}
 }
 ```
 
+## Output Modes
+
+mbro supports different output modes for various use cases:
+
+### Default Mode (Rich Formatting)
+Uses Rich library for beautiful, colored output with tables and formatting:
+```bash
+mbro
+```
+
+### Plain Text Mode
+Disables Rich formatting for simpler output:
+```bash
+mbro --no-rich
+```
+
+### JSON-Only Mode
+Machine-readable JSON output for scripting and automation:
+```bash
+# Standard JSON with indentation
+mbro --json
+
+# Compact JSON (no indentation)
+mbro --json --indent 0
+
+# Custom indentation
+mbro --json --indent 4
+```
+
+In JSON mode:
+- All output is valid JSON
+- Errors include exception details
+- No interactive prompts are shown
+- Perfect for piping to other tools
+
+Example using JSON mode in a script:
+```bash
+# Get tools list as JSON
+mbro --connect calc "npx calculator" --json --list-tools | jq '.[]'
+
+# Call a tool and parse result
+result=$(mbro --connect calc "npx calculator" --json --call-tool add '{"a": 5, "b": 3}')
+echo $result | jq '.'
+```
+
 ## Tips and Tricks
 
 1. **Tab Completion**: mbro supports tab completion for commands and tool names
 2. **History**: Use up/down arrows to navigate command history
-3. **Piping**: mbro can read commands from stdin: `echo "tools" | mbro --connect calc "npx calculator"`
+3. **JSON in REPL vs Command Line**: In the REPL, use JSON directly without surrounding quotes. On the command line, you may need single quotes to protect from shell parsing.
 4. **Command Line Options**: 
    - `--connect NAME CONNECTION` - Connect to a server on startup
+   - `--json` - Output only JSON (machine-readable)
+   - `--no-rich` - Disable Rich formatting
+   - `--indent N` - Set JSON indent level (0 for compact)
    - `--list-connections` - List all available connections
    - `--list-tools` - List available tools
    - `--list-resources` - List available resources  
    - `--list-prompts` - List available prompts
-   - `--call-tool TOOL [ARGS]` - Call a tool directly
+   - `--call-tool TOOL [ARGS]` - Call a tool directly (use quotes for JSON args on command line)
    - `--get-resource URI` - Get a resource directly
    - `--search TERM` - Search tools, resources, and prompts
    - `--info TYPE NAME` - Show info about tool/resource/prompt
@@ -269,7 +317,7 @@ mbro:magg> call weather_current {"location": "London"}
 
 1. **Connection Failed**: Ensure the MCP server is installed and the command is correct
 2. **Tool Not Found**: Use `tools` to list available tools and check the exact name
-3. **Invalid Arguments**: Tool arguments must be valid JSON
+3. **Invalid Arguments**: Tool arguments must be valid JSON. In the REPL, don't surround JSON with quotes.
 4. **Permission Denied**: Some servers require specific permissions or environment variables
 
 ## See Also

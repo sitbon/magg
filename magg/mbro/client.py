@@ -45,7 +45,8 @@ class MCPConnection:
                 return True
             
         except Exception as e:
-            print(f"Failed to connect to server: {e}")
+            # Let caller handle error display
+            pass
             self.client = None
             return False
     
@@ -107,8 +108,9 @@ class MCPConnection:
             except Exception:
                 self.prompts = []
                 
-        except Exception as e:
-            print(f"Failed to refresh capabilities: {e}")
+        except Exception:
+            # Silently handle errors in capability refresh
+            pass
     
     async def call_tool(self, tool_name: str, arguments: dict[str, Any] = None) -> Any:
         """Call a tool on the connected MCP server."""
@@ -176,7 +178,6 @@ class MCPBrowser:
     async def add_connection(self, name: str, connection_string: str) -> bool:
         """Add a new MCP connection using FastMCP Client connection string."""
         if name in self.connections:
-            print(f"Connection '{name}' already exists")
             return False
         
         # Determine connection type from the connection string
@@ -192,31 +193,24 @@ class MCPBrowser:
             self.connections[name] = connection
             if not self.current_connection:
                 self.current_connection = name
-            print(f"✅ Connected to '{name}' ({connection_type})")
-            print(f"   Tools: {len(connection.tools)}, Resources: {len(connection.resources)}, Prompts: {len(connection.prompts)}")
             return True
         else:
-            print(f"❌ Failed to connect to '{name}'")
             return False
     
     async def switch_connection(self, name: str) -> bool:
         """Switch to a different connection."""
         if name not in self.connections:
-            print(f"Connection '{name}' not found")
             return False
         
         if not self.connections[name].connected:
-            print(f"Connection '{name}' is not active")
             return False
         
         self.current_connection = name
-        print(f"Switched to connection '{name}'")
         return True
     
     async def remove_connection(self, name: str) -> bool:
         """Remove a connection."""
         if name not in self.connections:
-            print(f"Connection '{name}' not found")
             return False
         
         await self.connections[name].disconnect()
@@ -228,7 +222,6 @@ class MCPBrowser:
                 # Switch to first available connection
                 self.current_connection = next(iter(self.connections.keys()))
         
-        print(f"Removed connection '{name}'")
         return True
     
     def get_current_connection(self) -> MCPConnection | None:
@@ -256,9 +249,7 @@ class MCPBrowser:
         """Refresh capabilities for the current connection."""
         conn = self.get_current_connection()
         if not conn:
-            print("No active connection")
             return False
         
         await conn.refresh_capabilities()
-        print(f"Refreshed capabilities for '{self.current_connection}'")
         return True

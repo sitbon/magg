@@ -7,13 +7,11 @@ from pydantic import BaseModel, ConfigDict
 class MAGGResponse(BaseModel):
     """Standardized response format for MAGG tools.
     
-    Provides consistent structure for both success and error cases,
+    Provides a consistent structure for both success and error cases,
     optimized for LLM consumption with automatic JSON serialization.
     """
     
     model_config = ConfigDict(
-        # Exclude None values from serialization
-        exclude_none=True,
         # Allow arbitrary types in output field
         arbitrary_types_allowed=True
     )
@@ -32,7 +30,7 @@ class MAGGResponse(BaseModel):
         if isinstance(error, list):
             return cls(errors=error)
         return cls(errors=[error])
-    
+
     def add_error(self, error: Union[str, dict]) -> None:
         """Add an error to the response."""
         if self.errors is None:

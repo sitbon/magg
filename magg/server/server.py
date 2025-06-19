@@ -70,6 +70,9 @@ class ServerManager:
                 'proxy': proxy_server,
                 'client': client
             }
+
+            # Clear the mcp cache
+            self.mcp._cache.clear()
             
             self.logger.debug("Mounted server %s with prefix %s", server.name, server.prefix)
             return True
@@ -81,7 +84,14 @@ class ServerManager:
     async def unmount_server(self, name: str) -> bool:
         """Unmount a server."""
         if name in self.mounted_servers:
-            # Note: FastMCP doesn't have unmount, so we just track it as unmounted
+            # Get the server config to find the prefix
+            config = self.config_manager.load_config()
+            server = config.servers.get(name)
+            if server and server.prefix in self.mcp._mounted_servers:
+                # Properly unmount from FastMCP
+                self.mcp.unmount(server.prefix)
+            
+            # Remove from our tracking
             del self.mounted_servers[name]
             self.logger.info("Unmounted server %s", name)
             return True
@@ -392,7 +402,7 @@ Return the configuration as a JSON object."""
             # Save to config
             config.add_server(server)
             self.config_manager.save_config(config)
-            
+
             return MAGGResponse.success({
                 "action": "server_added",
                 "server": {

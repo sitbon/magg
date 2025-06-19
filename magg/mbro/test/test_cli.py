@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Tests for mbro CLI functionality."""
 
+import sys
 import pytest
 from unittest.mock import Mock, AsyncMock, patch
 from magg.mbro.cli import MCPBrowserCLI
@@ -11,7 +12,7 @@ class TestMCPBrowserCLI:
     
     def setup_method(self):
         """Set up test fixtures."""
-        self.cli = MCPBrowserCLI()
+        self.cli = MCPBrowserCLI(use_rich=False)  # Use plain print for testing
         self.cli.running = False  # Don't actually run the CLI
     
     @pytest.mark.asyncio
@@ -41,7 +42,8 @@ class TestMCPBrowserCLI:
         """Test unknown command handling."""
         with patch('builtins.print') as mock_print:
             await self.cli.handle_command("unknown_command")
-            mock_print.assert_called_with("Unknown command: unknown_command. Type 'help' for available commands.")
+            # format_error adds "Error: " prefix and sends to stderr
+            mock_print.assert_called_with("Error: Unknown command: unknown_command. Type 'help' for available commands.", file=sys.stderr)
     
     @pytest.mark.asyncio
     async def test_cmd_connect(self):
@@ -49,18 +51,29 @@ class TestMCPBrowserCLI:
         with patch.object(self.cli.browser, 'add_connection') as mock_connect:
             mock_connect.return_value = True
             
+            # Mock the connection that should exist after successful add
+            mock_connection = Mock()
+            mock_connection.tools = []
+            mock_connection.resources = []
+            mock_connection.prompts = []
+            self.cli.browser.connections = {"test": mock_connection}
+            
             with patch('builtins.print') as mock_print:
                 await self.cli.cmd_connect(["test", "http://localhost:8080"])
                 
                 mock_connect.assert_called_once_with("test", "http://localhost:8080")
-                mock_print.assert_any_call("Connection 'test' added successfully.")
+                # Check that success message was printed
+                call_args = mock_print.call_args_list
+                output_text = ''.join(str(call.args[0]) for call in call_args if call.args)
+                assert "Connected to 'test'" in output_text
     
     @pytest.mark.asyncio
     async def test_cmd_connect_insufficient_args(self):
         """Test connect command with insufficient arguments."""
         with patch('builtins.print') as mock_print:
             await self.cli.cmd_connect(["test"])
-            mock_print.assert_any_call("Usage: connect <name> <connection_string>")
+            # format_error adds "Error: " prefix and sends to stderr
+            mock_print.assert_called_with("Error: Usage: connect <name> <connection_string>", file=sys.stderr)
     
     def test_cmd_connections_empty(self):
         """Test connections command with no connections."""
@@ -105,7 +118,7 @@ class TestMCPBrowserCLI:
             
             with patch('builtins.print') as mock_print:
                 self.cli.cmd_tools([])
-                mock_print.assert_any_call("No active connection.")
+                mock_print.assert_called_with("Error: No active connection.", file=sys.stderr)
     
     def test_cmd_tools_with_data(self):
         """Test tools command with tool data."""
@@ -127,12 +140,13 @@ class TestMCPBrowserCLI:
             with patch('builtins.print') as mock_print:
                 self.cli.cmd_tools([])
                 
-                # Check that tools were printed
+                # Check that tools were printed as JSON
                 call_args = mock_print.call_args_list
                 output_text = ''.join(str(call.args[0]) for call in call_args if call.args)
                 assert "test_tool" in output_text
                 assert "calc_add" in output_text
-                assert "Arguments:" in output_text  # Should format Args: properly
+                # The formatter outputs JSON, not formatted text with "Arguments:"
+                assert '"name": "calc_add"' in output_text
     
     def test_cmd_tools_with_filter(self):
         """Test tools command with filter."""
@@ -236,11 +250,12 @@ class TestMCPBrowserCLI:
             with patch('builtins.print') as mock_print:
                 self.cli.cmd_info(["tool", "test_tool"])
                 
-                # Should show detailed tool info
+                # Should show detailed tool info as JSON
                 call_args = mock_print.call_args_list
                 output_text = ''.join(str(call.args[0]) for call in call_args if call.args)
                 assert "test_tool" in output_text
-                assert "Input Schema:" in output_text
+                # The formatter outputs JSON, not formatted text with "Input Schema:"
+                assert '"inputSchema"' in output_text
 
 
 if __name__ == "__main__":

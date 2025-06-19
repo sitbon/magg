@@ -235,4 +235,4 @@ JSON Tips (REPL):
   - Boolean values: {"enabled": true}
   - Arrays: {"items": [1, 2, 3]}
         """
-        self.console.print(help_text)
+        self.print(help_text)

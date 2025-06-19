@@ -168,8 +168,8 @@ class ConfigManager:
 
     def load_config(self) -> MAGGConfig:
         """Load configuration from disk."""
-        # Start with settings from environment
-        config = self.settings
+        # Create a fresh config instance with settings from environment
+        config = MAGGConfig()
         
         if not self.config_path.exists():
             return config

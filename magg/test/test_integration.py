@@ -49,7 +49,7 @@ if __name__ == "__main__":
             assert result.output["server"]["command"] == f"python {server_script}"
             
             # Verify it was saved
-            config = server.config_manager.load_config()
+            config = server.config
             assert "pythontest" in config.servers
     
     @pytest.mark.asyncio
@@ -119,7 +119,7 @@ if __name__ == "__main__":
             assert result.is_success
             
             # Verify all were saved
-            config = server.config_manager.load_config()
+            config = server.config
             assert len(config.servers) == 5
 
 
@@ -148,7 +148,7 @@ class TestServerLifecycle:
             assert result.is_success
             
             # Check it's enabled in config
-            config = server.config_manager.load_config()
+            config = server.config
             assert config.servers["lifecycle"].enabled is True
             
             # Disable it again
@@ -156,7 +156,7 @@ class TestServerLifecycle:
             assert result.is_success
             
             # Check it's disabled
-            config = server.config_manager.load_config()
+            config = server.config
             assert config.servers["lifecycle"].enabled is False
     
     @pytest.mark.asyncio
@@ -178,7 +178,7 @@ class TestServerLifecycle:
             assert result.is_success
             
             # Verify it's gone
-            config = server.config_manager.load_config()
+            config = server.config
             assert "toremove" not in config.servers
             
             # Try to remove non-existent

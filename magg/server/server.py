@@ -11,7 +11,7 @@ from fastmcp import FastMCP, Client, Context
 from mcp.types import PromptMessage, TextContent
 from pydantic import Field
 
-from ..settings import ConfigManager, ServerConfig
+from ..settings import ConfigManager, ServerConfig, MAGGConfig
 from ..response import MAGGResponse
 from ..util import (
     get_transport_for_command, 
@@ -25,17 +25,42 @@ from .defaults import MAGG_INSTRUCTIONS
 
 class ServerManager:
     """Manages MCP servers - mounting, unmounting, and tracking."""
+    config_manager: ConfigManager
+    mcp: FastMCP
+    mounted_servers: dict
+    logger: logging.Logger
     
-    def __init__(self, mcp: FastMCP, config_manager: ConfigManager):
-        self.mcp = mcp
+    def __init__(self, config_manager: ConfigManager):
         self.config_manager = config_manager
+        self.mcp = FastMCP(
+            name=self.self_prefix,
+            instructions=MAGG_INSTRUCTIONS.format(self_prefix=self.self_prefix),
+        )
         self.mounted_servers = {}
         self.logger = logging.getLogger(__name__)
+    
+    @property
+    def config(self) -> MAGGConfig:
+        """Get the current MAGG configuration."""
+        return self.config_manager.load_config()
+
+    def save_config(self, config: MAGGConfig):
+        """Save the current configuration to disk."""
+        return self.config_manager.save_config(config)
+
+    @cached_property
+    def self_prefix(self) -> str:
+        """Get the self prefix for this MAGG server - cannot be changed during process lifetime."""
+        return self.config.self_prefix
     
     async def mount_server(self, server: ServerConfig) -> bool:
         """Mount a server using FastMCP."""
         if not server.enabled:
             self.logger.info("Server %s is disabled, skipping mount", server.name)
+            return False
+
+        if server.name in self.mounted_servers:
+            self.logger.warning("Server %s is already mounted, skipping", server.name)
             return False
             
         try:
@@ -70,9 +95,6 @@ class ServerManager:
                 'proxy': proxy_server,
                 'client': client
             }
-
-            # Clear the mcp cache
-            self.mcp._cache.clear()
             
             self.logger.debug("Mounted server %s with prefix %s", server.name, server.prefix)
             return True
@@ -85,21 +107,25 @@ class ServerManager:
         """Unmount a server."""
         if name in self.mounted_servers:
             # Get the server config to find the prefix
-            config = self.config_manager.load_config()
+            config = self.config
             server = config.servers.get(name)
             if server and server.prefix in self.mcp._mounted_servers:
                 # Properly unmount from FastMCP
                 self.mcp.unmount(server.prefix)
+                self.logger.debug("Called unmount for prefix %s", server.prefix)
             
             # Remove from our tracking
             del self.mounted_servers[name]
             self.logger.info("Unmounted server %s", name)
             return True
-        return False
+
+        else:
+            self.logger.warning("Server %s is not mounted, cannot unmount", name)
+            return False
     
     async def mount_all_enabled(self):
         """Mount all enabled servers from config."""
-        config = self.config_manager.load_config()
+        config = self.config
         enabled_servers = config.get_enabled_servers()
         
         if not enabled_servers:
@@ -130,29 +156,34 @@ class ServerManager:
 class MAGGServer:
     """Main MAGG server with tools for managing other MCP servers."""
     _is_setup = False
+    server_manager: ServerManager
     
     def __init__(self, config_path: str | None = None):
-        self.config_manager = ConfigManager(config_path)
-
-        self.mcp = FastMCP(
-            name=self.self_prefix,
-            instructions=MAGG_INSTRUCTIONS.format(self_prefix=self.self_prefix),
-        )
-
-        self.server_manager = ServerManager(self.mcp, self.config_manager)
-        
+        self.server_manager = ServerManager(ConfigManager(config_path))
         self._register_tools()
 
     @property
     def is_setup(self) -> bool:
         """Check if the server is fully set up with tools and resources."""
         return self._is_setup
+    
+    @property
+    def mcp(self) -> FastMCP:
+        return self.server_manager.mcp
 
-    @cached_property
+    @property
+    def config(self) -> MAGGConfig:
+        """Get the current MAGG configuration."""
+        return self.server_manager.config
+
+    @property
     def self_prefix(self) -> str:
         """Get the self prefix for this MAGG server."""
-        config = self.config_manager.load_config()
-        return config.self_prefix
+        return self.server_manager.self_prefix
+
+    def save_config(self, config: MAGGConfig):
+        """Save the current configuration to disk."""
+        return self.server_manager.save_config(config)
 
     def _register_tools(self):
         """Register all MAGG management tools programmatically."""
@@ -212,7 +243,7 @@ class MAGGServer:
     
     async def get_server_metadata(self, name: str) -> ServerConfig:
         """Expose server metadata as an MCP resource."""
-        config = self.config_manager.load_config()
+        config = self.config
 
         if name in config.servers:
             server = config.servers[name]
@@ -222,7 +253,7 @@ class MAGGServer:
 
     async def get_all_servers_metadata(self) -> dict[str, ServerConfig]:
         """Expose all servers metadata as an MCP resource."""
-        config = self.config_manager.load_config()
+        config = self.config
         return config.servers
     
     # ============================================================================
@@ -349,8 +380,8 @@ Return the configuration as a JSON object."""
     ) -> MAGGResponse:
         """Add a new MCP server."""
         try:
-            config = self.config_manager.load_config()
-            
+            config = self.config
+
             if name in config.servers:
                 return MAGGResponse.error(f"Server '{name}' already exists")
             
@@ -401,7 +432,7 @@ Return the configuration as a JSON object."""
             
             # Save to config
             config.add_server(server)
-            self.config_manager.save_config(config)
+            self.save_config(config)
 
             return MAGGResponse.success({
                 "action": "server_added",
@@ -409,7 +440,7 @@ Return the configuration as a JSON object."""
                     "name": name,
                     "source": source,
                     "prefix": server.prefix,
-                    "command": command,  # Return original command string
+                    "command": command,
                     "uri": uri,
                     "working_dir": working_dir,
                     "notes": notes,
@@ -429,11 +460,12 @@ Return the configuration as a JSON object."""
     ) -> MAGGResponse:
         """Remove a server."""
         try:
-            config = self.config_manager.load_config()
+            config = self.config
             
-            if config.remove_server(name):
+            if name in config.servers:
                 await self.server_manager.unmount_server(name)
-                self.config_manager.save_config(config)
+                config.remove_server(name)
+                self.save_config(config)
                 return MAGGResponse.success({
                     "action": "server_removed",
                     "server": {"name": name}
@@ -447,7 +479,7 @@ Return the configuration as a JSON object."""
     async def list_servers(self) -> MAGGResponse:
         """List all configured servers."""
         try:
-            config = self.config_manager.load_config()
+            config = self.config
             
             servers = []
             for name, server in config.servers.items():
@@ -489,18 +521,22 @@ Return the configuration as a JSON object."""
     ) -> MAGGResponse:
         """Enable a server."""
         try:
-            config = self.config_manager.load_config()
+            config = self.config
             
             if name not in config.servers:
                 return MAGGResponse.error(f"Server '{name}' not found")
-            
+
             server = config.servers[name]
+
+            if server.enabled:
+                return MAGGResponse.error(f"Server '{name}' is already enabled")
+
             server.enabled = True
             
             # Try to mount it
             success = await self.server_manager.mount_server(server)
             
-            self.config_manager.save_config(config)
+            self.save_config(config)
             
             return MAGGResponse.success({
                 "action": "server_enabled",
@@ -517,18 +553,22 @@ Return the configuration as a JSON object."""
     ) -> MAGGResponse:
         """Disable a server."""
         try:
-            config = self.config_manager.load_config()
+            config = self.config
             
             if name not in config.servers:
                 return MAGGResponse.error(f"Server '{name}' not found")
             
             server = config.servers[name]
+
+            if not server.enabled:
+                return MAGGResponse.error(f"Server '{name}' is already disabled")
+
             server.enabled = False
             
             # Unmount if mounted
             await self.server_manager.unmount_server(name)
             
-            self.config_manager.save_config(config)
+            self.save_config(config)
             return MAGGResponse.success({
                 "action": "server_disabled",
                 "server": {"name": name}
@@ -786,7 +826,7 @@ Return ONLY valid JSON, no explanations or markdown formatting."""
                 }
             
             # Then add resources from mounted servers
-            config = self.config_manager.load_config()
+            config = self.config
             
             for server_name, mount_info in self.server_manager.mounted_servers.items():
                 server = config.servers.get(server_name)
@@ -880,7 +920,7 @@ Return ONLY valid JSON, no explanations or markdown formatting."""
                 })
             
             # Otherwise, look for the resource in mounted servers
-            config = self.config_manager.load_config()
+            config = self.config
             
             for server_name, mount_info in self.server_manager.mounted_servers.items():
                 server = config.servers.get(server_name)
@@ -1012,7 +1052,7 @@ Return ONLY valid JSON, no explanations or markdown formatting."""
             #     }
             #
             # # Then add prompts from mounted servers
-            # config = self.config_manager.load_config()
+            # config = self.config
             #
             # for server_name, mount_info in self.server_manager.mounted_servers.items():
             #     server = config.servers.get(server_name)
@@ -1076,7 +1116,7 @@ Return ONLY valid JSON, no explanations or markdown formatting."""
     ) -> MAGGResponse:
         """Analyze configured servers and provide insights using LLM."""
         try:
-            config = self.config_manager.load_config()
+            config = self.config
             
             if not config.servers:
                 return MAGGResponse.success({

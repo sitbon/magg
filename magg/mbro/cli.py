@@ -69,17 +69,18 @@ class MCPBrowserCLI:
         
         matches = [cmd for cmd in commands if cmd.startswith(text)]
         
-        # Add tool names if we have a current connection
-        current = self.browser.get_current_connection()
-        if current and text:
-            tool_names = [tool['name'] for tool in current.tools if tool['name'].startswith(text)]
-            matches.extend(tool_names)
+        # TODO: Add tool names completion (requires async support or a cached list of tools)
         
         try:
             return matches[state]
         except IndexError:
             return None
-    
+
+    @classmethod
+    async def ainput(cls, prompt: str = "") -> str:
+        """Asynchronous version of the input() function."""
+        return (await asyncio.to_thread(input, prompt)).rstrip('\n')
+
     async def start(self):
         """Start the interactive CLI."""
         if not self.formatter.json_only:
@@ -92,10 +93,10 @@ class MCPBrowserCLI:
                 if not self.formatter.json_only:
                     current = self.browser.current_connection
                     prompt = f"mbro{f':{current}' if current else ''}> "
-                    command = input(prompt).strip()
+                    command = (await self.ainput(prompt)).strip()
                 else:
                     # In JSON mode, no prompt
-                    command = input().strip()
+                    command = (await self.ainput()).strip()
                 
                 if not command:
                     continue
@@ -130,17 +131,17 @@ class MCPBrowserCLI:
         elif cmd == "connect":
             await self.cmd_connect(args)
         elif cmd == "connections" or cmd == "conns":
-            self.cmd_connections()
+            await self.cmd_connections(args)
         elif cmd == "switch":
             await self.cmd_switch(args)
         elif cmd == "disconnect":
             await self.cmd_disconnect(args)
         elif cmd == "tools":
-            self.cmd_tools(args)
+            await self.cmd_tools(args)
         elif cmd == "resources":
-            self.cmd_resources(args)
+            await self.cmd_resources(args)
         elif cmd == "prompts":
-            self.cmd_prompts(args)
+            await self.cmd_prompts(args)
         elif cmd == "call":
             await self.cmd_call(args)
         elif cmd == "resource":
@@ -150,9 +151,9 @@ class MCPBrowserCLI:
         elif cmd == "refresh":
             await self.cmd_refresh()
         elif cmd == "search":
-            self.cmd_search(args)
+            await self.cmd_search(args)
         elif cmd == "info":
-            self.cmd_info(args)
+            await self.cmd_info(args)
         else:
             self.formatter.format_error(f"Unknown command: {cmd}. Type 'help' for available commands.")
     
@@ -176,14 +177,31 @@ class MCPBrowserCLI:
         success = await self.browser.add_connection(name, connection_string)
         if success:
             conn = self.browser.connections[name]
-            self.formatter.format_success(f"Connected to '{name}' (Tools: {len(conn.tools)}, Resources: {len(conn.resources)}, Prompts: {len(conn.prompts)})")
+            # Get counts for display
+            tools = await conn.get_tools()
+            resources = await conn.get_resources()
+            prompts = await conn.get_prompts()
+            self.formatter.format_success(f"Connected to '{name}' (Tools: {len(tools)}, Resources: {len(resources)}, Prompts: {len(prompts)})")
         else:
             self.formatter.format_error(f"Failed to connect to '{name}'")
     
-    def cmd_connections(self):
+    async def cmd_connections(self, args: list[str]):
         """List all connections."""
-        connections = self.browser.list_connections()
-        self.formatter.format_connections_table(connections)
+        extended = False
+
+        if args:
+            if args[0] == '-x':
+                extended = True
+            else:
+                self.formatter.format_error("Usage: connections [-x]")
+                return
+
+            if len(args) > 1:
+                self.formatter.format_error("Usage: connections [-x]")
+                return
+
+        connections = await self.browser.list_connections(extended=extended)
+        self.formatter.format_connections_table(connections, extended=extended)
     
     async def cmd_switch(self, args: list[str]):
         """Switch to a different connection."""
@@ -211,7 +229,7 @@ class MCPBrowserCLI:
         else:
             self.formatter.format_error(f"Connection '{name}' not found")
     
-    def cmd_tools(self, args: list[str]):
+    async def cmd_tools(self, args: list[str]):
         """List available tools."""
         conn = self.browser.get_current_connection()
         if not conn:
@@ -220,7 +238,7 @@ class MCPBrowserCLI:
         
         filter_term = args[0].lower() if args else None
         
-        tools = conn.tools
+        tools = await conn.get_tools()
         if filter_term:
             tools = [t for t in tools if filter_term in t["name"].lower() or filter_term in t["description"].lower()]
         
@@ -238,7 +256,7 @@ class MCPBrowserCLI:
         
         self.formatter.format_json(tools)
     
-    def cmd_resources(self, args: list[str]):
+    async def cmd_resources(self, args: list[str]):
         """List available resources."""
         conn = self.browser.get_current_connection()
         if not conn:
@@ -247,7 +265,7 @@ class MCPBrowserCLI:
         
         filter_term = args[0].lower() if args else None
         
-        resources = conn.resources
+        resources = await conn.get_resources()
         if filter_term:
             resources = [r for r in resources if filter_term in r["name"].lower() or filter_term in r.get("uri", r.get("uriTemplate")).lower()]
         
@@ -258,7 +276,7 @@ class MCPBrowserCLI:
         
         self.formatter.format_json(resources)
     
-    def cmd_prompts(self, args: list[str]):
+    async def cmd_prompts(self, args: list[str]):
         """List available prompts."""
         conn = self.browser.get_current_connection()
         if not conn:
@@ -267,7 +285,7 @@ class MCPBrowserCLI:
         
         filter_term = args[0].lower() if args else None
         
-        prompts = conn.prompts
+        prompts = await conn.get_prompts()
         if filter_term:
             prompts = [p for p in prompts if filter_term in p["name"].lower() or filter_term in p["description"].lower()]
         
@@ -429,13 +447,17 @@ class MCPBrowserCLI:
         success = await self.browser.refresh_current()
         if success:
             conn = self.browser.get_current_connection()
+            # Get counts for display
+            tools = await conn.get_tools()
+            resources = await conn.get_resources()
+            prompts = await conn.get_prompts()
             self.formatter.format_json({
-                "tools": len(conn.tools),
-                "resources": len(conn.resources),
-                "prompts": len(conn.prompts)
+                "tools": len(tools),
+                "resources": len(resources),
+                "prompts": len(prompts)
             })
     
-    def cmd_search(self, args: list[str]):
+    async def cmd_search(self, args: list[str]):
         """Search tools, resources, and prompts."""
         if not args:
             self.formatter.format_error("Usage: search <term>")
@@ -448,20 +470,25 @@ class MCPBrowserCLI:
         
         term = " ".join(args).lower()
         
+        # Get all capabilities
+        tools = await conn.get_tools()
+        resources = await conn.get_resources()
+        prompts = await conn.get_prompts()
+        
         # Search tools
-        matching_tools = [t for t in conn.tools if term in t["name"].lower() or term in t["description"].lower()]
+        matching_tools = [t for t in tools if term in t["name"].lower() or term in t["description"].lower()]
         
         # Search resources
-        matching_resources = [r for r in conn.resources if term in r["name"].lower() or term in r["uri"].lower() or term in r["description"].lower()]
+        matching_resources = [r for r in resources if term in r["name"].lower() or term in r.get("uri", r.get("uriTemplate", "")).lower() or term in r["description"].lower()]
         
         # Search prompts
-        matching_prompts = [p for p in conn.prompts if term in p["name"].lower() or term in p["description"].lower()]
+        matching_prompts = [p for p in prompts if term in p["name"].lower() or term in p["description"].lower()]
         
         total_matches = len(matching_tools) + len(matching_resources) + len(matching_prompts)
         
         self.formatter.format_search_results(term, matching_tools, matching_resources, matching_prompts)
     
-    def cmd_info(self, args: list[str]):
+    async def cmd_info(self, args: list[str]):
         """Show detailed info about a tool, resource, or prompt."""
         if len(args) < 2:
             self.formatter.format_error("Usage: info <tool|resource|prompt> <name>")
@@ -476,7 +503,8 @@ class MCPBrowserCLI:
         name = args[1]
         
         if item_type == "tool":
-            tool = next((t for t in conn.tools if t["name"] == name), None)
+            tools = await conn.get_tools()
+            tool = next((t for t in tools if t["name"] == name), None)
             if not tool:
                 self.formatter.format_error(f"Tool '{name}' not found.")
                 return
@@ -484,7 +512,8 @@ class MCPBrowserCLI:
             self.formatter.format_tool_info(tool)
         
         elif item_type == "resource":
-            resource = next((r for r in conn.resources if r["name"] == name), None)
+            resources = await conn.get_resources()
+            resource = next((r for r in resources if r["name"] == name), None)
             if not resource:
                 self.formatter.format_error(f"Resource '{name}' not found.")
                 return
@@ -492,7 +521,8 @@ class MCPBrowserCLI:
             self.formatter.format_resource_info(resource)
         
         elif item_type == "prompt":
-            prompt = next((p for p in conn.prompts if p["name"] == name), None)
+            prompts = await conn.get_prompts()
+            prompt = next((p for p in prompts if p["name"] == name), None)
             if not prompt:
                 self.formatter.format_error(f"Prompt '{name}' not found.")
                 return
@@ -551,16 +581,16 @@ async def main_async():
 
         # Handle non-interactive commands
         if args.list_connections:
-            cli.cmd_connections()
+            await cli.cmd_connections()
             return
         elif args.list_tools:
-            cli.cmd_tools([])
+            await cli.cmd_tools([])
             return
         elif args.list_resources:
-            cli.cmd_resources([])
+            await cli.cmd_resources([])
             return
         elif args.list_prompts:
-            cli.cmd_prompts([])
+            await cli.cmd_prompts([])
             return
         elif args.call_tool:
             tool_name = args.call_tool[0]
@@ -576,10 +606,10 @@ async def main_async():
             await cli.cmd_prompt([prompt_name] + prompt_args)
             return
         elif args.search:
-            cli.cmd_search([args.search])
+            await cli.cmd_search([args.search])
             return
         elif args.info:
-            cli.cmd_info(args.info)
+            await cli.cmd_info(args.info)
             return
 
         # If no non-interactive commands, start interactive mode

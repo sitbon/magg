@@ -10,6 +10,7 @@ dependencies = [
     "pydantic<3",
     "pydantic-settings<3",
     "rich>=14.0.0",
+    "aiocache>=0.12.3",
 ]
 
 [project.scripts]

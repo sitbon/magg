@@ -75,7 +75,7 @@ class OutputFormatter:
         else:
             print(message)
     
-    def format_connections_table(self, connections: list[dict[str, Any]]) -> None:
+    def format_connections_table(self, connections: list[dict[str, Any]], *, extended: bool = False) -> None:
         """Format connections as a table."""
         if not connections:
             self.format_info("No connections configured.")
@@ -88,21 +88,31 @@ class OutputFormatter:
             table.add_column("Name")
             table.add_column("Type")
             table.add_column("Status")
-            table.add_column("Tools", justify="right")
-            table.add_column("Resources", justify="right")
-            table.add_column("Prompts", justify="right")
-            
+
+            if extended:
+                table.add_column("Tools", justify="right")
+                table.add_column("Resources", justify="right")
+                table.add_column("Prompts", justify="right")
+
             for conn in connections:
                 status = "[green]Connected[/green]" if conn["connected"] else "[red]Disconnected[/red]"
                 if conn["current"]:
                     status += " [bold](current)[/bold]"
+
+                extend = []
+
+                if extended:
+                    extend.extend(map(str, [
+                        len(conn.get('tools') or []),
+                        len(conn.get('resources') or []),
+                        len(conn.get('prompts') or []),
+                    ]))
+
                 table.add_row(
                     conn['name'],
                     conn['type'],
                     status,
-                    str(conn['tools']),
-                    str(conn['resources']),
-                    str(conn['prompts'])
+                    *extend,
                 )
             
             self.console.print(table)
@@ -114,7 +124,12 @@ class OutputFormatter:
                 if conn["current"]:
                     status += " (current)"
                 print(f"  {conn['name']} ({conn['type']}) - {status}")
-                print(f"    Tools: {conn['tools']}, Resources: {conn['resources']}, Prompts: {conn['prompts']}")
+                if extended:
+                    print(
+                        f"    Tools: {len(conn.get('tools') or [])}, "
+                        f"Resources: {len(conn.get('resources') or [])}, "
+                        f"Prompts: {len(conn.get('prompts') or [])}"
+                    )
     
     def format_tool_info(self, tool: dict[str, Any]) -> None:
         """Format detailed tool information."""

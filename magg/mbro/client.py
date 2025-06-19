@@ -1,12 +1,10 @@
-"""MCP client connectivity for mbro."""
-
-import asyncio
-import json
+"""MCP client connectivity for mbro.
+"""
 import logging
-from pathlib import Path
+from functools import cache
 from typing import Any
 
-import httpx
+from aiocache import cached
 from fastmcp import Client
 
 logger = logging.getLogger(__name__)
@@ -21,52 +19,17 @@ class MCPConnection:
         self.connection_string = connection_string
         self.client: Client | None = None
         self.connected = False
-        self.tools: list[dict[str, Any]] = []
-        self.resources: list[dict[str, Any]] = []
-        self.prompts: list[dict[str, Any]] = []
         self._context_manager = None
     
-    async def connect(self) -> bool:
-        """Connect to the MCP server using FastMCP Client."""
-        try:
-            # Create FastMCP client 
-            if self.connection_string.startswith("http"):
-                # For HTTP connections, ensure proper MCP endpoint
-                url = self.connection_string
-                if not url.endswith("/mcp/"):
-                    url = url.rstrip("/") + "/mcp/"
-                self.client = Client(url)
-            else:
-                # For command connections, pass the string directly
-                # FastMCP Client will handle the parsing
-                self.client = Client(self.connection_string)
-            
-            # Test connection by listing tools within a context
-            async with self.client as conn:
-                await self.refresh_capabilities_with_client(conn)
-                self.connected = True
-                return True
-            
-        except Exception as e:
-            # Let caller handle error display
-            pass
-            self.client = None
-            return False
-    
-    async def refresh_capabilities(self) -> None:
-        """Refresh the list of available tools, resources, and prompts."""
-        if not self.client:
-            return
+    @cached()
+    async def get_tools(self) -> list[dict[str, Any]]:
+        """Get tools list (cached)."""
+        if not self.client or not self.connected:
+            return []
         
         async with self.client as conn:
-            await self.refresh_capabilities_with_client(conn)
-    
-    async def refresh_capabilities_with_client(self, client) -> None:
-        """Refresh capabilities using a connected client."""
-        try:
-            # Get tools
-            tools_result = await client.list_tools()
-            self.tools = [
+            tools_result = await conn.list_tools()
+            return [
                 {
                     "name": tool.name,
                     "description": tool.description,
@@ -74,11 +37,18 @@ class MCPConnection:
                 }
                 for tool in tools_result
             ]
-            
-            # Get resources
+    
+    @cached()
+    async def get_resources(self) -> list[dict[str, Any]]:
+        """Get resources list (cached)."""
+        if not self.client or not self.connected:
+            return []
+        
+        resources_data = []
+        async with self.client as conn:
             try:
-                resources_result = await client.list_resources()
-                self.resources = [
+                resources_result = await conn.list_resources()
+                resources_data = [
                     {
                         "uri": resource.uri,
                         "name": resource.name,
@@ -89,27 +59,34 @@ class MCPConnection:
                 ]
             except Exception as e:
                 logger.error(f"Failed to list resources: {e}")
-                self.resources = []
-
-            # Get resource templates
+            
+            # Fetch and store resource templates
             try:
-                resource_templates = await client.list_resource_templates()
+                resource_templates = await conn.list_resource_templates()
                 for template in resource_templates:
-                    self.resources.append({
+                    resources_data.append({
                         "uriTemplate": template.uriTemplate,
                         "name": template.name,
                         "description": template.description,
                         "mimeType": template.mimeType,
                         "annotations": template.annotations,
                     })
-
             except Exception as e:
                 logger.error(f"Failed to list resource templates: {e}")
-            
-            # Get prompts
+        
+        return resources_data
+    
+    @cached()
+    async def get_prompts(self) -> list[dict[str, Any]]:
+        """Get prompts list (cached)."""
+        if not self.client or not self.connected:
+            return []
+        
+        prompts_data = []
+        async with self.client as conn:
             try:
-                prompts_result = await client.list_prompts()
-                self.prompts = [
+                prompts_result = await conn.list_prompts()
+                prompts_data = [
                     {
                         "name": prompt.name,
                         "description": prompt.description,
@@ -125,11 +102,66 @@ class MCPConnection:
                     for prompt in prompts_result
                 ]
             except Exception:
-                self.prompts = []
-                
-        except Exception:
-            # Silently handle errors in capability refresh
+                pass
+        
+        return prompts_data
+    
+    async def _clear_cache(self):
+        """Clear all cached methods.
+        """
+        await self.get_tools.cache.clear()
+        await self.get_resources.cache.clear()
+        await self.get_prompts.cache.clear()
+
+    async def connect(self) -> bool:
+        """Connect to the MCP server using FastMCP Client."""
+        try:
+            # Create FastMCP client 
+            if self.connection_string.startswith("http"):
+                # For HTTP connections, ensure proper MCP endpoint
+                url = self.connection_string
+                if not url.endswith("/mcp/"):
+                    url = url.rstrip("/") + "/mcp/"
+                client = Client(url)
+            else:
+                # For command connections, pass the string directly
+                # FastMCP Client will handle the parsing
+                client = Client(self.connection_string)
+
+            # Test the client
+            try:
+                async with client as conn:
+                    result = await conn.ping()
+
+                    if not result:
+                        logger.warning("Connected to %r but ping failed", client)
+
+            except Exception as e:
+                logger.error("Failed to connect to MCP server: %s", e)
+                return False
+
+            self.client = client
+
+            # Clear cache before connecting
+            await self._clear_cache()
+            
+            self.connected = True
+            return True
+            
+        except Exception as e:
+            # Let caller handle error display
             pass
+            self.client = None
+            return False
+    
+    async def refresh_capabilities(self) -> None:
+        """Refresh the list of available tools, resources, and prompts."""
+        if not self.client:
+            return
+        
+        # Clear the cache to force re-fetch
+        await self._clear_cache()
+    
     
     async def call_tool(self, tool_name: str, arguments: dict[str, Any] = None) -> Any:
         """Call a tool on the connected MCP server."""
@@ -182,9 +214,7 @@ class MCPConnection:
                 pass
             self.client = None
         self.connected = False
-        self.tools = []
-        self.resources = []
-        self.prompts = []
+        await self._clear_cache()
 
 
 class MCPBrowser:
@@ -249,18 +279,37 @@ class MCPBrowser:
             return None
         return self.connections.get(self.current_connection)
     
-    def list_connections(self) -> list[dict[str, Any]]:
+    async def list_connections(self, *, extended: bool = False) -> list[dict[str, Any]]:
         """List all connections with their status."""
         result = []
         for name, conn in self.connections.items():
+            extend = {}
+
+            if extended:
+                try:
+                    extend["tools"] = await conn.get_tools()
+                except Exception as e:
+                    logger.error(f"Failed to get tools for {name}: {e}")
+                    extend["tools"] = None
+
+                try:
+                    extend["resources"] = await conn.get_resources()
+                except Exception as e:
+                    logger.error(f"Failed to get resources for {name}: {e}")
+                    extend["resources"] = None
+
+                try:
+                    extend["prompts"] = await conn.get_prompts()
+                except Exception as e:
+                    logger.error(f"Failed to get prompts for {name}: {e}")
+                    extend["prompts"] = None
+
             result.append({
                 "name": name,
                 "type": conn.connection_type,
                 "connected": conn.connected,
                 "current": name == self.current_connection,
-                "tools": len(conn.tools),
-                "resources": len(conn.resources),
-                "prompts": len(conn.prompts)
+                **extend,
             })
         return result
     

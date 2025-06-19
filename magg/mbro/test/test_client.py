@@ -15,9 +15,7 @@ class TestMCPConnection:
         assert conn.connection_type == "command"
         assert conn.connection_string == "echo hello"
         assert not conn.connected
-        assert conn.tools == []
-        assert conn.resources == []
-        assert conn.prompts == []
+        # tools, resources, prompts are now async methods
     
     @pytest.mark.asyncio
     async def test_connect_success(self):
@@ -37,11 +35,12 @@ class TestMCPBrowser:
         browser = MCPBrowser()
         assert browser.connections == {}
         assert browser.current_connection is None
-    
-    def test_list_connections_empty(self):
+
+    @pytest.mark.asyncio
+    async def test_list_connections_empty(self):
         """Test listing connections when none exist."""
         browser = MCPBrowser()
-        connections = browser.list_connections()
+        connections = await browser.list_connections()
         assert connections == []
     
     def test_get_current_connection_none(self):

@@ -2,13 +2,11 @@
 
 import pytest
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 import tempfile
-import os
 
 from magg.server import MAGGServer
-from magg.settings import MAGGConfig, ServerConfig, ConfigManager
-from magg.response import MAGGResponse
+from magg.settings import MAGGConfig
 
 
 class TestAddServer:

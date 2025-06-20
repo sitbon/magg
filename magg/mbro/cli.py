@@ -394,9 +394,8 @@ class MCPBrowserCLI:
         
         try:
             result: GetPromptResult = await conn.get_prompt(name, arguments)
-            # TODO: Non-JSON output for prompts?
-            prompt_data = result.model_dump(exclude_none=True, exclude_defaults=True, exclude_unset=True, by_alias=True)
-            self.formatter.format_json(prompt_data)
+
+            self.formatter.format_prompt_result(result)
 
         except Exception as e:
             self.formatter.format_error(f"Error getting prompt: {e}", e)

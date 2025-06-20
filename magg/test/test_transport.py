@@ -1,13 +1,11 @@
 """Unit tests for transport utilities."""
 
-import pytest
-from pathlib import Path
 from unittest.mock import patch, MagicMock
 import tempfile
 import os
 
 from magg.util.transport import get_transport_for_command, get_transport_for_uri
-from magg.transport import NoValidatePythonStdioTransport, NoValidateNodeStdioTransport
+from magg.util.transports import NoValidatePythonStdioTransport, NoValidateNodeStdioTransport
 from fastmcp.client.transports import (
     StdioTransport,
     NpxStdioTransport,

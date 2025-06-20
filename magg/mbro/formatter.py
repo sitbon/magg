@@ -5,6 +5,7 @@ import sys
 import traceback
 from typing import Any, List
 
+from mcp import GetPromptResult
 from mcp.types import Content, EmbeddedResource, TextResourceContents, BlobResourceContents, Resource
 from rich.console import Console
 from rich.json import JSON
@@ -20,6 +21,54 @@ class OutputFormatter:
         self.json_only = json_only
         self.indent = indent if indent > 0 else None
 
+    def format_json(self, data: Any) -> None:
+        """Format and print JSON data."""
+        if self.use_rich:
+            output = JSON.from_data(data, indent=self.indent, default=str)
+            self.console.print(output)
+        else:
+            output = json.dumps(data, indent=self.indent, default=str)
+            print(output)
+
+    def format_error(self, message: str, exception: Exception | None = None) -> None:
+        """Format and print an error message."""
+        if self.json_only:
+            error_data = {"error": message}
+            if exception:
+                error_data["exception"] = {
+                    "type": type(exception).__name__,
+                    "message": str(exception),
+                    "traceback": traceback.format_exc().splitlines()
+                }
+
+            self.format_json(error_data)
+        else:
+            if self.use_rich:
+                self.console.print(f"[red]Error: {message}[/red]")
+                if exception:
+                    self.console.print_exception(show_locals=False)
+            else:
+                print(f"Error: {message}", file=sys.stderr)
+                if exception:
+                    traceback.print_exc()
+    
+    def format_success(self, message: str) -> None:
+        """Format and print a success message."""
+        if self.json_only:
+            self.format_json({"success": message})
+        else:
+            self.print(
+                message if not self.use_rich else
+                f"[green]{message}[/green]"
+            )
+    
+    def format_info(self, message: str, key: str | None = None) -> None:
+        """Format and print an info message."""
+        if self.json_only:
+            self.format_json({key or "info": message})
+        else:
+            self.print(message)
+    
     def print(self, *objects, **kwds) -> None:
         """Print a message using the console or standard output."""
         file = kwds.pop('file', sys.stdout)
@@ -143,54 +192,6 @@ class OutputFormatter:
                 return cls.decode_resource(content.resource)
 
         return content.model_dump(**dump_args)
-
-    def format_json(self, data: Any) -> None:
-        """Format and print JSON data."""
-        if self.use_rich:
-            output = JSON.from_data(data, indent=self.indent, default=str)
-            self.console.print(output)
-        else:
-            output = json.dumps(data, indent=self.indent, default=str)
-            print(output)
-    
-    def format_error(self, message: str, exception: Exception | None = None) -> None:
-        """Format and print an error message."""
-        if self.json_only:
-            error_data = {"error": message}
-            if exception:
-                error_data["exception"] = {
-                    "type": type(exception).__name__,
-                    "message": str(exception),
-                    "traceback": traceback.format_exc().splitlines()
-                }
-
-            self.format_json(error_data)
-        else:
-            if self.use_rich:
-                self.console.print(f"[red]Error: {message}[/red]")
-                if exception:
-                    self.console.print_exception(show_locals=False)
-            else:
-                print(f"Error: {message}", file=sys.stderr)
-                if exception:
-                    traceback.print_exc()
-    
-    def format_success(self, message: str) -> None:
-        """Format and print a success message."""
-        if self.json_only:
-            self.format_json({"success": message})
-        else:
-            self.print(
-                message if not self.use_rich else
-                f"[green]{message}[/green]"
-            )
-    
-    def format_info(self, message: str, key: str | None = None) -> None:
-        """Format and print an info message."""
-        if self.json_only:
-            self.format_json({key or "info": message})
-        else:
-            self.print(message)
     
     def format_connections_table(self, connections: list[dict[str, Any]], *, extended: bool = False) -> None:
         """Format connections as a table."""
@@ -403,6 +404,52 @@ class OutputFormatter:
         else:
             self.print("No arguments required")
     
+    def format_prompt_result(self, result: GetPromptResult):
+        """Format the result of a prompt call.
+        
+        GetPromptResult has a description and messages, each message has "role" and "content" ("type" and "text" for Content, usually).
+        """
+        if self.json_only:
+            prompt_data = result.model_dump(exclude_none=True, exclude_defaults=True, exclude_unset=True, by_alias=True)
+            self.format_json(prompt_data)
+        else:
+            # Print description if present
+            if result.description:
+                self.print(
+                    f"\n{result.description}\n" if not self.use_rich else
+                    f"\n[bold]{result.description}[/bold]\n"
+                )
+
+            # Print each message
+            for msg in result.messages:
+                # Format role
+                role_text = f"{msg.role}:"
+                if self.use_rich:
+                    match msg.role.lower():
+                        case "assistant":
+                            role_text = f"[green]{role_text}[/green]"
+                        case "user":
+                            role_text = f"[blue]{role_text}[/blue]"
+                        case "system":
+                            role_text = f"[yellow]{role_text}[/yellow]"
+                        case _:
+                            role_text = f"[white]{role_text}[/white]"
+
+                self.print(role_text)
+
+                # Format content based on type
+                content = self.decode_content(msg.content)
+                if isinstance(content, str):
+                    # Print text content with indentation
+                    for line in content.splitlines():
+                        self.print(f"  {line}")
+                else:
+                    # Print structured content as JSON
+                    self.print("  ", end="")
+                    self.format_json(content)
+
+                self.print("")  # Add blank line between messages
+
     def format_search_results(self, term: str, tools: list, resources: list, prompts: list) -> None:
         """Format search results."""
         total_matches = len(tools) + len(resources) + len(prompts)

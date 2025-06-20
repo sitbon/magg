@@ -5,21 +5,16 @@ import logging
 from functools import cached_property
 from pathlib import Path
 from typing import Any
-from pydantic import field_validator, Field, model_validator
+
+from pydantic import field_validator, Field, model_validator, AnyUrl
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class ServerConfig(BaseSettings):
     """Server configuration - defines how to run an MCP server."""
     model_config = SettingsConfigDict(
-        # Environment variable prefix
-        env_prefix="MAGG_SERVER_",
-        # Allow .env file
-        env_file=".env",
         # Allow extra fields
-        extra="ignore",
-        # Use nested delimiter for complex configs
-        env_nested_delimiter="__",
+        extra="allow",
         # Validate on assignment
         validate_assignment=True,
         # Allow arbitrary types
@@ -27,7 +22,7 @@ class ServerConfig(BaseSettings):
     )
     
     name: str = Field(..., description="Unique server name - can contain any characters")
-    source: str = Field(..., description="URL/URI of the server package, repository, or listing")
+    source: str = Field(..., description="URL/URI/path of the server package, repository, or listing")
     prefix: str = Field(default="", description="Tool prefix for this server - must be a valid Python identifier without underscores")
     notes: str | None = Field(None, description="Setup notes for LLM and humans")
     
@@ -56,7 +51,19 @@ class ServerConfig(BaseSettings):
             if '_' in v:
                 raise ValueError("Server prefix cannot contain underscores ('_')")
         return v
-    
+
+    @field_validator('transport')
+    def validate_transport(cls, v: dict[str, Any] | None) -> dict[str, Any] | None:
+        if v is not None and not v:
+            v = None  # Normalize empty dict to None
+        return v
+
+    @field_validator('uri')
+    def validate_uri(cls, v: str | None) -> str | None:
+        if v:
+            AnyUrl(v)  # Validate as URL
+        return v
+
     @classmethod
     def generate_prefix_from_name(cls, name: str) -> str:
         """Generate a valid prefix from a server name.
@@ -84,17 +91,11 @@ class ServerConfig(BaseSettings):
 class MAGGConfig(BaseSettings):
     """Main MAGG configuration."""
     model_config = SettingsConfigDict(
-        # Environment variable prefix
         env_prefix="MAGG_",
-        # Allow .env file
         env_file=".env",
-        # Allow extra fields
-        extra="ignore",
-        # Use nested delimiter
+        extra="allow",
         env_nested_delimiter="__",
-        # Validate on assignment
         validate_assignment=True,
-        # Allow arbitrary types
         arbitrary_types_allowed=True
     )
 
@@ -102,7 +103,7 @@ class MAGGConfig(BaseSettings):
     debug: bool = Field(default=False, description="Enable debug mode for MAGG")
     log_level: str = Field(default="INFO", description="Logging level for MAGG")
     self_prefix: str = Field(default="magg", description="Prefix for MAGG tools and commands - must be a valid Python identifier without underscores")
-    servers: dict[str, ServerConfig] = Field(default_factory=dict, description="Servers configuration (loaded from JSON file)")
+    servers: dict[str, ServerConfig] = Field(default_factory=dict, description="Servers configuration (loaded from config_path)")
 
     @model_validator(mode='after')
     def export_environment_variables(self) -> 'MAGGConfig':
@@ -172,15 +173,16 @@ class ConfigManager:
         config = MAGGConfig()
         
         if not self.config_path.exists():
+            self.logger.warning(f"Config file {self.config_path} does not exist. Using default settings.")
             return config
         
         try:
             with open(self.config_path, 'r') as f:
                 data = json.load(f)
-            
-            # Deserialize servers from JSON file
+
             servers = {}
-            for name, server_data in data.get('servers', {}).items():
+
+            for name, server_data in data.pop('servers', {}).items():
                 try:
                     server_data['name'] = name  # Ensure name is set and same as key
                     servers[name] = ServerConfig(**server_data)
@@ -190,6 +192,12 @@ class ConfigManager:
                     continue
             
             config.servers = servers
+
+            for key, value in data.items():
+                if not hasattr(config, key):
+                    self.logger.warning(f"Setting unknown config key '{key}' in {self.config_path}.")
+                setattr(config, key, value)
+
             return config
         
         except Exception as e:

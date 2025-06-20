@@ -14,8 +14,8 @@ class TestMAGGBasicFunctionality:
         server = MAGGServer()
         await server.setup()
         
-        # Check for core MAGG tools - no more sources
-        expected_tools = ["magg_list_servers", "magg_add_server", "magg_list_tools"]
+        # Check for core MAGG tools
+        expected_tools = ["magg_list_servers", "magg_add_server"]
         
         async with Client(server.mcp) as client:
             tools = await client.list_tools()
@@ -24,17 +24,18 @@ class TestMAGGBasicFunctionality:
             for tool in expected_tools:
                 assert tool in tool_names
     
-    @pytest.mark.asyncio
-    async def test_magg_list_tools(self):
-        """Test MAGG list tools functionality."""
-        server = MAGGServer()
-        await server.setup()
-        
-        async with Client(server.mcp) as client:
-            result = await client.call_tool("magg_list_tools", {})
-            assert len(result) > 0
-            assert hasattr(result[0], 'text')
-            assert isinstance(result[0].text, str)
+    # list_tools was removed from the server
+    # @pytest.mark.asyncio
+    # async def test_magg_list_tools(self):
+    #     """Test MAGG list tools functionality."""
+    #     server = MAGGServer()
+    #     await server.setup()
+    #     
+    #     async with Client(server.mcp) as client:
+    #         result = await client.call_tool("magg_list_tools", {})
+    #         assert len(result) > 0
+    #         assert hasattr(result[0], 'text')
+    #         assert isinstance(result[0].text, str)
     
     @pytest.mark.asyncio
     async def test_list_servers(self):

@@ -201,9 +201,9 @@ class TestMCPBrowserCLI:
         """Test calling a tool."""
         mock_connection = Mock()
         
-        # Mock tool result
-        mock_result = Mock()
-        mock_result.text = '{"result": "Tool result"}'
+        # Mock tool result - the new format expects a Content object with type and text
+        from mcp.types import TextContent
+        mock_result = TextContent(type="text", text='{"result": "Tool result"}')
         mock_connection.call_tool = AsyncMock(return_value=[mock_result])
         
         with patch.object(self.cli.browser, 'get_current_connection') as mock_get:
@@ -215,9 +215,16 @@ class TestMCPBrowserCLI:
             
             mock_connection.call_tool.assert_called_once_with("test_tool", {"arg": "value"})
             
-            # Check output
-            assert isinstance(output, dict)
-            assert output["result"] == "Tool result"
+            # Check output - JSON mode outputs a list of content objects
+            assert isinstance(output, list)
+            assert len(output) == 1
+            # The formatter preserves the Content object structure since text is not JSON content type
+            assert output[0]["type"] == "text"
+            assert output[0]["text"] == '{"result": "Tool result"}'
+            # Parse the text manually to verify
+            import json
+            parsed = json.loads(output[0]["text"])
+            assert parsed["result"] == "Tool result"
     
     @pytest.mark.asyncio
     async def test_cmd_call_tool_invalid_json(self):
@@ -231,10 +238,10 @@ class TestMCPBrowserCLI:
                 self.cli.cmd_call(["test_tool", "invalid json"])
             )
             
-            # Should show error as JSON (may have multiple JSON objects)
-            # Just check that the error message is present
-            assert '"error"' in str(output)
-            assert "Invalid JSON" in str(output)
+            # Should show error as JSON
+            assert isinstance(output, dict)
+            assert "error" in output
+            assert "Invalid JSON" in output["error"]
     
     @pytest.mark.asyncio
     async def test_cmd_search(self):

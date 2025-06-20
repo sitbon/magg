@@ -115,8 +115,7 @@ asyncio.run(main())
                 servers_data = json.loads(response_text)
                 print(f"Parsed servers data: {servers_data}")
                 
-                assert servers_data["output"]["servers"] == []
-                assert servers_data["output"]["total"] == 0
+                assert servers_data["output"] == []
                 
                 print("\n✅ All tests passed!")
             

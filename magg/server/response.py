@@ -1,6 +1,7 @@
-"""Response models for MAGG tools."""
+"""Response models for MAGG tools.
+"""
 import json
-from typing import Any, List, Union, Optional
+from typing import Any, Union
 
 from mcp.types import TextContent, EmbeddedResource, Annotations, TextResourceContents
 from pydantic import BaseModel, ConfigDict, AnyUrl
@@ -14,8 +15,21 @@ class MAGGResponse(BaseModel):
     """
     
     model_config = ConfigDict(
-        # Allow arbitrary types in output field
-        arbitrary_types_allowed=True
+        arbitrary_types_allowed=True,
+        extra="allow",
+        json_schema_extra={
+            "description": "Standardized response format for MAGG tools.",
+            "examples": [
+                {
+                    "output": {"message": "Success"},
+                    "errors": None
+                },
+                {
+                    "errors": ["An error occurred"],
+                    "output": "But there might be some output"
+                }
+            ]
+        }
     )
     
     errors: list[str | dict] | None = None

@@ -174,8 +174,8 @@ asyncio.run(main())
                     servers_text = servers_result[0].text
                     servers_data = json.loads(servers_text)
                     print(f"Servers data: {servers_data}")
-                    assert len(servers_data["output"]["servers"]) == 1
-                    assert servers_data["output"]["servers"][0]["name"] == "calc"
+                    assert len(servers_data["output"]) == 1
+                    assert servers_data["output"][0]["name"] == "calc"
                 
                 print("\n✅ All tests passed!")
             

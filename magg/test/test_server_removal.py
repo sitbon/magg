@@ -88,7 +88,8 @@ class TestServerRemoval:
         
         # Check what list_servers returns
         list_response = await magg_server.list_servers()
-        server_names = [s["name"] for s in list_response.output["servers"]]
+        # list_servers returns a list directly as output
+        server_names = [s["name"] for s in list_response.output]
         assert "test1" not in server_names, "Server should not appear in list after removal"
         
         # Try removing again (should fail)
@@ -197,7 +198,7 @@ async def test_with_real_stdio_server(tmp_path):
     
     # Verify server is there
     list_resp = await server.list_servers()
-    assert any(s["name"] == "echo_test" for s in list_resp.output["servers"])
+    assert any(s["name"] == "echo_test" for s in list_resp.output)
     
     # Remove server
     remove_resp = await server.remove_server("echo_test")
@@ -205,7 +206,7 @@ async def test_with_real_stdio_server(tmp_path):
     
     # Verify it's gone
     list_resp2 = await server.list_servers()
-    assert not any(s["name"] == "echo_test" for s in list_resp2.output["servers"])
+    assert not any(s["name"] == "echo_test" for s in list_resp2.output)
     
     # Try removing again - should fail
     remove_resp2 = await server.remove_server("echo_test")

@@ -3,7 +3,6 @@
 import pytest
 import asyncio
 import tempfile
-import os
 from pathlib import Path
 
 from fastmcp import FastMCP, Client
@@ -40,7 +39,7 @@ if __name__ == "__main__":
             # Try different approaches to mount the server
             
             # Import the custom transport
-            from magg.transport import NoValidatePythonStdioTransport
+            from magg.util.transports import NoValidatePythonStdioTransport
 
             # Approach 1: Using Client with custom transport
             try:
@@ -80,17 +79,13 @@ if __name__ == "__main__":
             except Exception as e:
                 print(f"✗ as_proxy mount failed: {e}")
             
-            # Get tool names properly
+            # Get tool names through client
             print("\nAvailable tools on main server:")
-            # Use the tools property or method
-            tools = []
-            if hasattr(main_server, 'list_tools'):
-                tools = await main_server.list_tools()
-            elif hasattr(main_server, 'tools'):
-                tools = main_server.tools
-            
-            for tool in tools:
-                print(f"  - {tool}")
+            # List tools through the FastMCP client
+            async with Client(main_server) as client:
+                tools = await client.list_tools()
+                for tool in tools:
+                    print(f"  - {tool.name}")
 
 
 if __name__ == "__main__":

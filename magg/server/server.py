@@ -26,6 +26,7 @@ JSONToolResponse: TypeAlias = TextContent | EmbeddedResource
 LOG = logging.getLogger(__name__)
 
 
+# noinspection PyProtectedMember
 class ServerManager:
     """Manages MCP servers - mounting, unmounting, and tracking."""
     config_manager: ConfigManager
@@ -329,8 +330,8 @@ class MAGGServer:
         try:
             metadata_entries = await collector.collect_metadata(source, server_name)
             metadata_info = self._format_metadata_for_prompt(metadata_entries)
-        except Exception:
-            metadata_info = "Unable to collect metadata"
+        except Exception as e:
+            metadata_info = f"Unable to collect metadata: {str(e)}"
 
         messages = []
 
@@ -663,9 +664,11 @@ Return the configuration as a JSON object."""
                         project_type = data["project_type"]
                         if project_type == "nodejs_project":
                             config_suggestion["command"] = "npx"
+                            # noinspection PyTypeChecker
                             config_suggestion["args"] = [server_name or Path(source).stem]
                         elif project_type == "python_project":
                             config_suggestion["command"] = "python"
+                            # noinspection PyTypeChecker
                             config_suggestion["args"] = ["-m", server_name or Path(source).stem]
                 
                 return MAGGResponse.success({
@@ -835,6 +838,7 @@ Please provide:
                 )
                 
                 if result and result.text:
+                    # noinspection PyTypeChecker
                     analysis_data["insights"] = result.text
             
             return MAGGResponse.success(analysis_data)

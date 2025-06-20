@@ -1,0 +1,700 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "contact": {
+      "email": "support@glama.ai",
+      "name": "Glama",
+      "url": "https://glama.ai"
+    },
+    "description": "The MCP API is used to browse servers and retrieve their details. It is intended for integrating [Glama MCP server](https://glama.ai/mcp/servers) directory into your application.\n\nIf you are missing a feature, please [contact us](https://glama.ai/support).",
+    "termsOfService": "https://glama.ai/policies/terms-of-service",
+    "title": "Glama MCP API",
+    "version": "1.0.0"
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "bearerFormat": "Token",
+        "description": "Token Authorisation using the Bearer scheme",
+        "scheme": "bearer",
+        "type": "http"
+      }
+    },
+    "schemas": {
+      "Cursor": {
+        "type": "string",
+        "description": "Cursor for pagination",
+        "example": "eyJjcmVhdGVkQXQiOjE3NDA2OTcyNDM3MzUsImlkIjoiNlFPQmZsY1lwbSJ9"
+      },
+      "McpServer": {
+        "type": "object",
+        "properties": {
+          "attributes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/McpServerAttributeReferenceKey"
+            }
+          },
+          "description": {
+            "type": "string",
+            "description": "MCP server description"
+          },
+          "environmentVariablesJsonSchema": {
+            "type": "object",
+            "nullable": true,
+            "properties": {
+              "oneOf": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "required": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "required": [
+                    "required"
+                  ]
+                }
+              },
+              "properties": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "object",
+                  "properties": {
+                    "default": {
+                      "type": "string"
+                    },
+                    "description": {
+                      "type": "string",
+                      "default": ""
+                    },
+                    "type": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "description",
+                    "type"
+                  ]
+                }
+              },
+              "required": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "object"
+                ]
+              }
+            },
+            "required": [
+              "properties",
+              "type"
+            ]
+          },
+          "id": {
+            "$ref": "#/components/schemas/McpServerId"
+          },
+          "name": {
+            "type": "string",
+            "description": "MCP server name",
+            "example": "Playwright MCP Server"
+          },
+          "namespace": {
+            "type": "string",
+            "description": "MCP server namespace",
+            "example": "microsoft"
+          },
+          "repository": {
+            "type": "object",
+            "nullable": true,
+            "properties": {
+              "url": {
+                "type": "string",
+                "format": "uri",
+                "description": "URL to the repository hosting the source code",
+                "example": "https://github.com/pskill9/hn-server"
+              }
+            },
+            "required": [
+              "url"
+            ]
+          },
+          "slug": {
+            "type": "string",
+            "description": "MCP server slug",
+            "example": "playwright-mcp"
+          },
+          "spdxLicense": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/SpdxLicense"
+              }
+            ],
+            "nullable": true
+          },
+          "tools": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/McpServerTool"
+            }
+          },
+          "url": {
+            "type": "string",
+            "format": "uri",
+            "description": "Glama MCP server URL",
+            "example": "https://glama.ai/mcp/servers/microsoft/playwright-mcp"
+          }
+        },
+        "required": [
+          "attributes",
+          "description",
+          "environmentVariablesJsonSchema",
+          "id",
+          "name",
+          "namespace",
+          "repository",
+          "slug",
+          "spdxLicense",
+          "tools",
+          "url"
+        ],
+        "description": "MCP server"
+      },
+      "McpServerAttributeReferenceKey": {
+        "type": "string",
+        "enum": [
+          "author:official",
+          "hosting:hybrid",
+          "hosting:local-only",
+          "hosting:remote-capable"
+        ],
+        "description": "MCP server attribute",
+        "example": "hosting:local-only"
+      },
+      "McpServerId": {
+        "type": "string",
+        "pattern": "^[a-z0-9]+$",
+        "minLength": 10,
+        "maxLength": 10,
+        "description": "MCP server ID",
+        "example": "oge85xl22f"
+      },
+      "SpdxLicense": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "SPDX license name",
+            "example": "MIT"
+          },
+          "url": {
+            "type": "string",
+            "format": "uri",
+            "description": "SPDX license URL",
+            "example": "https://opensource.org/licenses/MIT"
+          }
+        },
+        "required": [
+          "name",
+          "url"
+        ],
+        "description": "SPDX license"
+      },
+      "McpServerTool": {
+        "type": "object",
+        "properties": {
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "inputSchema": {},
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "description",
+          "name"
+        ],
+        "description": "MCP server tool"
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "$ref": "#/components/schemas/ErrorCode"
+              },
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ]
+          }
+        },
+        "required": [
+          "error"
+        ],
+        "description": "Error response"
+      },
+      "ErrorCode": {
+        "type": "string",
+        "enum": [
+          "unauthorized",
+          "internal_server_error",
+          "not_found",
+          "invalid_request",
+          "invalid_response"
+        ],
+        "description": "Error code"
+      },
+      "McpServerInstanceId": {
+        "type": "string",
+        "pattern": "^[a-z0-9]+$",
+        "minLength": 10,
+        "maxLength": 10,
+        "description": "MCP server instance ID",
+        "example": "oge85xl22f"
+      },
+      "McpServerAttribute": {
+        "type": "object",
+        "properties": {
+          "description": {
+            "type": "string",
+            "description": "MCP server attribute description"
+          },
+          "lookupKey": {
+            "$ref": "#/components/schemas/McpServerAttributeReferenceKey"
+          },
+          "name": {
+            "type": "string",
+            "description": "Display name of the attribute",
+            "example": "Official"
+          }
+        },
+        "required": [
+          "description",
+          "lookupKey",
+          "name"
+        ],
+        "description": "MCP server attribute"
+      }
+    }
+  },
+  "paths": {
+    "/v1/servers": {
+      "get": {
+        "tags": [
+          "Servers"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "query",
+            "name": "after"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "default": 10
+            },
+            "in": "query",
+            "name": "first"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "example": "hacker news"
+            },
+            "in": "query",
+            "name": "query",
+            "description": "Free text search query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "pageInfo": {
+                      "type": "object",
+                      "properties": {
+                        "endCursor": {
+                          "allOf": [
+                            {
+                              "$ref": "#/components/schemas/Cursor"
+                            }
+                          ],
+                          "nullable": true,
+                          "default": null
+                        },
+                        "hasNextPage": {
+                          "type": "boolean"
+                        },
+                        "hasPreviousPage": {
+                          "type": "boolean"
+                        },
+                        "startCursor": {
+                          "allOf": [
+                            {
+                              "$ref": "#/components/schemas/Cursor"
+                            }
+                          ],
+                          "nullable": true,
+                          "default": null
+                        }
+                      },
+                      "required": [
+                        "endCursor",
+                        "hasNextPage",
+                        "hasPreviousPage",
+                        "startCursor"
+                      ],
+                      "example": {
+                        "endCursor": "YWJzb2x1dGU6MQ==",
+                        "hasNextPage": true,
+                        "hasPreviousPage": false,
+                        "startCursor": "YWJzb2x1dGU6MQ=="
+                      }
+                    },
+                    "servers": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/McpServer"
+                      }
+                    }
+                  },
+                  "required": [
+                    "pageInfo",
+                    "servers"
+                  ]
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/instances": {
+      "get": {
+        "summary": "Hosted MCP server instances",
+        "tags": [
+          "Instances"
+        ],
+        "description": "Use the SSE endpoint to connect to the instance.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "instances": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "endpoints": {
+                            "type": "object",
+                            "properties": {
+                              "sse": {
+                                "type": "string",
+                                "format": "uri",
+                                "description": "SSE endpoint for the MCP server instance.\n\nUse this endpoint to connect to the instance.\n\n> [!note]\n> The SSE endpoint includes a token that expires after 10 minutes."
+                              }
+                            },
+                            "required": [
+                              "sse"
+                            ]
+                          },
+                          "id": {
+                            "$ref": "#/components/schemas/McpServerInstanceId"
+                          },
+                          "mcpServer": {
+                            "$ref": "#/components/schemas/McpServer"
+                          }
+                        },
+                        "required": [
+                          "endpoints",
+                          "id",
+                          "mcpServer"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "instances"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/attributes": {
+      "get": {
+        "summary": "MCP server attributes",
+        "tags": [
+          "Servers"
+        ],
+        "description": "We are limiting which attributes are available via the API to limit the potential of breaking changes. Please [contact us](https://glama.ai/support) if you require additional attributes.",
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "attributes": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/McpServerAttribute"
+                      }
+                    }
+                  },
+                  "required": [
+                    "attributes"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/servers/{id}": {
+      "get": {
+        "tags": [
+          "Servers"
+        ],
+        "description": "> [!warning]\n> This endpoint is deprecated. Please use `GET /v1/servers/:namespace/:slug` instead.\n\nRetrieve the MCP server details by its unique identifier.",
+        "parameters": [
+          {
+            "schema": {
+              "$ref": "#/components/schemas/McpServerId"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "deprecated": true,
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/McpServer"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/servers/{namespace}/{slug}": {
+      "get": {
+        "tags": [
+          "Servers"
+        ],
+        "description": "Retrieve the MCP server details by its unique identifier.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "namespace",
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "slug",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/McpServer"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/telemetry/usage": {
+      "post": {
+        "tags": [
+          "Telemetry"
+        ],
+        "description": "Send MCP tool usage data to the server.",
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "success"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "servers": [
+    {
+      "url": "https://glama.ai/api/mcp"
+    }
+  ],
+  "tags": [
+    {
+      "description": "MCP server related endpoints",
+      "name": "Servers"
+    },
+    {
+      "description": "MCP server instances hosted by Glama.\n\nThese instances belong to users and are not publicly accessible.",
+      "name": "Instances"
+    }
+  ]
+}

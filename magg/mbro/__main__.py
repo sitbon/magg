@@ -1,7 +1,7 @@
-from .. import process
+from magg import process
 
 process.setup()
 
-from .cli import main
+from magg.mbro.cli import main
 
 main()

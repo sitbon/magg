@@ -2,6 +2,9 @@
 
 A self-aware MCP server that manages and aggregates other MCP tools and servers.
 """
+from importlib import metadata
 
-__version__ = "1.0.0"
-__author__ = "MAGG Development"
+try:
+    __version__ = metadata.version("magg")
+except metadata.PackageNotFoundError:
+    __version__ = "unknown"

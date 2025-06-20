@@ -15,9 +15,10 @@ from pathlib import Path
 from mcp import GetPromptResult
 from prompt_toolkit.completion import WordCompleter
 from prompt_toolkit.history import FileHistory
-from prompt_toolkit import PromptSession
+from prompt_toolkit import PromptSession, HTML
 from rich.traceback import install as install_rich_traceback
 
+from .. import process
 from . import acon
 from .client import MCPBrowser
 from .formatter import OutputFormatter
@@ -40,7 +41,7 @@ class MCPBrowserCLI:
         self.verbose = verbose
 
     @cached_property
-    def _completer(self):
+    def _completer(self) -> WordCompleter:
         return WordCompleter(
             [
                 'help', 'quit', 'exit', 'connect', 'connections', 'conns', 'switch',
@@ -102,6 +103,14 @@ class MCPBrowserCLI:
                 if not self.formatter.json_only:
                     current = self.browser.current_connection
                     prompt = f"mbro{f':{current}' if current else ''}> "
+
+                    if self.formatter.use_rich:
+                        prompt = HTML(
+                            '<ansiyellow>mbro</ansiyellow>'
+                            + ('<ansigreen>:</ansigreen><ansicyan>{}</ansicyan>'.format(current) if current else '')
+                            + '<ansiwhite>> </ansiwhite>'
+                        )
+
                 else:
                     prompt = ""
 
@@ -171,6 +180,9 @@ class MCPBrowserCLI:
             await self.cmd_info(args)
         else:
             self.formatter.format_error(f"Unknown command: {cmd}. Type 'help' for available commands.")
+
+        if not self.formatter.json_only:
+            self.formatter.print()
     
     def show_help(self):
         """Show help text."""
@@ -591,8 +603,6 @@ async def main_async():
 
 def main():
     """Sync entry point."""
-    # Setup logging first
-    from .. import process
     process.setup()
 
     try:

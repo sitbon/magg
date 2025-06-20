@@ -17,10 +17,6 @@ def initialize(**environment) -> bool:
 
     from .settings import ConfigManager
     config_manager = ConfigManager()
-    config = config_manager.load_config()
-
-    environment.setdefault("MAGG_CONFIG_PATH", str(config_manager.config_path))
-    environment.setdefault("MAGG_LOG_LEVEL", config.log_level.upper())
 
     for key, value in environment.items():
         os.environ.setdefault(key, value)
@@ -29,6 +25,7 @@ def initialize(**environment) -> bool:
         from .util.system import initterm
         initterm()
 
+    config_manager.load_config()
     return True
 
 

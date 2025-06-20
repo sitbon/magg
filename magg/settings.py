@@ -1,7 +1,7 @@
 """Configuration management for MAGG - Using pydantic-settings."""
-
 import json
 import logging
+import os
 from functools import cached_property
 from pathlib import Path
 from typing import Any
@@ -99,19 +99,27 @@ class MAGGConfig(BaseSettings):
         arbitrary_types_allowed=True
     )
 
-    config_path: Path = Field(default_factory=lambda: Path.cwd() / ".magg" / "config.json", description="Configuration file path (can be overridden by MAGG_CONFIG_PATH)")
-    debug: bool = Field(default=False, description="Enable debug mode for MAGG")
-    log_level: str = Field(default="INFO", description="Logging level for MAGG")
-    self_prefix: str = Field(default="magg", description="Prefix for MAGG tools and commands - must be a valid Python identifier without underscores")
+    config_path: Path = Field(
+        default_factory=lambda: Path.cwd() / ".magg" / "config.json",
+        description="Configuration file path (can be overridden by MAGG_CONFIG_PATH)"
+    )
+    quiet: bool = Field(default=False, description="Suppress output unless errors occur (env: MAGG_QUIET)")
+    debug: bool = Field(default=False, description="Enable debug mode for MAGG (env: MAGG_DEBUG)")
+    log_level: str | None = Field(default=None, description="Logging level for MAGG (default: INFO) (env: MAGG_LOG_LEVEL)")
+    self_prefix: str = Field(
+        default="magg",
+        description="Prefix for MAGG tools and commands - must be a valid Python identifier without underscores (env: MAGG_SELF_PREFIX)"
+    )
     servers: dict[str, ServerConfig] = Field(default_factory=dict, description="Servers configuration (loaded from config_path)")
 
     @model_validator(mode='after')
     def export_environment_variables(self) -> 'MAGGConfig':
         """Export log_level and config_path as environment variables, in case they were not set that way.
         """
-        import os
+        if self.quiet and self.log_level is None:
+            self.log_level = 'CRITICAL'
 
-        if 'MAGG_LOG_LEVEL' not in os.environ:
+        if 'MAGG_LOG_LEVEL' not in os.environ and self.log_level is not None:
             os.environ['MAGG_LOG_LEVEL'] = self.log_level
 
         if 'MAGG_CONFIG_PATH' not in os.environ:

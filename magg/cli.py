@@ -8,14 +8,17 @@ import os
 import sys
 import logging
 
-from magg.settings import ConfigManager, ServerConfig
-from magg import process
-from magg.util.terminal import (
+from . import __version__, process
+from .settings import ConfigManager, ServerConfig
+from .util.terminal import (
     print_success, print_error, print_warning,
     print_info, print_server_list, print_status_summary, confirm_action
 )
 
-logger: logging.Logger | None = None
+
+process.setup(source=__name__)
+
+logger: logging.Logger | None = logging.getLogger(__name__)
 
 
 async def cmd_serve(args) -> None:
@@ -36,6 +39,26 @@ async def cmd_serve(args) -> None:
     else:
         logger.info("Starting stdio server")
         await runner.run_stdio()
+
+
+def cmd_serve_args(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        '--http',
+        action='store_true',
+        help='Run as HTTP server instead of stdio mode'
+    )
+    parser.add_argument(
+        '--host',
+        type=str,
+        default='localhost',
+        help='HTTP server host address (default: localhost)'
+    )
+    parser.add_argument(
+        '--port',
+        type=int,
+        default=8000,
+        help='HTTP server port (default: 8000)'
+    )
 
 
 async def cmd_add_server(args) -> None:
@@ -237,11 +260,11 @@ def create_parser() -> argparse.ArgumentParser:
         description='MAGG - MCP Aggregator: Manage and aggregate MCP servers',
         epilog='Use "magg <command> --help" for more information about a command.'
     )
-    
+
     parser.add_argument(
-        '--version', '-v',
+        '--version', '-V',
         action='version',
-        version='%(prog)s 0.1.0'
+        version=f'%(prog)s {__version__}',
     )
     
     parser.add_argument(
@@ -258,23 +281,7 @@ def create_parser() -> argparse.ArgumentParser:
         help='Start MAGG server',
         description='Start the MAGG server in either stdio mode (default) or HTTP mode'
     )
-    serve_parser.add_argument(
-        '--http', 
-        action='store_true', 
-        help='Run as HTTP server instead of stdio mode'
-    )
-    serve_parser.add_argument(
-        '--host', 
-        type=str, 
-        default='localhost', 
-        help='HTTP server host address (default: localhost)'
-    )
-    serve_parser.add_argument(
-        '--port', 
-        type=int, 
-        default=8000, 
-        help='HTTP server port (default: 8000)'
-    )
+    cmd_serve_args(serve_parser)
     
     # Add server command
     add_parser = subparsers.add_parser('add-server', help='Add a new server')

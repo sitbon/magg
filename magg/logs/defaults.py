@@ -15,7 +15,7 @@ LOGGING_CONFIG = {
     "formatters": {
         "default": {
             "()": "magg.logs.formatter.DefaultFormatter",
-            "format": "{process} {thread} | [{asctime}.{msecs:03.0f}] {levelname} {name} {message}",
+            "format": "[{asctime}.{msecs:03.0f}] {levelname} {name} {message}",
             "datefmt": "%Y-%m-%d %H:%M:%S",
             "style": "{",
             "defaults": {
@@ -35,6 +35,11 @@ LOGGING_CONFIG = {
             "listener": "magg.logs.listener.QueueListener",
             "handlers": ["stream"],
         },
+        # "rich": {
+        #     "class": "rich.logging.RichHandler",
+        #     # "formatter": "default",
+        #     "rich_tracebacks": True,
+        # }
     },
     "loggers": {
         "root": {
@@ -49,7 +54,7 @@ LOGGING_CONFIG = {
         },
         "FastMCP": {
             "handlers": ["default"],
-            "level": "WARNING",
+            "level": os.getenv("FASTMCP_LOG_LEVEL", "WARNING").upper(),
             "propagate": False,
         },
         "uvicorn": {

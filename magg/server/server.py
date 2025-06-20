@@ -23,6 +23,7 @@ from ..util import (
 from .defaults import MAGG_INSTRUCTIONS
 
 JSONToolResponse: TypeAlias = TextContent | EmbeddedResource
+LOG = logging.getLogger(__name__)
 
 
 class ServerManager:
@@ -30,7 +31,6 @@ class ServerManager:
     config_manager: ConfigManager
     mcp: FastMCP
     mounted_servers: dict
-    logger: logging.Logger
     
     def __init__(self, config_manager: ConfigManager):
         self.config_manager = config_manager
@@ -39,8 +39,7 @@ class ServerManager:
             instructions=MAGG_INSTRUCTIONS.format(self_prefix=self.self_prefix),
         )
         self.mounted_servers = {}
-        self.logger = logging.getLogger(__name__)
-    
+
     @property
     def config(self) -> MAGGConfig:
         """Get the current MAGG configuration."""
@@ -58,11 +57,11 @@ class ServerManager:
     async def mount_server(self, server: ServerConfig) -> bool:
         """Mount a server using FastMCP."""
         if not server.enabled:
-            self.logger.info("Server %s is disabled, skipping mount", server.name)
+            LOG.info("Server %s is disabled, skipping mount", server.name)
             return False
 
         if server.name in self.mounted_servers:
-            self.logger.warning("Server %s is already mounted, skipping", server.name)
+            LOG.warning("Server %s is already mounted, skipping", server.name)
             return False
             
         try:
@@ -86,7 +85,7 @@ class ServerManager:
                 client = Client(transport)
                 
             else:
-                self.logger.error("No command or URI specified for %s", server.name)
+                LOG.error("No command or URI specified for %s", server.name)
                 return False
             
             # Create proxy and mount
@@ -98,11 +97,11 @@ class ServerManager:
                 'client': client
             }
             
-            self.logger.debug("Mounted server %s with prefix %s", server.name, server.prefix)
+            LOG.debug("Mounted server %s with prefix %s", server.name, server.prefix)
             return True
         
         except Exception as e:
-            self.logger.error("Failed to mount server %s: %s", server.name, e)
+            LOG.error("Failed to mount server %s: %s", server.name, e)
             return False
     
     async def unmount_server(self, name: str) -> bool:
@@ -114,15 +113,15 @@ class ServerManager:
             if server and server.prefix in self.mcp._mounted_servers:
                 # Properly unmount from FastMCP
                 self.mcp.unmount(server.prefix)
-                self.logger.debug("Called unmount for prefix %s", server.prefix)
+                LOG.debug("Called unmount for prefix %s", server.prefix)
             
             # Remove from our tracking
             del self.mounted_servers[name]
-            self.logger.info("Unmounted server %s", name)
+            LOG.info("Unmounted server %s", name)
             return True
 
         else:
-            self.logger.warning("Server %s is not mounted, cannot unmount", name)
+            LOG.warning("Server %s is not mounted, cannot unmount", name)
             return False
     
     async def mount_all_enabled(self):
@@ -131,10 +130,10 @@ class ServerManager:
         enabled_servers = config.get_enabled_servers()
         
         if not enabled_servers:
-            self.logger.info("No enabled servers to mount")
+            LOG.info("No enabled servers to mount")
             return
         
-        self.logger.info("Mounting %d enabled servers...", len(enabled_servers))
+        LOG.info("Mounting %d enabled servers...", len(enabled_servers))
         
         results = []
         for name, server in enabled_servers.items():
@@ -142,7 +141,7 @@ class ServerManager:
                 success = await self.mount_server(server)
                 results.append((name, success))
             except Exception as e:
-                self.logger.error("Error mounting %s: %s", name, e)
+                LOG.error("Error mounting %s: %s", name, e)
                 results.append((name, False))
         
         # Log results
@@ -150,9 +149,9 @@ class ServerManager:
         failed = [name for name, success in results if not success]
         
         if successful:
-            self.logger.info("Successfully mounted: %s", ', '.join(successful))
+            LOG.info("Successfully mounted: %s", ', '.join(successful))
         if failed:
-            self.logger.warning("Failed to mount: %s", ', '.join(failed))
+            LOG.warning("Failed to mount: %s", ', '.join(failed))
 
 
 # noinspection PyMethodMayBeStatic
@@ -160,11 +159,9 @@ class MAGGServer:
     """Main MAGG server with tools for managing other MCP servers."""
     _is_setup = False
     server_manager: ServerManager
-    logger: logging.Logger
     
     def __init__(self, config_path: str | None = None):
         self.server_manager = ServerManager(ConfigManager(config_path))
-        self.logger = logging.getLogger(__name__)
         self._register_tools()
 
     @property
@@ -860,4 +857,4 @@ Please provide:
     async def run_http(self, host: str = "localhost", port: int = 8000):
         """Run MAGG in HTTP mode."""
         # Don't call setup() here - it's already called by ServerRunner
-        await self.mcp.run_http_async(host=host, port=port)
+        await self.mcp.run_http_async(host=host, port=port, log_level="WARNING")

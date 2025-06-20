@@ -2,6 +2,6 @@ from magg import process
 
 process.setup()
 
-from magg.cli import main
+from magg.server.cli import main
 
 main()

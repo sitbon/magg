@@ -2,6 +2,7 @@
 """
 import asyncio
 import logging
+import os
 import signal
 import sys
 from contextlib import asynccontextmanager
@@ -157,4 +158,14 @@ def print_startup_banner():
 ║   Organizing and Managing Your MCP Environment    ║
 ╚═══════════════════════════════════════════════════╝
 """
-    print(banner, file=sys.stderr)
+    if not os.environ.get("MAGG_QUIET", "").lower() in ("1", "true", "yes"):
+        if os.environ.get("NO_RICH", "").lower() in ("1", "true", "yes"):
+            print(banner, file=sys.stderr)
+        else:
+            try:
+                from rich.console import Console
+                console = Console(file=sys.stderr, width=80)
+                # style the banner with rich
+                console.print(banner, style="bold cyan purple italic")
+            except ImportError:
+                print(banner, file=sys.stderr)

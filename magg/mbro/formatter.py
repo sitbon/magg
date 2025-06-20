@@ -287,7 +287,9 @@ class OutputFormatter:
                 )
                 for prop_name, prop_info in schema['properties'].items():
                     # Parameter name and type
-                    prop_type = prop_info.get('type', 'any')
+                    prop_type = prop_info.get('anyOf', prop_info.get('type', 'any'))
+                    if isinstance(prop_type, list):
+                        prop_type = ' | '.join(x.get('type', 'any') for x in prop_type)
                     required = prop_name in schema.get('required', [])
                     req_marker = " (required)" if required else " (optional)"
                     
@@ -311,7 +313,8 @@ class OutputFormatter:
                 "type": "resource",
                 "name": resource['name'],
                 "uri": resource.get('uri', resource.get('uriTemplate', '')),
-                "mimeType": resource.get('mimeType', ''),
+                "is_template": 'uriTemplate' in resource,
+                "mime_type": resource.get('mimeType', ''),
                 "description": resource.get('description', '')
             })
             return
@@ -633,7 +636,9 @@ JSON Tips (REPL):
                     self.print("  Parameters:")
                     for prop_name, prop_info in schema['properties'].items():
                         # Parameter name and type
-                        prop_type = prop_info.get('type', 'any')
+                        prop_type = prop_info.get('anyOf', prop_info.get('type', 'any'))
+                        if isinstance(prop_type, list):
+                            prop_type = ' | '.join(x.get('type', 'any') for x in prop_type)
                         required = prop_name in schema.get('required', [])
                         req_marker = " (required)" if required else ""
                         

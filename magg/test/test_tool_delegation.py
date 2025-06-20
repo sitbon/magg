@@ -100,12 +100,12 @@ class TestToolDiscovery:
         result = await server.list_tools()
         
         assert result.is_success
-        assert "tool_groups" in result.output
+        assert "servers" in result.output
         assert "total_tools" in result.output
         
         # Should at least have MAGG's own tools
-        tool_groups = result.output["tool_groups"]
-        magg_group = next((g for g in tool_groups if g["prefix"] == "magg"), None)
+        tool_groups = result.output["servers"]
+        magg_group = tool_groups.get("magg", None)
         assert magg_group is not None
         assert len(magg_group["tools"]) > 0
     
@@ -114,31 +114,83 @@ class TestToolDiscovery:
         """Test that mounted server tools appear in listings."""
         from magg.server import MAGGServer
         from unittest.mock import patch, AsyncMock, MagicMock
+        from magg.settings import ServerConfig
         
         server = MAGGServer()
         await server.setup()
         
-        # Mock mounting a server with tools
-        with patch.object(server.mcp, 'get_tools', new_callable=AsyncMock) as mock_get_tools:
-            # Simulate MAGG tools plus mounted server tools
-            mock_get_tools.return_value = {
-                "magg_list_servers": MagicMock(),
-                "magg_add_server": MagicMock(),
-                "test_tool1": MagicMock(),  # From mounted server with prefix "test"
-                "test_tool2": MagicMock(),
+        # Create a mock server config
+        test_server_config = ServerConfig(
+            name="testserver",
+            source="test://example",
+            prefix="test",
+            command="echo"
+        )
+        
+        # Create a mock config
+        mock_config = MagicMock()
+        mock_config.servers = {
+            "testserver": test_server_config
+        }
+        
+        # Patch the config_manager.load_config method
+        with patch.object(server.server_manager.config_manager, 'load_config', return_value=mock_config):
+            # Create mock client and connection
+            mock_client = MagicMock()
+            mock_conn = AsyncMock()
+            
+            # Create mock tools
+            mock_tool1 = MagicMock()
+            mock_tool1.name = "tool1"
+            mock_tool2 = MagicMock()
+            mock_tool2.name = "tool2"
+            
+            # Mock the list_tools call
+            mock_conn.list_tools = AsyncMock(return_value=[mock_tool1, mock_tool2])
+            
+            # Make the client work as an async context manager
+            mock_client.__aenter__ = AsyncMock(return_value=mock_conn)
+            mock_client.__aexit__ = AsyncMock(return_value=None)
+            
+            # Mock mounted_servers
+            server.server_manager.mounted_servers = {
+                "testserver": {
+                    "client": mock_client,
+                    "proxy": MagicMock()
+                }
             }
             
-            result = await server.list_tools()
-            
-            assert result.is_success
-            tool_groups = result.output["tool_groups"]
-            
-            # Should have both magg and test prefixes
-            prefixes = [g["prefix"] for g in tool_groups]
-            assert "magg" in prefixes
-            assert "test" in prefixes
-            
-            # Check test group has the tools
-            test_group = next(g for g in tool_groups if g["prefix"] == "test")
-            assert "test_tool1" in test_group["tools"]
-            assert "test_tool2" in test_group["tools"]
+            # Mock get_tools to return MAGG's own tools
+            with patch.object(server.mcp, 'get_tools', new_callable=AsyncMock) as mock_get_tools:
+                mock_get_tools.return_value = {
+                    "magg_list_servers": MagicMock(),
+                    "magg_add_server": MagicMock(),
+                    "magg_list_tools": MagicMock(),
+                }
+                
+                result = await server.list_tools()
+                
+                assert result.is_success
+                assert "servers" in result.output
+                assert "total_tools" in result.output
+                
+                servers = result.output["servers"]
+                
+                # Should have both magg and testserver
+                assert "magg" in servers
+                assert "testserver" in servers
+                
+                # Check MAGG tools
+                magg_tools = servers["magg"]["tools"]
+                assert "magg_list_servers" in magg_tools
+                assert "magg_add_server" in magg_tools
+                assert "magg_list_tools" in magg_tools
+                
+                # Check test server tools (should be prefixed)
+                test_tools = servers["testserver"]["tools"]
+                assert "test_tool1" in test_tools
+                assert "test_tool2" in test_tools
+                assert servers["testserver"]["prefix"] == "test"
+                
+                # Verify total count
+                assert result.output["total_tools"] == 5  # 3 MAGG + 2 test server

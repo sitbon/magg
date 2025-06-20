@@ -6,6 +6,8 @@ from typing import Any
 
 from aiocache import cached
 from fastmcp import Client
+from mcp import GetPromptResult
+from mcp.types import TextContent, ImageContent, EmbeddedResource, BlobResourceContents, TextResourceContents
 
 logger = logging.getLogger(__name__)
 
@@ -163,7 +165,9 @@ class MCPConnection:
         await self._clear_cache()
     
     
-    async def call_tool(self, tool_name: str, arguments: dict[str, Any] = None) -> Any:
+    async def call_tool(self, tool_name: str, arguments: dict[str, Any] = None) -> list[
+        TextContent | ImageContent | EmbeddedResource
+    ]:
         """Call a tool on the connected MCP server."""
         if not self.client or not self.connected:
             raise RuntimeError("Not connected to server")
@@ -175,10 +179,11 @@ class MCPConnection:
             async with self.client as conn:
                 result = await conn.call_tool(tool_name, arguments)
                 return result
+
         except Exception as e:
             raise RuntimeError(f"Failed to call tool '{tool_name}': {e}")
     
-    async def get_resource(self, uri: str) -> Any:
+    async def get_resource(self, uri: str) -> list[TextResourceContents | BlobResourceContents]:
         """Get a resource from the connected MCP server."""
         if not self.client or not self.connected:
             raise RuntimeError("Not connected to server")
@@ -190,7 +195,7 @@ class MCPConnection:
         except Exception as e:
             raise RuntimeError(f"Failed to get resource '{uri}': {e}")
     
-    async def get_prompt(self, name: str, arguments: dict[str, Any] = None) -> Any:
+    async def get_prompt(self, name: str, arguments: dict[str, Any] = None) -> GetPromptResult:
         """Get a prompt from the connected MCP server."""
         if not self.client or not self.connected:
             raise RuntimeError("Not connected to server")

@@ -155,8 +155,6 @@ def get_transport_for_uri(
 
 # Transport documentation for tool descriptions
 TRANSPORT_DOCS = """
-For command-based servers, the 'transport' parameter accepts a JSON object with transport-specific options:
-
 Common options for all command-based servers:
 - `keep_alive` (boolean): Keep the process alive between requests (default: true)
 

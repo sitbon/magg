@@ -10,7 +10,6 @@ dependencies = [
     "pydantic<3",
     "pydantic-settings<3",
     "rich>=14.0.0",
-    "aiocache>=0.12.3",
 ]
 
 [project.scripts]
@@ -21,6 +20,10 @@ mbro = "magg.mbro.cli:main"
 test = [
     "pytest>=8.4.0",
     "pytest-asyncio>=1.0.0",
+]
+mbro = [
+    "aiocache>=0.12.3",
+    "prompt-toolkit>=3.0.51",
 ]
 
 [build-system]

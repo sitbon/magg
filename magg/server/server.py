@@ -3,13 +3,13 @@
 import json
 import logging
 import os
-from functools import cached_property
-from typing import Any, Annotated
+from functools import cached_property, wraps
+from typing import Any, Annotated, TypeAlias
 from pathlib import Path
 
 from fastmcp import FastMCP, Client, Context
-from mcp.types import PromptMessage, TextContent
-from pydantic import Field
+from mcp.types import PromptMessage, TextContent, EmbeddedResource, Resource, TextResourceContents, Annotations
+from pydantic import Field, AnyUrl
 
 from ..settings import ConfigManager, ServerConfig, MAGGConfig
 from ..response import MAGGResponse
@@ -21,6 +21,8 @@ from ..util import (
 )
 
 from .defaults import MAGG_INSTRUCTIONS
+
+JSONToolResponse: TypeAlias = TextContent | EmbeddedResource
 
 
 class ServerManager:
@@ -157,9 +159,11 @@ class MAGGServer:
     """Main MAGG server with tools for managing other MCP servers."""
     _is_setup = False
     server_manager: ServerManager
+    logger: logging.Logger
     
     def __init__(self, config_path: str | None = None):
         self.server_manager = ServerManager(ConfigManager(config_path))
+        self.logger = logging.getLogger(__name__)
         self._register_tools()
 
     @property
@@ -203,10 +207,22 @@ class MAGGServer:
             (self.smart_configure, f"{self_prefix}_smart_configure", None),
             (self.analyze_servers, f"{self_prefix}_analyze_servers", None),
         ]
-        
+
+        def call_tool_wrapper(func):
+            @wraps(func)
+            async def wrapper(*args, **kwds):
+                result = await func(*args, **kwds)
+
+                if isinstance(result, MAGGResponse):
+                    return result.as_json_text_content
+
+                return result
+
+            return wrapper
+
         for method, tool_name, options in tools:
             # FastMCP's @tool decorator can be applied programmatically
-            self.mcp.tool(name=tool_name, **(options or {}))(method)
+            self.mcp.tool(name=tool_name, **(options or {}))(call_tool_wrapper(method))
             
         # Register resources
         self._register_resources(self_prefix)
@@ -224,7 +240,10 @@ class MAGGServer:
         
         # Register each resource with the MCP server
         for method, uri_pattern in resources:
-            self.mcp.resource(uri_pattern)(method)
+            self.mcp.resource(
+                uri=uri_pattern,
+                mime_type="application/json",
+            )(method)
     
     def _register_prompts(self, self_prefix: str):
         """Register MCP prompts for intelligent configuration."""
@@ -241,20 +260,29 @@ class MAGGServer:
     # MCP Resource Methods - Expose server metadata for LLM consumption
     # ============================================================================
     
-    async def get_server_metadata(self, name: str) -> ServerConfig:
+    async def get_server_metadata(self, name: str) -> dict:
         """Expose server metadata as an MCP resource."""
         config = self.config
 
         if name in config.servers:
             server = config.servers[name]
-            return server
+            return server.model_dump(exclude_none=True, exclude_defaults=True, exclude_unset=True, by_alias=True)
 
         raise ValueError(f"Server '{name}' not found in configuration")
 
-    async def get_all_servers_metadata(self) -> dict[str, ServerConfig]:
+    async def get_all_servers_metadata(self) -> dict[str, dict]:
         """Expose all servers metadata as an MCP resource."""
         config = self.config
-        return config.servers
+
+        return {
+            name: server.model_dump(
+                exclude_none=True,
+                exclude_defaults=True,
+                exclude_unset=True,
+                by_alias=True
+            )
+            for name, server in config.servers.items()
+        }
     
     # ============================================================================
     # region MCP Prompt Methods - Templates for LLM-assisted configuration
@@ -358,9 +386,9 @@ Return the configuration as a JSON object."""
         )
 
         return messages
-    
+
     # ============================================================================
-    # MCP Tool Methods - Core server management functionality
+    # region MCP Tool Methods - Core server management functionality
     # ============================================================================
 
     async def add_server(
@@ -376,7 +404,9 @@ Return the configuration as a JSON object."""
         working_dir: Annotated[str | None, Field(description="Working directory (for commands)")] = None,
         notes: Annotated[str | None, Field(description="Setup notes")] = None,
         enable: Annotated[bool | None, Field(description="Whether to enable the server immediately (default: True)")] = True,
-        transport: Annotated[dict[str, Any] | None, Field(description="Transport-specific configuration (optional)")] = None,
+        transport: Annotated[dict[str, Any] | None, Field(
+            description=f"Transport-specific configuration (optional){TRANSPORT_DOCS}"
+        )] = None,
     ) -> MAGGResponse:
         """Add a new MCP server."""
         try:
@@ -451,8 +481,6 @@ Return the configuration as a JSON object."""
             
         except Exception as e:
             return MAGGResponse.error(f"Failed to add server: {str(e)}")
-
-    add_server.__doc__ += f"\n\nTransport documentation:\n{TRANSPORT_DOCS}\n"
 
     async def remove_server(
         self,
@@ -580,32 +608,58 @@ Return the configuration as a JSON object."""
     async def list_tools(self) -> MAGGResponse:
         """List all available tools from mounted servers."""
         try:
-            tools = await self.mcp.get_tools()
+            config = self.config
+            tools_by_server = {}
+            total_tools = 0
             
-            # Group by prefix
-            by_prefix = {}
-            for tool_name in tools.keys():
-                if '_' in tool_name and not tool_name.startswith(f'{self.self_prefix}_'):
-                    prefix = tool_name.split('_', 1)[0]
-                else:
-                    prefix = self.self_prefix
+            # Get tools from each mounted server
+            for server_name, server_info in self.server_manager.mounted_servers.items():
+                client = server_info['client']
+                server_config = config.servers.get(server_name)
                 
-                if prefix not in by_prefix:
-                    by_prefix[prefix] = []
-                by_prefix[prefix].append(tool_name)
+                if not server_config:
+                    continue
+                    
+                try:
+                    # Get tools directly from the client
+                    async with client as conn:
+                        tools = await conn.list_tools()
+                        tool_names = [tool.name for tool in tools]
+                        
+                        # Add prefix to tool names
+                        prefixed_tools = [f"{server_config.prefix}_{name}" for name in tool_names]
+                        
+                        tools_by_server[server_name] = {
+                            "prefix": server_config.prefix,
+                            "tools": sorted(prefixed_tools)
+                        }
+                        total_tools += len(prefixed_tools)
+                        
+                except Exception as e:
+                    self.logger.warning("Failed to get tools from server %s: %s", server_name, e)
+                    tools_by_server[server_name] = {
+                        "prefix": server_config.prefix,
+                        "tools": [],
+                        "error": str(e)
+                    }
             
-            # Convert to structured format
-            tool_groups = []
-            for prefix, prefix_tools in sorted(by_prefix.items()):
-                tool_groups.append({
-                    "prefix": prefix,
-                    "tools": sorted(prefix_tools),
-                    "count": len(prefix_tools)
-                })
+            # Add MAGG's own tools
+            magg_tools = []
+            all_tools = await self.mcp.get_tools()
+            for tool_name in all_tools.keys():
+                if tool_name.startswith(f'{self.self_prefix}_'):
+                    magg_tools.append(tool_name)
+            
+            if magg_tools:
+                tools_by_server[self.self_prefix] = {
+                    "prefix": self.self_prefix,
+                    "tools": sorted(magg_tools)
+                }
+                total_tools += len(magg_tools)
             
             return MAGGResponse.success({
-                "tool_groups": tool_groups,
-                "total_tools": len(tools)
+                "servers": tools_by_server,
+                "total_tools": total_tools,
             })
             
         except Exception as e:
@@ -870,7 +924,7 @@ Return ONLY valid JSON, no explanations or markdown formatting."""
                         server_templates.append(template_data)
                         
                 except Exception as e:
-                    self.server_manager.logger.warning(f"Failed to list resources for {server_name}: {e}")
+                    self.server_manager.logger.warning("Failed to list resources for %s: %s", server_name, e)
                     continue
                 
                 if server_resources or server_templates:
@@ -890,62 +944,56 @@ Return ONLY valid JSON, no explanations or markdown formatting."""
             
         except Exception as e:
             return MAGGResponse.error(f"Failed to list resources: {str(e)}")
-    
+
     async def get_resource(
         self,
-        uri: Annotated[str, Field(description="The resource URI or URI template")],
-        args: Annotated[dict[str, Any] | None, Field(
-            description="Arguments for URI template (if applicable)"
-        )] = None,
+        uri: Annotated[AnyUrl, Field(description="The resource URI or URI template")],
         prefix: Annotated[str | None, Field(description="Optional server prefix to filter by")] = None,
         name: Annotated[str | None, Field(description="Optional server name to filter by")] = None,
     ) -> MAGGResponse:
         """Get a specific resource from an MCP server."""
         try:
             # Check if it's a MAGG resource
-            if uri.startswith(f"{self.self_prefix}://"):
-                if uri == f"{self.self_prefix}://servers/all":
-                    content = await self.get_all_servers_metadata()
-                elif uri.startswith(f"{self.self_prefix}://server/"):
-                    server_name = uri.split("/")[-1]
-                    content = await self.get_server_metadata(server_name)
-                else:
-                    return MAGGResponse.error(f"Unknown {self.self_prefix} resource: {uri}")
-                
-                return MAGGResponse.success({
-                    "uri": uri,
-                    "mimeType": "application/json",
-                    "contentType": "structured",
-                    "content": content
-                })
-            
+            if uri.scheme == self.self_prefix and name in {None, self.self_prefix}:
+                return await self.mcp._read_resource()
+                # if uri.path == "/servers/all":
+                #     content = await self.get_all_servers_metadata()
+                #
+                # elif uri.path.startswith("/server/"):
+                #     server_name = uri.path.split("/")[-1]
+                #     content = await self.get_server_metadata(server_name)
+                # else:
+                #     return MAGGResponse.error(f"Unknown {self.self_prefix} resource: {uri}")
+                #
+                # return MAGGResponse.success({
+                #     "uri": uri,
+                #     "mimeType": "application/json",
+                #     "contentType": "structured",
+                #     "content": content
+                # })
+
             # Otherwise, look for the resource in mounted servers
             config = self.config
-            
+
             for server_name, mount_info in self.server_manager.mounted_servers.items():
                 server = config.servers.get(server_name)
                 if not server:
                     continue
-                
+
                 # Apply filters
                 if name and server_name != name:
                     continue
                 if prefix and server.prefix != prefix:
                     continue
-                
-                client = mount_info['client']
-                
+
+                client: Client = mount_info['client']
+
                 try:
                     async with client:
                         # Try to read the resource
                         try:
-                            if args:
-                                # Template resource with args
-                                result = await client.read_resource(uri, **args)
-                            else:
-                                # Regular resource
-                                result = await client.read_resource(uri)
-                            
+                            result = await client.read_resource(uri)
+
                             # Extract content based on result type
                             # First check if it's a list (common return type)
                             if isinstance(result, list) and len(result) > 0:
@@ -979,11 +1027,11 @@ Return ONLY valid JSON, no explanations or markdown formatting."""
                                 content_str = base64.b64encode(result.blob).decode('utf-8')
                             else:
                                 content_str = str(result)
-                            
+
                             # Determine actual mime type and content type from result
                             mime_type = "application/json"
                             content_type = "text"
-                            
+
                             # Check if result is a list
                             if isinstance(result, list) and len(result) > 0:
                                 content_item = result[0]
@@ -995,7 +1043,7 @@ Return ONLY valid JSON, no explanations or markdown formatting."""
                                 content = result.contents[0]
                                 if hasattr(content, 'mimeType') and content.mimeType:
                                     mime_type = content.mimeType
-                            
+
                             # Determine content type based on mime type
                             if mime_type.startswith("text/"):
                                 content_type = "text"
@@ -1005,7 +1053,7 @@ Return ONLY valid JSON, no explanations or markdown formatting."""
                                 content_type = "structured"
                             elif content_type != "base64":  # Don't override if already set to base64
                                 content_type = "binary"
-                            
+
                             return MAGGResponse.success({
                                 "server": server_name,
                                 "prefix": server.prefix,
@@ -1017,13 +1065,13 @@ Return ONLY valid JSON, no explanations or markdown formatting."""
                         except Exception:
                             # Resource not found in this server, continue to next
                             continue
-                            
+
                 except Exception as e:
-                    self.server_manager.logger.warning(f"Failed to access resource from {server_name}: {e}")
+                    self.server_manager.logger.warning("Failed to access resource from %s: %s", server_name, e)
                     continue
-            
+
             return MAGGResponse.error(f"Resource not found: {uri}")
-            
+
         except Exception as e:
             return MAGGResponse.error(f"Failed to get resource: {str(e)}")
 
@@ -1091,7 +1139,7 @@ Return ONLY valid JSON, no explanations or markdown formatting."""
             #             server_prompts.append(prompt_info)
             #
             #     except Exception as e:
-            #         self.server_manager.logger.warning(f"Failed to list prompts for {server_name}: {e}")
+            #         self.server_manager.logger.warning("Failed to list prompts for %s: %s", server_name, e)
             #         continue
             #
             #     if server_prompts:
@@ -1113,7 +1161,7 @@ Return ONLY valid JSON, no explanations or markdown formatting."""
     async def analyze_servers(
         self,
         ctx: Context | None = None,
-    ) -> MAGGResponse:
+    ):
         """Analyze configured servers and provide insights using LLM."""
         try:
             config = self.config

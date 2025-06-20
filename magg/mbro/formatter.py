@@ -3,8 +3,9 @@
 import json
 import sys
 import traceback
-from typing import Any
+from typing import Any, List
 
+from mcp.types import Content, EmbeddedResource, TextResourceContents, BlobResourceContents, Resource
 from rich.console import Console
 from rich.json import JSON
 from rich.table import Table
@@ -13,18 +14,135 @@ from rich.table import Table
 class OutputFormatter:
     """Handle formatted output for mbro."""
     
-    def __init__(self, console: Console, json_only: bool = False, use_rich: bool | None = True, indent: int = 2):
-        self.console = console
-        self.json_only = json_only
+    def __init__(self, json_only: bool = False, use_rich: bool | None = True, indent: int = 2):
         self.use_rich = use_rich if use_rich is not None else True
+        self.console = Console() if self.use_rich else None
+        self.json_only = json_only
         self.indent = indent if indent > 0 else None
 
     def print(self, *objects, **kwds) -> None:
         """Print a message using the console or standard output."""
+        file = kwds.pop('file', sys.stdout)
+
         if self.use_rich:
             self.console.print(*objects, **kwds)
         else:
+            kwds['file'] = file
             print(*objects, **kwds)
+
+    def format_resource(self, resource: TextResourceContents | BlobResourceContents):
+        """Format a resource for display."""
+        resource_data = self.decode_resource(resource)
+
+        if self.json_only:
+            if isinstance(resource_data, str):
+                resource_dict = resource.model_dump(exclude_defaults=True, exclude_none=True, exclude_unset=True)
+            else:
+                resource_dict = resource_data
+
+            self.format_json(resource_dict)
+
+        else:
+            if isinstance(resource_data, str):
+                self.print(resource_data)
+
+            elif isinstance(resource_data, dict):
+                self.format_json(resource_data)
+
+    def format_content(self, content: Content):
+        content_data = self.decode_content(content)
+
+        if self.json_only:
+            if isinstance(content_data, str):
+                content_dict = content.model_dump(exclude_defaults=True, exclude_none=True, exclude_unset=True)
+            else:
+                content_dict = content_data
+
+            self.format_json(content_dict)
+
+        else:
+            if isinstance(content_data, str):
+                self.print(content_data)
+
+            elif isinstance(content_data, dict):
+                self.format_json(content_data)
+
+    def format_resource_list(self, resources: list[TextResourceContents | BlobResourceContents]) -> None:
+        """Format a list of resource objects."""
+
+        if self.json_only:
+            output = []
+
+            for resource in resources:
+                decoded = self.decode_resource(resource)
+                if isinstance(decoded, str):
+                    output.append(resource.model_dump(exclude_defaults=True, exclude_none=True, exclude_unset=True))
+                else:
+                    output.append(decoded)
+
+            self.format_json(output)
+
+        else:
+            for resource in resources:
+                self.format_resource(resource)
+
+    def format_content_list(self, contents: List[Content]) -> None:
+        """Format a list of Content objects."""
+        if self.json_only:
+            output = []
+
+            for content in contents:
+                decoded = self.decode_content(content)
+                if isinstance(decoded, str):
+                    output.append(content.model_dump(exclude_defaults=True, exclude_none=True, exclude_unset=True))
+                else:
+                    output.append(decoded)
+
+            self.format_json(output)
+        else:
+            for content in contents:
+                self.format_content(content)
+
+    @classmethod
+    def decode_resource(cls, resource: TextResourceContents | BlobResourceContents) -> str | dict[str, Any]:
+        """Decode a resource to a string or dict representation for display.
+        """
+        if hasattr(resource, 'text'):
+            if resource.mimeType == 'application/json':
+                try:
+                    return json.loads(resource.text)
+                except json.JSONDecodeError:
+                    return resource.text
+
+            # TODO: Find a way to indicate the mime type when it is not None?
+            return resource.text
+
+        elif hasattr(resource, 'blob'):
+            # TODO: Find a way to indicate the mime type and/or base64 encoding?
+            return resource.blob
+
+        return resource.model_dump(exclude_defaults=True, exclude_none=True, exclude_unset=True)
+
+    @classmethod
+    def decode_content(cls, content: Content) -> str | dict[str, Any]:
+        """Decode content to a string or dict representation for display.
+        """
+        dump_args = dict(exclude_defaults=True, exclude_none=True, exclude_unset=True)
+
+        match content.type:
+            case "text":
+                if content.annotations and getattr(content.annotations, 'mimeType', '') == 'application/json':
+                    try:
+                        return json.loads(content.text)
+                    except json.JSONDecodeError:
+                        return content.text
+                else:
+                    return content.text
+
+            case "resource":
+                return cls.decode_resource(content.resource)
+
+        return content.model_dump(**dump_args)
 
     def format_json(self, data: Any) -> None:
         """Format and print JSON data."""
@@ -61,19 +179,18 @@ class OutputFormatter:
         """Format and print a success message."""
         if self.json_only:
             self.format_json({"success": message})
-        elif self.use_rich:
-            self.console.print(f"[green]{message}[/green]")
         else:
-            print(message)
+            self.print(
+                message if not self.use_rich else
+                f"[green]{message}[/green]"
+            )
     
-    def format_info(self, message: str) -> None:
+    def format_info(self, message: str, key: str | None = None) -> None:
         """Format and print an info message."""
         if self.json_only:
-            self.format_json({"info": message})
-        elif self.use_rich:
-            self.console.print(message)
+            self.format_json({key or "info": message})
         else:
-            print(message)
+            self.print(message)
     
     def format_connections_table(self, connections: list[dict[str, Any]], *, extended: bool = False) -> None:
         """Format connections as a table."""
@@ -118,14 +235,14 @@ class OutputFormatter:
             self.console.print(table)
         else:
             # Plain text table
-            print("Connections:")
+            self.print("Connections:")
             for conn in connections:
                 status = "Connected" if conn["connected"] else "Disconnected"
                 if conn["current"]:
                     status += " (current)"
-                print(f"  {conn['name']} ({conn['type']}) - {status}")
+                self.print(f"  {conn['name']} ({conn['type']}) - {status}")
                 if extended:
-                    print(
+                    self.print(
                         f"    Tools: {len(conn.get('tools') or [])}, "
                         f"Resources: {len(conn.get('resources') or [])}, "
                         f"Prompts: {len(conn.get('prompts') or [])}"
@@ -133,55 +250,240 @@ class OutputFormatter:
     
     def format_tool_info(self, tool: dict[str, Any]) -> None:
         """Format detailed tool information."""
-        tool_data = {
-            "type": "tool",
-            "name": tool['name'],
-            "description": tool['description']
-        }
-        if tool.get('inputSchema'):
-            tool_data["inputSchema"] = tool['inputSchema']
+        if self.json_only:
+            tool_data = {
+                "type": "tool",
+                "name": tool['name'],
+                "description": tool['description']
+            }
+            if tool.get('inputSchema'):
+                tool_data["inputSchema"] = tool['inputSchema']
+            
+            self.format_json(tool_data)
+            return
         
-        self.format_json(tool_data)
+        # Tool name header
+        self.print(
+            f"\nTool: {tool['name']}\n" if not self.use_rich else
+            f"\n[bold]Tool: [cyan]{tool['name']}[/cyan][/bold]\n"
+        )
+        
+        # Description
+        if tool.get('description'):
+            self.print("Description:")
+            desc_lines = tool['description'].strip().split('\n')
+            for line in desc_lines:
+                self.print(f"  {line}")
+            self.print("")
+        
+        # Input schema
+        if tool.get('inputSchema'):
+            schema = tool['inputSchema']
+            if schema.get('properties'):
+                self.print(
+                    "Parameters:" if not self.use_rich else
+                    "[bold]Parameters:[/bold]"
+                )
+                for prop_name, prop_info in schema['properties'].items():
+                    # Parameter name and type
+                    prop_type = prop_info.get('type', 'any')
+                    required = prop_name in schema.get('required', [])
+                    req_marker = " (required)" if required else " (optional)"
+                    
+                    self.print(
+                        f"  {prop_name} ({prop_type}){req_marker}" if not self.use_rich else
+                        f"  [cyan]{prop_name}[/cyan] ({prop_type}){req_marker}"
+                    )
+                    
+                    # Parameter description
+                    if prop_info.get('description'):
+                        desc_lines = prop_info['description'].strip().split('\n')
+                        for line in desc_lines:
+                            self.print(f"    {line}")
+            else:
+                self.print("No parameters required")
     
     def format_resource_info(self, resource: dict[str, Any]) -> None:
         """Format detailed resource information."""
-        self.format_json({
-            "type": "resource",
-            "name": resource['name'],
-            "uri": resource['uri'],
-            "mimeType": resource['mimeType'],
-            "description": resource['description']
-        })
+        if self.json_only:
+            self.format_json({
+                "type": "resource",
+                "name": resource['name'],
+                "uri": resource.get('uri', resource.get('uriTemplate', '')),
+                "mimeType": resource.get('mimeType', ''),
+                "description": resource.get('description', '')
+            })
+            return
+        
+        # Resource name header
+        self.print(
+            f"\nResource: {resource['name']}\n" if not self.use_rich else
+            f"\n[bold]Resource: [cyan]{resource['name']}[/cyan][/bold]\n"
+        )
+        
+        # URI or URI template
+        if resource.get('uri'):
+            self.print(
+                f"URI: {resource['uri']}" if not self.use_rich else
+                f"[bold]URI:[/bold] {resource['uri']}"
+            )
+        elif resource.get('uriTemplate'):
+            self.print(
+                f"URI Template: {resource['uriTemplate']}" if not self.use_rich else
+                f"[bold]URI Template:[/bold] {resource['uriTemplate']}"
+            )
+        
+        # MIME type
+        if resource.get('mimeType'):
+            self.print(
+                f"Type: {resource['mimeType']}" if not self.use_rich else
+                f"[bold]Type:[/bold] {resource['mimeType']}"
+            )
+        
+        # Description
+        if resource.get('description'):
+            self.print("")
+            self.print(
+                "Description:" if not self.use_rich else
+                "[bold]Description:[/bold]"
+            )
+            desc_lines = resource['description'].strip().split('\n')
+            for line in desc_lines:
+                self.print(f"  {line}")
     
     def format_prompt_info(self, prompt: dict[str, Any]) -> None:
         """Format detailed prompt information."""
-        prompt_data = {
-            "type": "prompt",
-            "name": prompt['name'],
-            "description": prompt['description']
-        }
-        if prompt.get('arguments'):
-            prompt_data["arguments"] = prompt['arguments']
+        if self.json_only:
+            prompt_data = {
+                "type": "prompt",
+                "name": prompt['name'],
+                "description": prompt['description']
+            }
+            if prompt.get('arguments'):
+                prompt_data["arguments"] = prompt['arguments']
+            
+            self.format_json(prompt_data)
+            return
         
-        self.format_json(prompt_data)
+        # Prompt name header
+        self.print(
+            f"\nPrompt: {prompt['name']}\n" if not self.use_rich else
+            f"\n[bold]Prompt: [cyan]{prompt['name']}[/cyan][/bold]\n"
+        )
+        
+        # Description
+        if prompt.get('description'):
+            self.print("Description:")
+            desc_lines = prompt['description'].strip().split('\n')
+            for line in desc_lines:
+                self.print(f"  {line}")
+            self.print("")
+        
+        # Arguments
+        if prompt.get('arguments'):
+            self.print(
+                "Arguments:" if not self.use_rich else
+                "[bold]Arguments:[/bold]"
+            )
+            for arg in prompt['arguments']:
+                arg_name = arg.get('name', 'unknown')
+                required = arg.get('required', False)
+                req_marker = " (required)" if required else " (optional)"
+                
+                self.print(
+                    f"  {arg_name}{req_marker}" if not self.use_rich else
+                    f"  [cyan]{arg_name}[/cyan]{req_marker}"
+                )
+                
+                # Argument description
+                if arg.get('description'):
+                    desc_lines = arg['description'].strip().split('\n')
+                    for line in desc_lines:
+                        self.print(f"    {line}")
+        else:
+            self.print("No arguments required")
     
     def format_search_results(self, term: str, tools: list, resources: list, prompts: list) -> None:
         """Format search results."""
         total_matches = len(tools) + len(resources) + len(prompts)
         
         if total_matches == 0:
-            self.console.print(f"No results found for '{term}'")
+            self.print(f"No results found for '{term}'")
             return
         
-        results = {
-            "query": term,
-            "total_matches": total_matches,
-            "tools": [{"name": t['name'], "description": t['description']} for t in tools],
-            "resources": [{"name": r['name'], "uri": r['uri'], "description": r['description']} for r in resources],
-            "prompts": [{"name": p['name'], "description": p['description']} for p in prompts]
-        }
+        if self.json_only:
+            results = {
+                "query": term,
+                "total_matches": total_matches,
+                "tools": [{"name": t['name'], "description": t['description']} for t in tools],
+                "resources": [{"name": r['name'], "uri": r.get('uri', r.get('uriTemplate', '')), "description": r['description']} for r in resources],
+                "prompts": [{"name": p['name'], "description": p['description']} for p in prompts]
+            }
+            self.format_json(results)
+            return
         
-        self.format_json(results)
+        # Header
+        self.print(
+            f"\nSearch results for '{term}' ({total_matches} matches):\n" if not self.use_rich else
+            f"\n[bold]Search results for '{term}' ({total_matches} matches):[/bold]\n"
+        )
+        
+        # Tools
+        if tools:
+            self.print(
+                f"Tools ({len(tools)}):" if not self.use_rich else
+                f"[bold]Tools ({len(tools)}):[/bold]"
+            )
+            for tool in tools:
+                self.print(
+                    f"  {tool['name']}" if not self.use_rich else
+                    f"  [cyan]{tool['name']}[/cyan]"
+                )
+                if tool.get('description'):
+                    # Show first line of description
+                    desc_first_line = tool['description'].strip().split('\n')[0]
+                    if len(desc_first_line) > 60:
+                        desc_first_line = desc_first_line[:57] + "..."
+                    self.print(f"    {desc_first_line}")
+            self.print("")
+        
+        # Resources
+        if resources:
+            self.print(
+                f"Resources ({len(resources)}):" if not self.use_rich else
+                f"[bold]Resources ({len(resources)}):[/bold]"
+            )
+            for resource in resources:
+                self.print(
+                    f"  {resource['name']}" if not self.use_rich else
+                    f"  [cyan]{resource['name']}[/cyan]"
+                )
+                if resource.get('description'):
+                    # Show first line of description
+                    desc_first_line = resource['description'].strip().split('\n')[0]
+                    if len(desc_first_line) > 60:
+                        desc_first_line = desc_first_line[:57] + "..."
+                    self.print(f"    {desc_first_line}")
+            self.print("")
+        
+        # Prompts
+        if prompts:
+            self.print(
+                f"Prompts ({len(prompts)}):" if not self.use_rich else
+                f"[bold]Prompts ({len(prompts)}):[/bold]"
+            )
+            for prompt in prompts:
+                self.print(
+                    f"  {prompt['name']}" if not self.use_rich else
+                    f"  [cyan]{prompt['name']}[/cyan]"
+                )
+                if prompt.get('description'):
+                    # Show first line of description
+                    desc_first_line = prompt['description'].strip().split('\n')[0]
+                    if len(desc_first_line) > 60:
+                        desc_first_line = desc_first_line[:57] + "..."
+                    self.print(f"    {desc_first_line}")
+            self.print("")
     
     def format_help(self) -> None:
         """Format help text."""
@@ -251,3 +553,134 @@ JSON Tips (REPL):
   - Arrays: {"items": [1, 2, 3]}
         """
         self.print(help_text)
+    
+    def format_tools_list(self, tools: list[dict[str, Any]]) -> None:
+        """Format a list of tools."""
+        if self.json_only:
+            self.format_json({"tools": tools})
+            return
+
+        self.print(
+            f"\nTools ({len(tools)} available):\n"
+            if not self.use_rich else
+            f"\n[bold]Tools ({len(tools)} available):[/bold]\n"
+        )
+
+        for tool in tools:
+            # Tool name
+            self.print(
+                tool['name'] if not self.use_rich else
+                f"[cyan bold]{tool['name']}[/cyan bold]"
+            )
+            
+            # Description (may be multiline)
+            if tool.get('description'):
+                desc_lines = tool['description'].strip().split('\n')
+                for line in desc_lines:
+                    self.print(f"  {line}")
+            
+            # Input schema
+            if tool.get('inputSchema'):
+                schema = tool['inputSchema']
+                if schema.get('properties'):
+                    self.print("  Parameters:")
+                    for prop_name, prop_info in schema['properties'].items():
+                        # Parameter name and type
+                        prop_type = prop_info.get('type', 'any')
+                        required = prop_name in schema.get('required', [])
+                        req_marker = " (required)" if required else ""
+                        
+                        self.print(f"    - {prop_name} ({prop_type}){req_marker}")
+                        
+                        # Parameter description (may be multiline)
+                        if prop_info.get('description'):
+                            desc_lines = prop_info['description'].strip().split('\n')
+                            for line in desc_lines:
+                                self.print(f"      {line}")
+                else:
+                    self.print("  No parameters required")
+            
+            self.print("")  # Blank line between tools
+    
+    def format_resources_list(self, resources: list[dict[str, Any]]) -> None:
+        """Format a list of resources."""
+        if self.json_only:
+            self.format_json(resources)
+            return
+        
+        self.print(
+            f"\nResources ({len(resources)} available):\n"
+            if not self.use_rich else
+            f"\n[bold]Resources ({len(resources)} available):[/bold]\n"
+        )
+        
+        for resource in resources:
+            # Resource name
+            self.print(
+                resource['name'] if not self.use_rich else
+                f"[cyan bold]{resource['name']}[/cyan bold]"
+            )
+            
+            # URI or URI template
+            if resource.get('uri'):
+                self.print(f"  URI: {resource['uri']}")
+            elif resource.get('uriTemplate'):
+                self.print(f"  URI Template: {resource['uriTemplate']}")
+            
+            # MIME type
+            if resource.get('mimeType'):
+                self.print(f"  Type: {resource['mimeType']}")
+            
+            # Description (may be multiline)
+            if resource.get('description'):
+                desc_lines = resource['description'].strip().split('\n')
+                self.print("  Description:")
+                for line in desc_lines:
+                    self.print(f"    {line}")
+            
+            self.print("")  # Blank line between resources
+    
+    def format_prompts_list(self, prompts: list[dict[str, Any]]) -> None:
+        """Format a list of prompts."""
+        if self.json_only:
+            self.format_json({"prompts": prompts})
+            return
+        
+        self.print(
+            f"\nPrompts ({len(prompts)} available):\n"
+            if not self.use_rich else
+            f"\n[bold]Prompts ({len(prompts)} available):[/bold]\n"
+        )
+        
+        for prompt in prompts:
+            # Prompt name
+            self.print(
+                prompt['name'] if not self.use_rich else
+                f"[cyan bold]{prompt['name']}[/cyan bold]"
+            )
+            
+            # Description (may be multiline)
+            if prompt.get('description'):
+                desc_lines = prompt['description'].strip().split('\n')
+                for line in desc_lines:
+                    self.print(f"  {line}")
+            
+            # Arguments
+            if prompt.get('arguments'):
+                self.print("  Arguments:")
+                for arg in prompt['arguments']:
+                    arg_name = arg.get('name', 'unknown')
+                    required = arg.get('required', False)
+                    req_marker = " (required)" if required else ""
+                    
+                    self.print(f"    - {arg_name}{req_marker}")
+                    
+                    # Argument description (may be multiline)
+                    if arg.get('description'):
+                        desc_lines = arg['description'].strip().split('\n')
+                        for line in desc_lines:
+                            self.print(f"      {line}")
+            else:
+                self.print("  No arguments required")
+            
+            self.print("")  # Blank line between prompts

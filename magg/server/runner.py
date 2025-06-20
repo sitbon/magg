@@ -144,9 +144,17 @@ class ServerRunner:
 def print_startup_banner():
     """Print a nice startup banner."""
     banner = """
-╔═══════════════════════════════════════╗
-║          MAGG - MCP Aggregator        ║
-║     Managing your MCP tool ecosystem  ║
-╚═══════════════════════════════════════╝
+╔═══════════════════════════════════════════════════╗
+║                                                   ║
+║        ███╗   ███╗ █████╗  ██████╗  ██████╗       ║
+║        ████╗ ████║██╔══██╗██╔════╝ ██╔════╝       ║
+║        ██╔████╔██║███████║██║  ███╗██║  ███╗      ║
+║        ██║╚██╔╝██║██╔══██║██║   ██║██║   ██║      ║
+║        ██║ ╚═╝ ██║██║  ██║╚██████╔╝╚██████╔╝      ║
+║        ╚═╝     ╚═╝╚═╝  ╚═╝ ╚═════╝  ╚═════╝       ║
+║                                                   ║
+║          MCP Aggregator - Tool Ecosystem          ║
+║   Organizing and Managing Your MCP Environment    ║
+╚═══════════════════════════════════════════════════╝
 """
     print(banner, file=sys.stderr)

@@ -8,95 +8,108 @@ import argparse
 import readline
 import atexit
 from asyncio import CancelledError
+from functools import cached_property
+from json import JSONDecodeError
 from pathlib import Path
 
-from rich.console import Console
+from mcp import GetPromptResult
+from prompt_toolkit.completion import WordCompleter
+from prompt_toolkit.history import FileHistory
+from prompt_toolkit import PromptSession
 from rich.traceback import install as install_rich_traceback
 
+from . import acon
 from .client import MCPBrowser
 from .formatter import OutputFormatter
 
 # Install rich traceback handler
-install_rich_traceback(show_locals=False)
+install_rich_traceback(show_locals=True)
 
 
 class MCPBrowserCLI:
     """Interactive CLI for browsing MCP servers."""
+    browser: MCPBrowser
+    running: bool
+    formatter: OutputFormatter
+    verbose: bool
     
-    def __init__(self, json_only: bool = False, use_rich: bool = True, indent: int = 2):
+    def __init__(self, json_only: bool = False, use_rich: bool = True, indent: int = 2, verbose: bool = False):
         self.browser = MCPBrowser()
         self.running = True
-        self.console = Console() if use_rich else None
-        self.formatter = OutputFormatter(self.console, json_only=json_only, use_rich=use_rich, indent=indent)
-        self.setup_readline()
-    
-    def setup_readline(self):
-        """Setup readline for command history and completion."""
-        try:
-            # Set up history file
-            history_file = Path.home() / ".mbro_history"
-            
-            # Load existing history
-            if history_file.exists():
-                readline.read_history_file(str(history_file))
-            
-            # Set history length
-            readline.set_history_length(1000)
-            
-            # Save history on exit
-            atexit.register(lambda: readline.write_history_file(str(history_file)))
-            
-            # Set up tab completion
-            readline.set_completer(self.complete)
-            readline.parse_and_bind("tab: complete")
-            
-            # Enable vi or emacs mode (emacs is default)
-            readline.parse_and_bind("set editing-mode emacs")
-            
-        except ImportError:
-            # readline not available (e.g., on Windows)
-            pass
-        except Exception as e:
-            print(f"Warning: Could not setup readline: {e}")
-    
-    def complete(self, text, state):
-        """Tab completion for commands."""
-        commands = [
-            'help', 'quit', 'exit', 'connect', 'connections', 'conns', 'switch',
-            'disconnect', 'tools', 'resources', 'prompts', 'call', 'resource',
-            'prompt', 'refresh', 'search', 'info'
-        ]
-        
-        matches = [cmd for cmd in commands if cmd.startswith(text)]
-        
-        # TODO: Add tool names completion (requires async support or a cached list of tools)
-        
-        try:
-            return matches[state]
-        except IndexError:
-            return None
+        self.formatter = OutputFormatter(json_only=json_only, use_rich=use_rich, indent=indent)
+        self.verbose = verbose
 
-    @classmethod
-    async def ainput(cls, prompt: str = "") -> str:
-        """Asynchronous version of the input() function."""
-        return (await asyncio.to_thread(input, prompt)).rstrip('\n')
+    @cached_property
+    def _completer(self):
+        return WordCompleter(
+            [
+                'help', 'quit', 'exit', 'connect', 'connections', 'conns', 'switch',
+                'disconnect', 'tools', 'resources', 'prompts', 'call', 'resource',
+                'prompt', 'refresh', 'search', 'info'
+            ],
+            meta_dict={
+                'help': "Show this help message",
+                'quit': "Exit the CLI",
+                'exit': "Exit the CLI",
+                'connect': "Connect to an MCP server",
+                'connections': "List all connections",
+                'conns': "List all connections (alias)",
+                'switch': "Switch to a different connection",
+                'disconnect': "Disconnect from a server",
+                'tools': "List available tools",
+                'resources': "List available resources",
+                'prompts': "List available prompts",
+                'call': "Call a tool with JSON arguments",
+                'resource': "Get a resource by URI",
+                'prompt': "Get a prompt by name with optional arguments",
+                'refresh': "Refresh capabilities for current connection",
+                'search': "Search tools, resources, and prompts by term",
+                'info': "Show detailed info about a tool/resource/prompt"
+            }
+        )
 
-    async def start(self):
+    def create_prompt_session(self):
+        """Create a prompt session with history."""
+        history_file = Path.home() / ".mbro_history"
+        return PromptSession(history=FileHistory(str(history_file)), completer=self._completer)
+
+    async def start(self, repl: bool = False):
         """Start the interactive CLI."""
+        if repl:
+            self.formatter.print("Entering REPL mode. `await self.handle_command(command)` to execute commands.", file=sys.stderr)
+
+            local = dict(
+                current_connection=self.browser.get_current_connection(),
+                self=self,
+            )
+
+            await acon.interact(
+                banner="Welcome to MBRO - MCP Browser REPL",
+                locals=local,
+            )
+
+            return
+
         if not self.formatter.json_only:
-            self.formatter.print("MBRO - MCP Browser")
-            self.formatter.print("Type 'help' for available commands or 'quit' to exit.\n")
-        
+            self.formatter.print("MBRO - MCP Browser", file=sys.stderr)
+            self.formatter.print("Type 'help' for available commands or 'quit' to exit.\n", file=sys.stderr)
+
+        session = self.create_prompt_session()
+
         while self.running:
             try:
                 # Show current connection in prompt
                 if not self.formatter.json_only:
                     current = self.browser.current_connection
                     prompt = f"mbro{f':{current}' if current else ''}> "
-                    command = (await self.ainput(prompt)).strip()
                 else:
-                    # In JSON mode, no prompt
-                    command = (await self.ainput()).strip()
+                    prompt = ""
+
+                command = await session.prompt_async(
+                    prompt,
+                    completer=self._completer,
+                    complete_while_typing=True,
+                )
                 
                 if not command:
                     continue
@@ -106,6 +119,8 @@ class MCPBrowserCLI:
             except KeyboardInterrupt:
                 if not self.formatter.json_only:
                     self.formatter.print("\nUse 'quit' to exit.")
+            except CancelledError:
+                pass
             except EOFError:
                 break
             except Exception as e:
@@ -246,16 +261,8 @@ class MCPBrowserCLI:
             self.formatter.format_info("No tools available." + (f" (filtered by '{filter_term}')" if filter_term else ""))
             return
         
-        # # Output as JSON array
-        # tool_list = []
-        # for tool in tools:
-        #     tool_list.append({
-        #         "name": tool['name'],
-        #         "description": tool.get('description', '').strip()
-        #     })
-        
-        self.formatter.format_json(tools)
-    
+        self.formatter.format_tools_list(tools)
+
     async def cmd_resources(self, args: list[str]):
         """List available resources."""
         conn = self.browser.get_current_connection()
@@ -273,8 +280,7 @@ class MCPBrowserCLI:
             self.formatter.format_info("No resources available." + (f" (filtered by '{filter_term}')" if filter_term else ""))
             return
 
-        
-        self.formatter.format_json(resources)
+        self.formatter.format_resources_list(resources)
     
     async def cmd_prompts(self, args: list[str]):
         """List available prompts."""
@@ -293,16 +299,18 @@ class MCPBrowserCLI:
             self.formatter.format_info("No prompts available." + (f" (filtered by '{filter_term}')" if filter_term else ""))
             return
 
-        self.formatter.format_json(prompts)
+        self.formatter.format_prompts_list(prompts)
     
     async def cmd_call(self, args: list[str]):
         """Call a tool."""
         if not args:
             self.formatter.format_error("Usage: call <tool_name> [json_arguments]")
-            self.formatter.format_info("Examples:")
-            self.formatter.format_info("  call magg_status")
-            self.formatter.format_info("  call magg_search_tools {\"query\": \"calculator\", \"limit\": 3}")
-            self.formatter.format_info("  call add {\"a\": 5, \"b\": 3}")
+            if not self.formatter.json_only:
+                self.formatter.format_info("\nExamples:\n"
+                    "  call magg_status\n"
+                    "  call magg_search_tools {\"query\": \"calculator\", \"limit\": 3}\n"
+                    "  call add {\"a\": 5, \"b\": 3}\n"
+                )
             return
         
         conn = self.browser.get_current_connection()
@@ -319,34 +327,24 @@ class MCPBrowserCLI:
                 arguments = json.loads(json_str)
             except json.JSONDecodeError as e:
                 self.formatter.format_error(f"Invalid JSON arguments: {e}")
-                self.formatter.format_info("\nJSON formatting tips:")
-                self.formatter.format_info("  - Use double quotes for strings: {\"key\": \"value\"}")
-                self.formatter.format_info("  - Numbers don't need quotes: {\"count\": 42}")
-                self.formatter.format_info("  - Booleans: {\"enabled\": true}")
+                if not self.formatter.json_only:
+                    self.formatter.format_info(
+                        "\nJSON formatting tips:\n"
+                        "  - Use double quotes for strings: {\"key\": \"value\"}\n"
+                        "  - Numbers don't need quotes: {\"count\": 42}\n"
+                        "  - Booleans: {\"enabled\": true}"
+                    )
                 return
         
         try:
             result = await conn.call_tool(tool_name, arguments)
-            
-            # Extract content from result
-            output = []
-            for content in result:
-                if hasattr(content, 'text'):
-                    output.append(content.text)
-                else:
-                    output.append(str(content))
-            
-            # Try to parse as JSON for better display
-            combined = "\n".join(output)
-            try:
-                parsed = json.loads(combined)
-                self.formatter.format_json(parsed)
-            except:
-                # Not JSON, just print as text
-                self.formatter.format_info(combined)
-                    
+
+            if result:
+                self.formatter.format_content_list(result)
+
         except Exception as e:
-            self.formatter.format_error(f"Error calling tool: {e}", e)
+            args = (e,) if self.verbose else ()
+            self.formatter.format_error(str(e), *args)
     
     async def cmd_resource(self, args: list[str]):
         """Get a resource."""
@@ -363,44 +361,16 @@ class MCPBrowserCLI:
         
         try:
             result = await conn.get_resource(uri)
-            
-            # Handle different possible return formats from FastMCP
-            output = []
-            if hasattr(result, 'contents'):
-                # Standard MCP format with .contents attribute
-                for content in result.contents:
-                    if hasattr(content, 'text'):
-                        output.append(content.text)
-                    else:
-                        output.append(str(content))
-            elif isinstance(result, list):
-                # If result is already a list of contents
-                for content in result:
-                    if hasattr(content, 'text'):
-                        output.append(content.text)
-                    elif isinstance(content, dict) and 'text' in content:
-                        output.append(content['text'])
-                    else:
-                        output.append(str(content))
-            elif hasattr(result, 'text'):
-                # Single content item
-                output.append(result.text)
-            else:
-                # Fallback for other formats
-                output.append(str(result))
-            
-            # Try to parse as JSON for better display
-            combined = "\n".join(output)
-            try:
-                parsed = json.loads(combined)
-                self.formatter.format_json(parsed)
-            except:
-                # Not JSON, just print as text
-                self.formatter.format_info(combined)
-                    
+
+            if result:
+                if len(result) > 1:
+                    self.formatter.format_resource_list(result)
+                else:
+                    self.formatter.format_resource(result[0])
+
         except Exception as e:
             self.formatter.format_error(f"Error getting resource: {e}", e)
-    
+
     async def cmd_prompt(self, args: list[str]):
         """Get a prompt."""
         if not args:
@@ -423,22 +393,11 @@ class MCPBrowserCLI:
                 return
         
         try:
-            result = await conn.get_prompt(name, arguments)
-            
-            # Format prompt result as JSON
-            prompt_data = {
-                "description": result.description,
-                "messages": []
-            }
-            
-            for message in result.messages:
-                prompt_data["messages"].append({
-                    "role": message.role,
-                    "content": message.content.text
-                })
-            
+            result: GetPromptResult = await conn.get_prompt(name, arguments)
+            # TODO: Non-JSON output for prompts?
+            prompt_data = result.model_dump(exclude_none=True, exclude_defaults=True, exclude_unset=True, by_alias=True)
             self.formatter.format_json(prompt_data)
-                    
+
         except Exception as e:
             self.formatter.format_error(f"Error getting prompt: {e}", e)
     
@@ -483,9 +442,7 @@ class MCPBrowserCLI:
         
         # Search prompts
         matching_prompts = [p for p in prompts if term in p["name"].lower() or term in p["description"].lower()]
-        
-        total_matches = len(matching_tools) + len(matching_resources) + len(matching_prompts)
-        
+
         self.formatter.format_search_results(term, matching_tools, matching_resources, matching_prompts)
     
     async def cmd_info(self, args: list[str]):
@@ -547,6 +504,10 @@ async def main_async():
     parser.add_argument("--json", action="store_true", help="Output only JSON (machine-readable)")
     parser.add_argument("--no-rich", action="store_true", default=None, help="Disable Rich formatting")
     parser.add_argument("--indent", type=int, default=2, help="JSON indent level (0 for compact)")
+    parser.add_argument("-v", "--verbose", action="count", default=0, help="Increase verbosity (can be used multiple times)")
+
+    # Behavior options
+    parser.add_argument("--repl", action="store_true", default=None, help="Drop into REPL mode on startup")
 
     # Non-interactive commands
     parser.add_argument("--list-connections", action="store_true", help="List all connections")
@@ -567,7 +528,8 @@ async def main_async():
     cli = MCPBrowserCLI(
         json_only=args.json,
         use_rich=not args.no_rich,
-        indent=args.indent
+        indent=args.indent,
+        verbose=args.verbose,
     )
 
     try:
@@ -581,7 +543,7 @@ async def main_async():
 
         # Handle non-interactive commands
         if args.list_connections:
-            await cli.cmd_connections()
+            await cli.cmd_connections(['-x'])
             return
         elif args.list_tools:
             await cli.cmd_tools([])
@@ -613,15 +575,15 @@ async def main_async():
             return
 
         # If no non-interactive commands, start interactive mode
-        await cli.start()
+        await cli.start(repl=args.repl)
 
     except KeyboardInterrupt:
         pass
 
     except CancelledError:
-        # Handle cancellation gracefully
         if not args.json:
-            cli.formatter.print("\nOperation cancelled.")
+            cli.formatter.print(f"\nOperation cancelled: exiting.", file=sys.stderr)
+            exit(1)
 
     except Exception as e:
         cli.formatter.format_error("An unexpected error occurred", e)

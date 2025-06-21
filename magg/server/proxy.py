@@ -18,7 +18,7 @@ LOG = logging.getLogger(__name__)
 # noinspection PyMethodMayBeStatic
 class ProxyMCP(ManagedServer):
     """Mixin that provides proxy functionality for accessing mounted MCP servers.
-    
+
     This mixin expects the host class to have a `server_manager` attribute
     that provides access to mounted servers and their clients.
     """
@@ -67,7 +67,7 @@ class ProxyMCP(ManagedServer):
 
     def _register_proxy_tool(self, wrapper: Callable | None = None) -> None:
         """Register the proxy tool with the MCP server.
-        
+
         This should be called by the host class after initialization.
         """
         # Access the mcp instance through server_manager
@@ -104,7 +104,7 @@ class ProxyMCP(ManagedServer):
         )] = None,
     ) -> Any:
         """Main proxy tool for dynamic access to mounted MCP servers.
-        
+
         This tool provides a unified interface for:
         - Listing available tools, resources, or prompts across servers
         - Getting detailed info about specific capabilities
@@ -160,7 +160,7 @@ class ProxyMCP(ManagedServer):
             )
 
         return result
-    
+
     async def _proxy_list(
             self,
             capability_type: str
@@ -168,7 +168,7 @@ class ProxyMCP(ManagedServer):
         """List capabilities by connecting to ourselves as a client.
         """
         client = await self._get_self_client()
-        
+
         async with client:
             if capability_type == "tool":
                 result = await client.list_tools()

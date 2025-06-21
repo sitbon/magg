@@ -10,7 +10,7 @@ from fastmcp import FastMCP, Client
 
 class TestRealMounting:
     """Test mounting real servers using FastMCP."""
-    
+
     @pytest.mark.asyncio
     async def test_mount_python_server(self):
         """Test mounting a real Python MCP server."""
@@ -32,12 +32,12 @@ if __name__ == "__main__":
 '''
             server_file = Path(tmpdir) / "server.py"
             server_file.write_text(server_code)
-            
+
             # Create the main MAGG server
             main_server = FastMCP("test-magg")
-            
+
             # Try different approaches to mount the server
-            
+
             # Import the custom transport
             from magg.util.transports import NoValidatePythonStdioTransport
 
@@ -53,7 +53,7 @@ if __name__ == "__main__":
                 print("✓ Direct client mount succeeded")
             except Exception as e:
                 print(f"✗ Direct client mount failed: {e}")
-            
+
             # Approach 2: Try with proxy flag
             try:
                 transport = NoValidatePythonStdioTransport(
@@ -65,7 +65,7 @@ if __name__ == "__main__":
                 print("✓ Client mount with as_proxy=True succeeded")
             except Exception as e:
                 print(f"✗ Client mount with as_proxy=True failed: {e}")
-            
+
             # Approach 3: Try as_proxy (new way)
             try:
                 transport = NoValidatePythonStdioTransport(
@@ -78,7 +78,7 @@ if __name__ == "__main__":
                 print("✓ as_proxy mount succeeded")
             except Exception as e:
                 print(f"✗ as_proxy mount failed: {e}")
-            
+
             # Get tool names through client
             print("\nAvailable tools on main server:")
             # List tools through the FastMCP client

@@ -30,7 +30,7 @@ LOG = logging.getLogger(__name__)
 class MAGGServer(ProxyMCP):
     """Main MAGG server with tools for managing other MCP servers."""
     _is_setup = False
-    
+
     def __init__(self, config_path: str | None = None):
         super().__init__(ServerManager(ConfigManager(config_path)))
         self._register_tools()
@@ -43,7 +43,7 @@ class MAGGServer(ProxyMCP):
     def _register_tools(self):
         """Register all MAGG management tools programmatically."""
         self_prefix_ = self.self_prefix_
-        
+
         tools = [
             (self.add_server, f"{self_prefix_}add_server", None),
             (self.remove_server, f"{self_prefix_}remove_server", None),
@@ -73,7 +73,7 @@ class MAGGServer(ProxyMCP):
         self._register_resources()
         self._register_prompts()
         self._register_proxy_tool()
-    
+
     def _register_resources(self):
         """Register MCP resources for server metadata.
         """
@@ -87,7 +87,7 @@ class MAGGServer(ProxyMCP):
                 uri=uri_pattern,
                 mime_type="application/json",
             )(method)
-    
+
     def _register_prompts(self):
         """Register MCP prompts for intelligent configuration.
         """
@@ -101,7 +101,7 @@ class MAGGServer(ProxyMCP):
     # ============================================================================
     # region MCP Resource Methods - Expose server metadata for LLM consumption
     # ============================================================================
-    
+
     async def get_server_metadata(self, name: str) -> dict:
         """Expose server metadata as an MCP resource."""
         config = self.config
@@ -125,54 +125,54 @@ class MAGGServer(ProxyMCP):
             )
             for name, server in config.servers.items()
         }
-    
+
     # ============================================================================
     # endregion
     # region MCP Prompt Methods - Templates for LLM-assisted configuration
     # ============================================================================
-    
+
     def _format_metadata_for_prompt(self, metadata_entries: list[dict]) -> str:
         """Format metadata entries into a readable string for prompts."""
         lines = []
         for entry in metadata_entries:
             source = entry.get("source", "unknown")
             data = entry.get("data", {})
-            
+
             if source == "github" and data:
                 lines.append(f"- GitHub Repository: {data.get('description', 'No description')}")
                 lines.append(f"  Language: {data.get('language', 'Unknown')}")
                 lines.append(f"  Stars: {data.get('stars', 0)}")
                 if data.get("setup_instructions"):
                     lines.append("  Setup instructions found in README")
-                    
+
             elif source == "filesystem" and data.get("exists"):
                 if data.get("is_directory"):
                     lines.append(f"- Local Project: {data.get('project_type', 'unknown')} project")
                     if data.get("setup_hints"):
                         lines.append(f"  Setup commands: {', '.join(data['setup_hints'])}")
-                        
+
             elif source == "http_check" and data.get("is_mcp_server"):
                 lines.append("- Direct MCP server endpoint detected (HTTP/SSE)")
-                
+
             elif source == "npm" and data:
                 lines.append(f"- NPM Package: {data.get('name', 'Unknown')}")
                 if data.get("description"):
                     lines.append(f"  Description: {data['description']}")
-                    
+
         return "\n".join(lines) if lines else "No metadata available"
-    
+
     async def configure_server_prompt(
         self,
         source: Annotated[str, Field(description="URL of the server to configure")],
         server_name: Annotated[str | None, Field(description="Optional server name")] = None,
     ) -> list[dict[str, str]]:
         """Generate an enriched prompt template for configuring a server from a URL.
-        
+
         This prompt can be used with any LLM to generate server configuration.
         For automatic configuration with LLM sampling, use the smart_configure tool instead.
         """
         collector = SourceMetadataCollector()
-        
+
         try:
             metadata_entries = await collector.collect_metadata(source, server_name)
             metadata_info = self._format_metadata_for_prompt(metadata_entries)
@@ -192,7 +192,7 @@ class MAGGServer(ProxyMCP):
         messages.append(system_message)
 
         user_prompt = f"""Configure an MCP server for: {source}
-                
+
 Server name: {server_name or 'auto-generate'}
 
 Collected Metadata:
@@ -256,7 +256,7 @@ Return the configuration as a JSON object."""
 
             if name in config.servers:
                 return MAGGResponse.error(f"Server '{name}' already exists")
-            
+
             actual_command = command
             actual_args = None
             if command:
@@ -268,13 +268,13 @@ Return the configuration as a JSON object."""
                 elif len(parts) == 1:
                     actual_command = parts[0]
                     actual_args = None
-            
+
             if actual_command and working_dir:
                 validated_dir, error = validate_working_directory(working_dir, source)
                 if error:
                     return MAGGResponse.error(error)
                 working_dir = str(validated_dir)
-            
+
             try:
                 server = ServerConfig(
                     name=name,
@@ -299,7 +299,7 @@ Return the configuration as a JSON object."""
 
                 if not mount_success:
                     return MAGGResponse.error(f"Failed to mount server '{name}'")
-            
+
             # Save to config
             config.add_server(server)
             self.save_config(config)
@@ -318,7 +318,7 @@ Return the configuration as a JSON object."""
                     "mounted": mount_success
                 }
             })
-            
+
         except Exception as e:
             return MAGGResponse.error(f"Failed to add server: {str(e)}")
 
@@ -329,7 +329,7 @@ Return the configuration as a JSON object."""
         """Remove a server."""
         try:
             config = self.config
-            
+
             if name in config.servers:
                 await self.server_manager.unmount_server(name)
                 config.remove_server(name)
@@ -340,10 +340,10 @@ Return the configuration as a JSON object."""
                 })
             else:
                 return MAGGResponse.error(f"Server '{name}' not found")
-                
+
         except Exception as e:
             return MAGGResponse.error(f"Failed to remove server: {str(e)}")
-    
+
     async def list_servers(self) -> MAGGResponse:
         """List all configured servers.
 
@@ -352,7 +352,7 @@ Return the configuration as a JSON object."""
         """
         try:
             config = self.config
-            
+
             servers = []
             for name, server in config.servers.items():
                 server_data = {
@@ -371,14 +371,14 @@ Return the configuration as a JSON object."""
                     server_data["working_dir"] = server.working_dir
                 if server.notes:
                     server_data["notes"] = server.notes
-                
+
                 servers.append(server_data)
 
             return MAGGResponse.success(servers)
-            
+
         except Exception as e:
             return MAGGResponse.error(f"Failed to list servers: {str(e)}")
-    
+
     async def enable_server(
         self,
         name: Annotated[str, Field(description="Server name to enable")],
@@ -386,7 +386,7 @@ Return the configuration as a JSON object."""
         """Enable a server."""
         try:
             config = self.config
-            
+
             if name not in config.servers:
                 return MAGGResponse.error(f"Server '{name}' not found")
 
@@ -398,18 +398,18 @@ Return the configuration as a JSON object."""
             server.enabled = True
 
             success = await self.server_manager.mount_server(server)
-            
+
             self.save_config(config)
-            
+
             return MAGGResponse.success({
                 "action": "server_enabled",
                 "server": {"name": name},
                 "mounted": success
             })
-                
+
         except Exception as e:
             return MAGGResponse.error(f"Failed to enable server: {str(e)}")
-    
+
     async def disable_server(
         self,
         name: Annotated[str, Field(description="Server name to disable")],
@@ -417,10 +417,10 @@ Return the configuration as a JSON object."""
         """Disable a server."""
         try:
             config = self.config
-            
+
             if name not in config.servers:
                 return MAGGResponse.error(f"Server '{name}' not found")
-            
+
             server = config.servers[name]
 
             if not server.enabled:
@@ -429,13 +429,13 @@ Return the configuration as a JSON object."""
             server.enabled = False
             # TODO: Consider calling unmount regardless of suggested state
             await self.server_manager.unmount_server(name)
-            
+
             self.save_config(config)
             return MAGGResponse.success({
                 "action": "server_disabled",
                 "server": {"name": name}
             })
-            
+
         except Exception as e:
             return MAGGResponse.error(f"Failed to disable server: {str(e)}")
 
@@ -448,12 +448,12 @@ Return the configuration as a JSON object."""
         ctx: Context | None = None,
     ) -> MAGGResponse:
         """Use LLM sampling to intelligently configure and add a server from a URL.
-        
+
         This tool performs the complete workflow:
         1. Collects metadata about the source URL
         2. Uses LLM sampling (if context provided) to generate optimal configuration
         3. Automatically adds the server to your configuration
-        
+
         Note: This requires an LLM context for intelligent configuration.
         Without LLM context, it falls back to basic metadata-based heuristics.
         For generating configuration prompts without sampling, use configure_server_prompt.
@@ -466,20 +466,20 @@ Return the configuration as a JSON object."""
             for entry in metadata_entries:
                 source = entry.get("source", "unknown")
                 data = entry.get("data", {})
-                
+
                 if source == "github" and data:
                     metadata_summary.append(f"GitHub: {data.get('description', 'No description')}")
                     metadata_summary.append(f"Language: {data.get('language', 'Unknown')}")
                     metadata_summary.append(f"Stars: {data.get('stars', 0)}")
                     if data.get("setup_instructions"):
                         metadata_summary.append("Setup hints found in README")
-                        
+
                 elif source == "filesystem" and data.get("exists"):
                     if data.get("is_directory"):
                         metadata_summary.append(f"Project type: {data.get('project_type', 'unknown')}")
                         if data.get("setup_hints"):
                             metadata_summary.append(f"Setup commands: {', '.join(data['setup_hints'])}")
-                            
+
                 elif source == "http_check" and data.get("is_mcp_server"):
                     metadata_summary.append("Direct MCP server detected via HTTP")
 
@@ -502,7 +502,7 @@ Return the configuration as a JSON object."""
                             config_suggestion["command"] = "python"
                             # noinspection PyTypeChecker
                             config_suggestion["args"] = ["-m", server_name or Path(source).stem]
-                
+
                 return MAGGResponse.success({
                     "action": "metadata_based_config",
                     "metadata": metadata_summary,
@@ -575,7 +575,7 @@ Return ONLY valid JSON, no explanations or markdown formatting."""
 
         except Exception as e:
             return MAGGResponse.error(f"Smart configuration failed: {str(e)}")
-    
+
     async def search_servers(
         self,
         query: Annotated[str, Field(description="Search query for MCP servers")],
@@ -676,12 +676,12 @@ Please provide:
         if not self._is_setup:
             self._is_setup = True
             await self.server_manager.mount_all_enabled()
-    
+
     async def run_stdio(self):
         """Run MAGG in stdio mode."""
         assert self._is_setup, "MAGG must be set up before running"
         await self.mcp.run_stdio_async()
-    
+
     async def run_http(self, host: str = "localhost", port: int = 8000):
         """Run MAGG in HTTP mode."""
         assert self._is_setup, "MAGG must be set up before running"

@@ -27,12 +27,12 @@ async def cmd_serve(args) -> None:
     from magg.server.runner import ServerRunner
 
     logger.info("Starting MAGG server (mode: %s)", 'http' if args.http else 'stdio')
-    
+
     if args.http:
         print_startup_banner()
-    
+
     runner = ServerRunner(args.config)
-    
+
     if args.http:
         logger.info("Starting HTTP server on %s:%s", args.host, args.port)
         await runner.run_http(host=args.host, port=args.port)
@@ -65,12 +65,12 @@ async def cmd_add_server(args) -> None:
     """Add a new MCP server."""
     config_manager = ConfigManager(args.config)
     config = config_manager.load_config()
-    
+
     if args.name in config.servers:
         logger.debug("Attempt to add duplicate server: %s", args.name)
         print_error(f"Server '{args.name}' already exists")
         sys.exit(1)
-    
+
     # Parse environment variables
     env = None
     if args.env:
@@ -79,7 +79,7 @@ async def cmd_add_server(args) -> None:
         except ValueError:
             print_error("Invalid environment variable format. Use KEY=VALUE")
             sys.exit(1)
-    
+
     # Parse command and args
     command = None
     command_args = None
@@ -88,7 +88,7 @@ async def cmd_add_server(args) -> None:
         if parts:
             command = parts[0]
             command_args = parts[1:] if len(parts) > 1 else None
-    
+
     try:
         server = ServerConfig(
             name=args.name,
@@ -104,9 +104,9 @@ async def cmd_add_server(args) -> None:
     except ValueError as e:
         print_error(f"Invalid server configuration: {e}")
         sys.exit(1)
-    
+
     config.add_server(server)
-    
+
     if config_manager.save_config(config):
         print_success(f"Added server '{args.name}'")
         print(f"  Source: {args.source}")
@@ -127,7 +127,7 @@ async def cmd_list_servers(args) -> None:
     """List configured servers."""
     config_manager = ConfigManager(args.config)
     config = config_manager.load_config()
-    
+
     # logger.debug("Listing %d configured servers", len(config.servers))
     print_server_list(config.servers)
 
@@ -136,25 +136,25 @@ async def cmd_remove_server(args) -> None:
     """Remove a server."""
     config_manager = ConfigManager(args.config)
     config = config_manager.load_config()
-    
+
     if args.name not in config.servers:
         logger.warning("Attempt to remove non-existent server: %s", args.name)
         print_error(f"Server '{args.name}' not found")
         sys.exit(1)
-    
+
     # Show server details before removal
     server = config.servers[args.name]
     print_info(f"Server to remove: {args.name}")
     print(f"  Source: {server.source}")
     print(f"  Prefix: {server.prefix}")
-    
+
     if not args.force and not confirm_action("Are you sure you want to remove this server?"):
         logger.debug("User cancelled removal of server '%s'", args.name)
         print_info("Removal cancelled")
         return
-    
+
     config.remove_server(args.name)
-    
+
     if config_manager.save_config(config):
         logger.info("Successfully removed server '%s'", args.name)
         print_success(f"Removed server '{args.name}'")
@@ -167,18 +167,18 @@ async def cmd_enable_server(args) -> None:
     """Enable a server."""
     config_manager = ConfigManager(args.config)
     config = config_manager.load_config()
-    
+
     if args.name not in config.servers:
         print_error(f"Server '{args.name}' not found")
         sys.exit(1)
-    
+
     server = config.servers[args.name]
     if server.enabled:
         print_info(f"Server '{args.name}' is already enabled")
         return
-    
+
     server.enabled = True
-    
+
     if config_manager.save_config(config):
         print_success(f"Enabled server '{args.name}'")
         print_info("The server will be mounted on next startup")
@@ -191,18 +191,18 @@ async def cmd_disable_server(args) -> None:
     """Disable a server."""
     config_manager = ConfigManager(args.config)
     config = config_manager.load_config()
-    
+
     if args.name not in config.servers:
         print_error(f"Server '{args.name}' not found")
         sys.exit(1)
-    
+
     server = config.servers[args.name]
     if not server.enabled:
         print_info(f"Server '{args.name}' is already disabled")
         return
-    
+
     server.enabled = False
-    
+
     if config_manager.save_config(config):
         print_success(f"Disabled server '{args.name}'")
         print_warning("The server will remain mounted until MAGG is restarted")
@@ -215,10 +215,10 @@ async def cmd_status(args) -> None:
     """Show MAGG status."""
     config_manager = ConfigManager(args.config)
     config = config_manager.load_config()
-    
+
     enabled = [s for s in config.servers.values() if s.enabled]
     disabled = [s for s in config.servers.values() if not s.enabled]
-    
+
     print_status_summary(
         str(config_manager.config_path),
         len(config.servers),
@@ -231,7 +231,7 @@ async def cmd_export(args) -> None:
     """Export configuration."""
     config_manager = ConfigManager(args.config)
     config = config_manager.load_config()
-    
+
     export_data = {
         'servers': {
             name: server.model_dump(
@@ -240,7 +240,7 @@ async def cmd_export(args) -> None:
             for name, server in config.servers.items()
         }
     }
-    
+
     if args.output:
         try:
             with open(args.output, 'w') as f:
@@ -266,7 +266,7 @@ def create_parser() -> argparse.ArgumentParser:
         action='version',
         version=f'%(prog)s {__version__}',
     )
-    
+
     parser.add_argument(
         '--config',
         type=str,
@@ -274,15 +274,15 @@ def create_parser() -> argparse.ArgumentParser:
     )
 
     subparsers = parser.add_subparsers(dest='subcommand', help='Commands')
-    
+
     # Serve command
     serve_parser = subparsers.add_parser(
-        'serve', 
+        'serve',
         help='Start MAGG server',
         description='Start the MAGG server in either stdio mode (default) or HTTP mode'
     )
     cmd_serve_args(serve_parser)
-    
+
     # Add server command
     add_parser = subparsers.add_parser('add-server', help='Add a new server')
     add_parser.add_argument('name', help='Server name')
@@ -293,29 +293,29 @@ def create_parser() -> argparse.ArgumentParser:
     add_parser.add_argument('--env', nargs='*', help='Environment variables (KEY=VALUE)')
     add_parser.add_argument('--working-dir', help='Working directory')
     add_parser.add_argument('--notes', help='Setup notes')
-    
+
     # List servers
     subparsers.add_parser('list-servers', help='List configured servers')
-    
+
     # Remove server
     remove_parser = subparsers.add_parser('remove-server', help='Remove a server')
     remove_parser.add_argument('name', help='Server name')
     remove_parser.add_argument('--force', '-f', action='store_true', help='Remove without confirmation')
-    
+
     # Enable/disable server
     enable_parser = subparsers.add_parser('enable-server', help='Enable a server')
     enable_parser.add_argument('name', help='Server name')
-    
+
     disable_parser = subparsers.add_parser('disable-server', help='Disable a server')
     disable_parser.add_argument('name', help='Server name')
-    
+
     # Status command
     subparsers.add_parser('status', help='Show MAGG status')
-    
+
     # Export command
     export_parser = subparsers.add_parser('export', help='Export configuration')
     export_parser.add_argument('--output', '-o', help='Output file (default: stdout)')
-    
+
     return parser
 
 
@@ -323,11 +323,11 @@ async def run():
     """Main entry point (async)."""
     parser = create_parser()
     args = parser.parse_args()
-    
+
     if not args.subcommand:
         parser.print_help()
         sys.exit(1)
-    
+
     # Map commands to functions
     commands = {
         'serve': cmd_serve,
@@ -339,7 +339,7 @@ async def run():
         'status': cmd_status,
         'export': cmd_export,
     }
-    
+
     cmd_func = commands.get(args.subcommand)
     if cmd_func:
         await cmd_func(args)

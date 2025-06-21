@@ -164,32 +164,32 @@ class REPLThread(threading.Thread):
 
 async def interact(banner=None, locals=None, *, use_pyrepl=None):
     """Run an interactive asyncio REPL using the current event loop.
-    
+
     Args:
         banner: Optional banner to display at startup
         locals: Optional dictionary of local variables (defaults to calling frame's locals)
         use_pyrepl: Whether to use pyrepl (defaults to auto-detect)
-    
+
     Returns:
         The return code from the REPL session
     """
     global return_code, loop, console, repl_future, keyboard_interrupted
-    
+
     # Reset globals
     return_code = 0
     keyboard_interrupted = False
     repl_future = None
-    
+
     # Get the current event loop
     loop = asyncio.get_running_loop()
-    
+
     # Determine if we should use pyrepl
     if use_pyrepl is None:
         if os.getenv('PYTHON_BASIC_REPL'):
             use_pyrepl = False
         else:
             use_pyrepl = CAN_USE_PYREPL
-    
+
     # Set up locals dictionary
     if locals is None:
         import inspect
@@ -198,18 +198,18 @@ async def interact(banner=None, locals=None, *, use_pyrepl=None):
             locals = frame.f_back.f_locals.copy()
         else:
             locals = {}
-    
+
     repl_locals = {'asyncio': asyncio}
     repl_locals.update(locals)
-    
+
     # Add common builtins if not present
     for key in {'__name__', '__package__', '__loader__', '__spec__', '__builtins__', '__file__'}:
         if key not in repl_locals:
             repl_locals[key] = globals().get(key)
-    
+
     # Create console
     console = AsyncIOInteractiveConsole(repl_locals, loop)
-    
+
     # Handle readline setup
     try:
         import readline  # NoQA
@@ -232,16 +232,16 @@ async def interact(banner=None, locals=None, *, use_pyrepl=None):
             if readline is not None:
                 completer = rlcompleter.Completer(console.locals)
                 readline.set_completer(completer.complete)
-    
+
     # Create a future to track when the REPL is done
     repl_done = asyncio.Future()
-    
+
     # Create and start the REPL thread
     repl_thread = REPLThread(console, locals, done_future=repl_done)
     repl_thread.start()
 
     final_return_code = None
-    
+
     # Wait for the REPL to finish
     try:
         # Use the future to wait for the thread to complete
@@ -260,28 +260,28 @@ async def interact(banner=None, locals=None, *, use_pyrepl=None):
                 final_return_code = return_code
     finally:
         console.write('exiting asyncio REPL...\n')
-    
+
     return final_return_code
 
 
 def run_console():
     """Run the asyncio console as a standalone program (original __main__ behavior)."""
     sys.audit("cpython.run_stdin")
-    
+
     # Create new event loop
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
-    
+
     async def _run():
         return await interact()
-    
+
     try:
         return_code = loop.run_until_complete(_run())
     except KeyboardInterrupt:
         return_code = 0
     finally:
         loop.close()
-    
+
     sys.exit(return_code)
 
 

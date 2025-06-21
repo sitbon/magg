@@ -22,7 +22,7 @@ class ServerConfig(BaseSettings):
     )
 
     PREFIX_SEP: ClassVar[str] = "_"
-    
+
     name: str = Field(..., description="Unique server name - can contain any characters")
     source: str = Field(..., description="URL/URI/path of the server package, repository, or listing")
     prefix: str = Field(
@@ -30,7 +30,7 @@ class ServerConfig(BaseSettings):
         description=f"Tool prefix for this server - must be a valid Python identifier without {PREFIX_SEP!r}."
     )
     notes: str | None = Field(None, description="Setup notes for LLM and humans")
-    
+
     # Connection details
     command: str | None = Field(None, description='Main command (e.g., "python", "node", "uvx", "npx")')
     args: list[str] | None = Field(None, description="Command arguments")
@@ -39,14 +39,14 @@ class ServerConfig(BaseSettings):
     working_dir: str | None = Field(None, description="Working directory")
     transport: dict[str, Any] | None = Field(None, description="Transport-specific configuration")
     enabled: bool = Field(True, description="Whether server is enabled")
-    
+
     @model_validator(mode='after')
     def set_default_prefix(self) -> 'ServerConfig':
         """Set default prefix from name if not provided."""
         if not self.prefix:
             self.prefix = self.generate_prefix_from_name(self.name)
         return self
-    
+
     @field_validator('prefix')
     def validate_prefix(cls, v: str | None) -> str | None:
         """Validate that prefix is a valid Python identifier without underscores."""
@@ -76,7 +76,7 @@ class ServerConfig(BaseSettings):
     @classmethod
     def generate_prefix_from_name(cls, name: str) -> str:
         """Generate a valid prefix from a server name.
-        
+
         Removes special characters and ensures it's a valid Python identifier
         without underscores.
         """
@@ -89,13 +89,13 @@ class ServerConfig(BaseSettings):
         )
 
         prefix = ''.join(c for c in prefix if c.isalnum())
-        
+
         if prefix and prefix[0].isdigit():
             prefix = 'srv' + prefix
-        
+
         if not prefix or not prefix.isidentifier():
             prefix = 'server'
-        
+
         return prefix.lower()[:30]
 
 
@@ -151,14 +151,14 @@ class MAGGConfig(BaseSettings):
     def add_server(self, server: ServerConfig) -> None:
         """Add a server."""
         self.servers[server.name] = server
-    
+
     def remove_server(self, name: str) -> bool:
         """Remove a server."""
         if name in self.servers:
             del self.servers[name]
             return True
         return False
-    
+
     def get_enabled_servers(self) -> dict[str, ServerConfig]:
         """Get all enabled servers."""
         return {name: server for name, server in self.servers.items() if server.enabled}
@@ -166,18 +166,18 @@ class MAGGConfig(BaseSettings):
 
 class ConfigManager:
     """Manages MAGG configuration persistence."""
-    
+
     def __init__(self, config_path: str | None = None):
         """Initialize config manager."""
         # Load base settings (gets env vars)
         self.settings = MAGGConfig()
-        
+
         # Override config path if provided
         if config_path:
             self.config_path = Path(config_path)
         else:
             self.config_path = self.settings.config_path
-        
+
         # Ensure config directory exists
         self.config_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -190,11 +190,11 @@ class ConfigManager:
         """Load configuration from disk."""
         # Create a fresh config instance with settings from environment
         config = MAGGConfig()
-        
+
         if not self.config_path.exists():
             self.logger.warning(f"Config file {self.config_path} does not exist. Using default settings.")
             return config
-        
+
         try:
             with open(self.config_path, 'r') as f:
                 data = json.load(f)
@@ -209,7 +209,7 @@ class ConfigManager:
                     self.logger.error(f"Error loading server '{name}': {e}")
                     # Skip invalid servers
                     continue
-            
+
             config.servers = servers
 
             for key, value in data.items():
@@ -218,11 +218,11 @@ class ConfigManager:
                 setattr(config, key, value)
 
             return config
-        
+
         except Exception as e:
             self.logger.error(f"Error loading config: {e}")
             return config
-    
+
     def save_config(self, config: MAGGConfig) -> bool:
         """Save configuration to disk."""
         try:
@@ -236,12 +236,12 @@ class ConfigManager:
                     for name, server in config.servers.items()
                 }
             }
-            
+
             with open(self.config_path, 'w') as f:
                 json.dump(data, f, indent=2)
-            
+
             return True
-        
+
         except Exception as e:
             self.logger.error(f"Error saving config: {e}")
             return False

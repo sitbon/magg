@@ -201,7 +201,7 @@ def resource_result_as_tool_result(
     optional formatting of the result as JSON when specified.
 
     Args:
-        data: The resource content, which can be an instance of TextResourceContents 
+        data: The resource content, which can be an instance of TextResourceContents
             or BlobResourceContents.
         as_json: An optional flag indicating whether to format TextResourceContents as JSON.
             Defaults to None, which will auto-detect JSON and set the mimeType accordingly.

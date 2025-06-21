@@ -15,7 +15,7 @@ class Colors:
     ENDC = '\033[0m'
     BOLD = '\033[1m'
     UNDERLINE = '\033[4m'
-    
+
     @classmethod
     def disable(cls):
         """Disable colors (for non-tty output)."""
@@ -65,31 +65,31 @@ def print_server_list(servers: Dict[str, Any]):
     if not servers:
         print_info("No servers configured")
         return
-    
+
     print_header("Configured Servers")
-    
+
     for name, server in servers.items():
         status_color = Colors.OKGREEN if server.enabled else Colors.WARNING
         status_text = "enabled" if server.enabled else "disabled"
-        
+
         print(f"\n  {Colors.BOLD}{name}{Colors.ENDC} ({server.prefix}) - {status_color}{status_text}{Colors.ENDC}")
         print(f"    Source: {server.source}")
-        
+
         if server.command:
             full_command = server.command
             if server.args:
                 full_command += ' ' + ' '.join(server.args)
             print(f"    Command: {full_command}")
-        
+
         if server.uri:
             print(f"    URI: {server.uri}")
-        
+
         if server.working_dir:
             print(f"    Working Dir: {server.working_dir}")
-        
+
         if server.env:
             print(f"    Environment: {', '.join(f'{k}={v}' for k, v in server.env.items())}")
-        
+
         if server.notes:
             print(f"    Notes: {Colors.OKCYAN}{server.notes}{Colors.ENDC}")
 

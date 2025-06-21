@@ -165,11 +165,11 @@ class ManagedServer:
     @cached_property
     def self_prefix(self) -> str:
         """Get the self prefix for this MAGG server.
-        
+
         Cannot be changed during process lifetime.
         """
         return self.server_manager.self_prefix
-    
+
     @cached_property
     def self_prefix_(self) -> str:
         """self_prefix with trailing separator.

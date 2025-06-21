@@ -24,19 +24,19 @@ def get_transport_for_command(
 ) -> ClientTransport:
     """
     Create appropriate transport based on command and configuration.
-    
+
     Args:
         command: Main command (e.g., "python", "node", "uvx", "npx")
         args: Command arguments
         env: Environment variables
         working_dir: Working directory
         transport_config: Transport-specific configuration
-        
+
     Returns:
         Configured ClientTransport instance
     """
     transport_config = transport_config or {}
-    
+
     # Handle special commands with specific transport classes
     if command == "python":
         # Python execution - use our custom transport that doesn't validate paths
@@ -50,7 +50,7 @@ def get_transport_for_command(
                 python_cmd=transport_config.get("python_cmd", sys.executable),
                 keep_alive=transport_config.get("keep_alive", True)
             )
-    
+
     elif command == "node":
         # Node.js execution - use our custom transport that doesn't validate paths
         if args:
@@ -62,7 +62,7 @@ def get_transport_for_command(
                 node_cmd=transport_config.get("node_cmd", "node"),
                 keep_alive=transport_config.get("keep_alive", True)
             )
-    
+
     elif command == "npx":
         # NPX package execution
         if args:
@@ -74,7 +74,7 @@ def get_transport_for_command(
                 use_package_lock=transport_config.get("use_package_lock", True),
                 keep_alive=transport_config.get("keep_alive", True)
             )
-    
+
     elif command == "uvx":
         # UVX tool execution
         if args:
@@ -88,7 +88,7 @@ def get_transport_for_command(
                 env_vars=env,
                 keep_alive=transport_config.get("keep_alive", True)
             )
-    
+
     elif command == "fastmcp":
         # FastMCP server execution
         if args and args[0] == "run":
@@ -102,7 +102,7 @@ def get_transport_for_command(
                     cwd=working_dir,
                     keep_alive=transport_config.get("keep_alive", True)
                 )
-    
+
     # Default to generic StdioTransport for other commands
     return StdioTransport(
         command=command,
@@ -119,16 +119,16 @@ def get_transport_for_uri(
 ) -> ClientTransport:
     """
     Create appropriate transport for URI-based servers.
-    
+
     Args:
         uri: Server URI
         transport_config: Transport-specific configuration
-        
+
     Returns:
         Configured ClientTransport instance
     """
     transport_config = transport_config or {}
-    
+
     # Check if it's an SSE endpoint
     if uri.endswith("/sse") or uri.endswith("/sse/"):
         return SSETransport(
@@ -138,7 +138,7 @@ def get_transport_for_uri(
             sse_read_timeout=transport_config.get("sse_read_timeout"),
             httpx_client_factory=transport_config.get("httpx_client_factory")
         )
-    
+
     # Default to StreamableHttpTransport for HTTP/HTTPS
     if uri.startswith(("http://", "https://")):
         return StreamableHttpTransport(
@@ -148,7 +148,7 @@ def get_transport_for_uri(
             sse_read_timeout=transport_config.get("sse_read_timeout"),
             httpx_client_factory=transport_config.get("httpx_client_factory")
         )
-    
+
     # Fall back to infer_transport for other cases
     return infer_transport(uri)
 

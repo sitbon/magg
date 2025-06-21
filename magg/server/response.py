@@ -9,11 +9,11 @@ from pydantic import BaseModel, ConfigDict, AnyUrl
 
 class MAGGResponse(BaseModel):
     """Standardized response format for MAGG tools.
-    
+
     Provides a consistent structure for both success and error cases,
     optimized for LLM consumption with automatic JSON serialization.
     """
-    
+
     model_config = ConfigDict(
         arbitrary_types_allowed=True,
         extra="allow",
@@ -31,7 +31,7 @@ class MAGGResponse(BaseModel):
             ]
         }
     )
-    
+
     errors: list[str | dict] | None = None
     output: Any | None = None
 
@@ -39,7 +39,7 @@ class MAGGResponse(BaseModel):
     def success(cls, output: Any) -> "MAGGResponse":
         """Create a success response with output data."""
         return cls(output=output)
-    
+
     @classmethod
     def error(cls, error: str | dict | list) -> "MAGGResponse":
         """Create an error response."""
@@ -50,12 +50,12 @@ class MAGGResponse(BaseModel):
         if self.errors is None:
             self.errors = []
         self.errors.append(error)
-    
+
     @property
     def is_success(self) -> bool:
         """Check if this is a successful response (no errors)."""
         return self.errors is None or len(self.errors) == 0
-    
+
     @property
     def is_error(self) -> bool:
         """Check if this response contains errors."""

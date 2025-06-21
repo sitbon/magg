@@ -7,7 +7,7 @@ from magg.mbro.client import MCPConnection, MCPBrowser
 
 class TestMCPConnection:
     """Test MCP connection functionality."""
-    
+
     def test_init(self):
         """Test connection initialization."""
         conn = MCPConnection("test", "command", "echo hello")
@@ -16,7 +16,7 @@ class TestMCPConnection:
         assert conn.connection_string == "echo hello"
         assert not conn.connected
         # tools, resources, prompts are now async methods
-    
+
     @pytest.mark.asyncio
     async def test_connect_success(self):
         """Test successful connection."""
@@ -29,7 +29,7 @@ class TestMCPConnection:
 
 class TestMCPBrowser:
     """Test MCP browser functionality."""
-    
+
     def test_init(self):
         """Test browser initialization."""
         browser = MCPBrowser()
@@ -42,7 +42,7 @@ class TestMCPBrowser:
         browser = MCPBrowser()
         connections = await browser.list_connections()
         assert connections == []
-    
+
     def test_get_current_connection_none(self):
         """Test getting current connection when none exists."""
         browser = MCPBrowser()

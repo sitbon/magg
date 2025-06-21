@@ -11,6 +11,8 @@ from rich.console import Console
 from rich.json import JSON
 from rich.table import Table
 
+from magg.util.transform import tool_result_as_prompt_result, tool_result_as_resource_result
+
 
 class OutputFormatter:
     """Handle formatted output for mbro."""
@@ -95,10 +97,22 @@ class OutputFormatter:
             if isinstance(resource_data, str):
                 self.print(resource_data)
 
-            elif isinstance(resource_data, dict):
+            elif isinstance(resource_data, (list, dict)):
                 self.format_json(resource_data)
 
     def format_content(self, content: Content):
+        # Check for encapsulated prompt or resource (from proxy tool)
+        # (Now done in cli)
+        # if isinstance(content, EmbeddedResource):
+        #     # (1) try to decode as encapsulated prompt response, (2) try to decode as encapsulated resource response
+        #     if (prompt_result := tool_result_as_prompt_result(content)) is not None:
+        #         self.format_prompt_result(prompt_result)
+        #         return
+        #
+        #     if (resource_result := tool_result_as_resource_result(content)) is not None:
+        #         self.format_resource(resource_result)
+        #         return
+
         content_data = self.decode_content(content)
 
         if self.json_only:
@@ -113,7 +127,7 @@ class OutputFormatter:
             if isinstance(content_data, str):
                 self.print(content_data)
 
-            elif isinstance(content_data, dict):
+            elif isinstance(content_data, (list, dict)):
                 self.format_json(content_data)
 
     def format_resource_list(self, resources: list[TextResourceContents | BlobResourceContents]) -> None:
@@ -153,7 +167,7 @@ class OutputFormatter:
                 self.format_content(content)
 
     @classmethod
-    def decode_resource(cls, resource: TextResourceContents | BlobResourceContents) -> str | dict[str, Any]:
+    def decode_resource(cls, resource: TextResourceContents | BlobResourceContents) -> str | dict[str, Any] | list:
         """Decode a resource to a string or dict representation for display.
         """
         if hasattr(resource, 'text'):
@@ -173,11 +187,9 @@ class OutputFormatter:
         return resource.model_dump(exclude_defaults=True, exclude_none=True, exclude_unset=True)
 
     @classmethod
-    def decode_content(cls, content: Content) -> str | dict[str, Any]:
+    def decode_content(cls, content: Content) -> str | dict[str, Any] | list:
         """Decode content to a string or dict representation for display.
         """
-        dump_args = dict(exclude_defaults=True, exclude_none=True, exclude_unset=True)
-
         match content.type:
             case "text":
                 if content.annotations and getattr(content.annotations, 'mimeType', '') == 'application/json':
@@ -191,7 +203,7 @@ class OutputFormatter:
             case "resource":
                 return cls.decode_resource(content.resource)
 
-        return content.model_dump(**dump_args)
+        return content.model_dump(exclude_defaults=True, exclude_none=True, exclude_unset=True)
     
     def format_connections_table(self, connections: list[dict[str, Any]], *, extended: bool = False) -> None:
         """Format connections as a table."""
@@ -416,16 +428,13 @@ class OutputFormatter:
             prompt_data = result.model_dump(exclude_none=True, exclude_defaults=True, exclude_unset=True, by_alias=True)
             self.format_json(prompt_data)
         else:
-            # Print description if present
             if result.description:
                 self.print(
                     f"\n{result.description}\n" if not self.use_rich else
                     f"\n[bold]{result.description}[/bold]\n"
                 )
 
-            # Print each message
             for msg in result.messages:
-                # Format role
                 role_text = f"{msg.role}:"
                 if self.use_rich:
                     match msg.role.lower():
@@ -440,18 +449,15 @@ class OutputFormatter:
 
                 self.print(role_text)
 
-                # Format content based on type
                 content = self.decode_content(msg.content)
                 if isinstance(content, str):
-                    # Print text content with indentation
                     for line in content.splitlines():
                         self.print(f"  {line}")
                 else:
-                    # Print structured content as JSON
                     self.print("  ", end="")
                     self.format_json(content)
 
-                self.print("")  # Add blank line between messages
+                self.print("")
 
     def format_search_results(self, term: str, tools: list, resources: list, prompts: list) -> None:
         """Format search results."""
@@ -693,7 +699,10 @@ JSON Tips (REPL):
             self.print("")  # Blank line between resources
     
     def format_prompts_list(self, prompts: list[dict[str, Any]]) -> None:
-        """Format a list of prompts."""
+        """Format a list of prompts.
+
+        TODO: Combine the many print calls into a single print call. Same for other functions above.
+        """
         if self.json_only:
             self.format_json({"prompts": prompts})
             return
@@ -734,5 +743,5 @@ JSON Tips (REPL):
                             self.print(f"      {line}")
             else:
                 self.print("  No arguments required")
-            
+
             self.print("")  # Blank line between prompts

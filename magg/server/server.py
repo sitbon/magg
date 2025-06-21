@@ -3,204 +3,56 @@
 import json
 import logging
 import os
-from functools import cached_property, wraps
-from typing import Any, Annotated, TypeAlias
+import re
+from functools import wraps
 from pathlib import Path
+from typing import Any, Annotated, TypeAlias
 
-from fastmcp import FastMCP, Client, Context
+from fastmcp import Context
 from mcp.types import PromptMessage, TextContent, EmbeddedResource
 from pydantic import Field, AnyUrl
 
-from ..settings import ConfigManager, ServerConfig, MAGGConfig
+from .manager import ServerManager
+from .proxy import ProxyMCP
 from .response import MAGGResponse
+from ..discovery.metadata import CatalogManager, SourceMetadataCollector
+from ..settings import ConfigManager, ServerConfig
 from ..util import (
-    get_transport_for_command, 
-    get_transport_for_uri,
     validate_working_directory,
     TRANSPORT_DOCS,
 )
-
-from .defaults import MAGG_INSTRUCTIONS
 
 JSONToolResponse: TypeAlias = TextContent | EmbeddedResource
 LOG = logging.getLogger(__name__)
 
 
-# noinspection PyProtectedMember
-class ServerManager:
-    """Manages MCP servers - mounting, unmounting, and tracking."""
-    config_manager: ConfigManager
-    mcp: FastMCP
-    mounted_servers: dict
-    
-    def __init__(self, config_manager: ConfigManager):
-        self.config_manager = config_manager
-        self.mcp = FastMCP(
-            name=self.self_prefix,
-            instructions=MAGG_INSTRUCTIONS.format(self_prefix=self.self_prefix),
-        )
-        self.mounted_servers = {}
-
-    @property
-    def config(self) -> MAGGConfig:
-        """Get the current MAGG configuration."""
-        return self.config_manager.load_config()
-
-    def save_config(self, config: MAGGConfig):
-        """Save the current configuration to disk."""
-        return self.config_manager.save_config(config)
-
-    @cached_property
-    def self_prefix(self) -> str:
-        """Get the self prefix for this MAGG server - cannot be changed during process lifetime."""
-        return self.config.self_prefix
-    
-    async def mount_server(self, server: ServerConfig) -> bool:
-        """Mount a server using FastMCP."""
-        if not server.enabled:
-            LOG.info("Server %s is disabled, skipping mount", server.name)
-            return False
-
-        if server.name in self.mounted_servers:
-            LOG.warning("Server %s is already mounted, skipping", server.name)
-            return False
-            
-        try:
-            if server.command:
-                # Command-based server
-                transport = get_transport_for_command(
-                    command=server.command,
-                    args=server.args or [],
-                    env=server.env,
-                    working_dir=server.working_dir,
-                    transport_config=server.transport
-                )
-                client = Client(transport)
-                
-            elif server.uri:
-                # URI-based server
-                transport = get_transport_for_uri(
-                    uri=server.uri,
-                    transport_config=server.transport
-                )
-                client = Client(transport)
-                
-            else:
-                LOG.error("No command or URI specified for %s", server.name)
-                return False
-            
-            # Create proxy and mount
-            proxy_server = FastMCP.as_proxy(client)
-            self.mcp.mount(server.prefix, proxy_server, as_proxy=True)
-            # Store both proxy and client for resource/prompt access
-            self.mounted_servers[server.name] = {
-                'proxy': proxy_server,
-                'client': client
-            }
-            
-            LOG.debug("Mounted server %s with prefix %s", server.name, server.prefix)
-            return True
-        
-        except Exception as e:
-            LOG.error("Failed to mount server %s: %s", server.name, e)
-            return False
-    
-    async def unmount_server(self, name: str) -> bool:
-        """Unmount a server."""
-        if name in self.mounted_servers:
-            # Get the server config to find the prefix
-            config = self.config
-            server = config.servers.get(name)
-            if server and server.prefix in self.mcp._mounted_servers:
-                # Properly unmount from FastMCP
-                self.mcp.unmount(server.prefix)
-                LOG.debug("Called unmount for prefix %s", server.prefix)
-            
-            # Remove from our tracking
-            del self.mounted_servers[name]
-            LOG.info("Unmounted server %s", name)
-            return True
-
-        else:
-            LOG.warning("Server %s is not mounted, cannot unmount", name)
-            return False
-    
-    async def mount_all_enabled(self):
-        """Mount all enabled servers from config."""
-        config = self.config
-        enabled_servers = config.get_enabled_servers()
-        
-        if not enabled_servers:
-            LOG.info("No enabled servers to mount")
-            return
-        
-        LOG.info("Mounting %d enabled servers...", len(enabled_servers))
-        
-        results = []
-        for name, server in enabled_servers.items():
-            try:
-                success = await self.mount_server(server)
-                results.append((name, success))
-            except Exception as e:
-                LOG.error("Error mounting %s: %s", name, e)
-                results.append((name, False))
-        
-        # Log results
-        successful = [name for name, success in results if success]
-        failed = [name for name, success in results if not success]
-        
-        if successful:
-            LOG.info("Successfully mounted: %s", ', '.join(successful))
-        if failed:
-            LOG.warning("Failed to mount: %s", ', '.join(failed))
-
-
 # noinspection PyMethodMayBeStatic
-class MAGGServer:
+class MAGGServer(ProxyMCP):
     """Main MAGG server with tools for managing other MCP servers."""
     _is_setup = False
-    server_manager: ServerManager
     
     def __init__(self, config_path: str | None = None):
-        self.server_manager = ServerManager(ConfigManager(config_path))
+        super().__init__(ServerManager(ConfigManager(config_path)))
         self._register_tools()
 
     @property
     def is_setup(self) -> bool:
         """Check if the server is fully set up with tools and resources."""
         return self._is_setup
-    
-    @property
-    def mcp(self) -> FastMCP:
-        return self.server_manager.mcp
-
-    @property
-    def config(self) -> MAGGConfig:
-        """Get the current MAGG configuration."""
-        return self.server_manager.config
-
-    @property
-    def self_prefix(self) -> str:
-        """Get the self prefix for this MAGG server."""
-        return self.server_manager.self_prefix
-
-    def save_config(self, config: MAGGConfig):
-        """Save the current configuration to disk."""
-        return self.server_manager.save_config(config)
 
     def _register_tools(self):
         """Register all MAGG management tools programmatically."""
-        self_prefix = self.self_prefix
+        self_prefix_ = self.self_prefix_
         
         tools = [
-            (self.add_server, f"{self_prefix}_add_server", None),
-            (self.remove_server, f"{self_prefix}_remove_server", None),
-            (self.list_servers, f"{self_prefix}_list_servers", None),
-            (self.enable_server, f"{self_prefix}_enable_server", None),
-            (self.disable_server, f"{self_prefix}_disable_server", None),
-            (self.search_servers, f"{self_prefix}_search_servers", None),
-            (self.smart_configure, f"{self_prefix}_smart_configure", None),
-            (self.analyze_servers, f"{self_prefix}_analyze_servers", None),
+            (self.add_server, f"{self_prefix_}add_server", None),
+            (self.remove_server, f"{self_prefix_}remove_server", None),
+            (self.list_servers, f"{self_prefix_}list_servers", None),
+            (self.enable_server, f"{self_prefix_}enable_server", None),
+            (self.disable_server, f"{self_prefix_}disable_server", None),
+            (self.search_servers, f"{self_prefix_}search_servers", None),
+            (self.smart_configure, f"{self_prefix_}smart_configure", None),
+            (self.analyze_servers, f"{self_prefix_}analyze_servers", None),
         ]
 
         def call_tool_wrapper(func):
@@ -216,43 +68,38 @@ class MAGGServer:
             return wrapper
 
         for method, tool_name, options in tools:
-            # FastMCP's @tool decorator can be applied programmatically
             self.mcp.tool(name=tool_name, **(options or {}))(call_tool_wrapper(method))
-            
-        # Register resources
-        self._register_resources(self_prefix)
-        
-        # Register prompts
-        self._register_prompts(self_prefix)
+
+        self._register_resources()
+        self._register_prompts()
+        self._register_proxy_tool()
     
-    def _register_resources(self, self_prefix: str):
-        """Register MCP resources for server metadata."""
-        # Define resource mappings: (method, uri_pattern)
+    def _register_resources(self):
+        """Register MCP resources for server metadata.
+        """
         resources = [
-            (self.get_server_metadata, f"{self_prefix}://server/{{name}}"),
-            (self.get_all_servers_metadata, f"{self_prefix}://servers/all"),
+            (self.get_server_metadata, f"{self.self_prefix}://server/{{name}}"),
+            (self.get_all_servers_metadata, f"{self.self_prefix}://servers/all"),
         ]
-        
-        # Register each resource with the MCP server
+
         for method, uri_pattern in resources:
             self.mcp.resource(
                 uri=uri_pattern,
                 mime_type="application/json",
             )(method)
     
-    def _register_prompts(self, self_prefix: str):
-        """Register MCP prompts for intelligent configuration."""
-        # Define prompt mappings: (method, name)
+    def _register_prompts(self):
+        """Register MCP prompts for intelligent configuration.
+        """
         prompts = [
-            (self.configure_server_prompt, f"{self_prefix}_configure_server"),
+            (self.configure_server_prompt, f"{self.self_prefix_}configure_server"),
         ]
-        
-        # Register each prompt with the MCP server
+
         for method, name in prompts:
             self.mcp.prompt(name)(method)
 
     # ============================================================================
-    # MCP Resource Methods - Expose server metadata for LLM consumption
+    # region MCP Resource Methods - Expose server metadata for LLM consumption
     # ============================================================================
     
     async def get_server_metadata(self, name: str) -> dict:
@@ -280,6 +127,7 @@ class MAGGServer:
         }
     
     # ============================================================================
+    # endregion
     # region MCP Prompt Methods - Templates for LLM-assisted configuration
     # ============================================================================
     
@@ -323,8 +171,6 @@ class MAGGServer:
         This prompt can be used with any LLM to generate server configuration.
         For automatic configuration with LLM sampling, use the smart_configure tool instead.
         """
-        # Collect metadata to enrich the prompt
-        from ..discovery.metadata import SourceMetadataCollector
         collector = SourceMetadataCollector()
         
         try:
@@ -383,6 +229,7 @@ Return the configuration as a JSON object."""
         return messages
 
     # ============================================================================
+    # endregion
     # region MCP Tool Methods - Core server management functionality
     # ============================================================================
 
@@ -410,7 +257,6 @@ Return the configuration as a JSON object."""
             if name in config.servers:
                 return MAGGResponse.error(f"Server '{name}' already exists")
             
-            # Split command into command and args if needed
             actual_command = command
             actual_args = None
             if command:
@@ -423,19 +269,17 @@ Return the configuration as a JSON object."""
                     actual_command = parts[0]
                     actual_args = None
             
-            # Validate working directory for command servers
             if actual_command and working_dir:
                 validated_dir, error = validate_working_directory(working_dir, source)
                 if error:
                     return MAGGResponse.error(error)
                 working_dir = str(validated_dir)
             
-            # Create server config
             try:
                 server = ServerConfig(
                     name=name,
                     source=source,
-                    prefix=prefix or "",  # Will be auto-generated from name
+                    prefix=prefix or "",
                     command=actual_command,
                     args=actual_args,
                     uri=uri,
@@ -447,11 +291,12 @@ Return the configuration as a JSON object."""
                 )
             except ValueError as e:
                 return MAGGResponse.error(str(e))
-            
-            # Try to mount immediately if enabled
-            mount_success = True
-            if server.enabled:  # Use the server's enabled flag, not the parameter
+
+            mount_success = None
+
+            if server.enabled:
                 mount_success = await self.server_manager.mount_server(server)
+
                 if not mount_success:
                     return MAGGResponse.error(f"Failed to mount server '{name}'")
             
@@ -462,13 +307,13 @@ Return the configuration as a JSON object."""
             return MAGGResponse.success({
                 "action": "server_added",
                 "server": {
-                    "name": name,
-                    "source": source,
+                    "name": server.name,
+                    "source": server.source,
                     "prefix": server.prefix,
-                    "command": command,
-                    "uri": uri,
-                    "working_dir": working_dir,
-                    "notes": notes,
+                    "command": f"{server.command} {' '.join(server.args) if server.args else ''}".strip(),
+                    "uri": server.uri,
+                    "working_dir": server.working_dir,
+                    "notes": server.notes,
                     "enabled": server.enabled,
                     "mounted": mount_success
                 }
@@ -517,14 +362,9 @@ Return the configuration as a JSON object."""
                     "enabled": server.enabled,
                     "mounted": name in self.server_manager.mounted_servers,
                 }
-                
-                # Add optional fields only if present
+
                 if server.command:
-                    # Reconstruct full command for display
-                    if server.args:
-                        server_data["command"] = f"{server.command} {' '.join(server.args)}"
-                    else:
-                        server_data["command"] = server.command
+                    server_data["command"] = f"{server.command} {' '.join(server.args) if server.args else ''}".strip()
                 if server.uri:
                     server_data["uri"] = server.uri
                 if server.working_dir:
@@ -556,8 +396,7 @@ Return the configuration as a JSON object."""
                 return MAGGResponse.error(f"Server '{name}' is already enabled")
 
             server.enabled = True
-            
-            # Try to mount it
+
             success = await self.server_manager.mount_server(server)
             
             self.save_config(config)
@@ -588,8 +427,7 @@ Return the configuration as a JSON object."""
                 return MAGGResponse.error(f"Server '{name}' is already disabled")
 
             server.enabled = False
-            
-            # Unmount if mounted
+            # TODO: Consider calling unmount regardless of suggested state
             await self.server_manager.unmount_server(name)
             
             self.save_config(config)
@@ -621,14 +459,10 @@ Return the configuration as a JSON object."""
         For generating configuration prompts without sampling, use configure_server_prompt.
         """
         try:
-            # First, collect metadata about the URL
-            from ..discovery.metadata import SourceMetadataCollector
             collector = SourceMetadataCollector()
-            
             metadata_entries = await collector.collect_metadata(source, server_name)
-            
-            # Build a comprehensive prompt with metadata
             metadata_summary = []
+
             for entry in metadata_entries:
                 source = entry.get("source", "unknown")
                 data = entry.get("data", {})
@@ -648,16 +482,14 @@ Return the configuration as a JSON object."""
                             
                 elif source == "http_check" and data.get("is_mcp_server"):
                     metadata_summary.append("Direct MCP server detected via HTTP")
-            
-            # If no context, return basic metadata-based configuration
+
+
             if not ctx:
-                # Try to auto-configure based on metadata
                 config_suggestion = {
                     "name": server_name or Path(source).stem.replace('-', '').replace('_', ''),
                     "source": source
                 }
-                
-                # Detect command based on metadata
+
                 for entry in metadata_entries:
                     data = entry.get("data", {})
                     if entry.get("source") == "filesystem" and data.get("project_type"):
@@ -676,8 +508,7 @@ Return the configuration as a JSON object."""
                     "metadata": metadata_summary,
                     "suggested_config": config_suggestion
                 })
-            
-            # Build enhanced prompt with metadata for LLM sampling
+
             prompt = f"""You are being asked by the MAGG smart_configure tool to analyze metadata and generate an optimal MCP server configuration.
 
 Configure an MCP server for: {source}
@@ -702,26 +533,21 @@ Required fields:
 
 Return ONLY valid JSON, no explanations or markdown formatting."""
 
-            # Perform LLM sampling to generate the configuration
             result = await ctx.sample(
                 messages=prompt,
                 max_tokens=1000
             )
-            
+
             if not result or not result.text:
                 return MAGGResponse.error("Failed to get configuration from LLM")
-            
-            # Try to parse the response as JSON
+
             try:
-                # Extract JSON from the response
-                import re
                 json_match = re.search(r'{.*}', result.text, re.DOTALL)
                 if not json_match:
                     return MAGGResponse.error("No valid JSON configuration found in LLM response")
-                
+
                 config_data = json.loads(json_match.group())
-                
-                # Add the server with the generated configuration
+
                 add_result = await self.add_server(
                     name=config_data.get("name", server_name or "generated"),
                     source=source,
@@ -734,7 +560,7 @@ Return ONLY valid JSON, no explanations or markdown formatting."""
                     enable=config_data.get("enabled"),
                     transport=config_data.get("transport"),
                 )
-                
+
                 if add_result.is_success:
                     return MAGGResponse.success({
                         "action": "smart_configured",
@@ -743,10 +569,10 @@ Return ONLY valid JSON, no explanations or markdown formatting."""
                     })
                 else:
                     return add_result
-                    
+
             except json.JSONDecodeError as e:
                 return MAGGResponse.error(f"Failed to parse LLM configuration: {str(e)}")
-                
+
         except Exception as e:
             return MAGGResponse.error(f"Smart configuration failed: {str(e)}")
     
@@ -757,12 +583,9 @@ Return ONLY valid JSON, no explanations or markdown formatting."""
     ) -> MAGGResponse:
         """Search for MCP servers online."""
         try:
-            from ..discovery.catalog import CatalogManager
             catalog = CatalogManager()
-            
             results = await catalog.search_only(query, limit)
-            
-            # Convert search results to structured format
+
             search_results = []
             for source, items in results.items():
                 for item in items:
@@ -776,13 +599,13 @@ Return ONLY valid JSON, no explanations or markdown formatting."""
                     if hasattr(item, 'install_command') and item.install_command:
                         result_data["install_command"] = item.install_command
                     search_results.append(result_data)
-            
+
             return MAGGResponse.success({
                 "query": query,
                 "results": search_results,
                 "total": len(search_results)
             })
-            
+
         except Exception as e:
             return MAGGResponse.error(f"Failed to search servers: {str(e)}")
 
@@ -793,20 +616,19 @@ Return ONLY valid JSON, no explanations or markdown formatting."""
         """Analyze configured servers and provide insights using LLM."""
         try:
             config = self.config
-            
+
             if not config.servers:
                 return MAGGResponse.success({
-                    "analysis": f"No servers configured yet. Use {self.self_prefix}_add_server to add servers."
+                    "analysis": f"No servers configured yet. Use {self.self_prefix_}add_server to add servers."
                 })
-            
-            # Build analysis data
+
             analysis_data = {
                 "total_servers": len(config.servers),
                 "enabled_servers": len(config.get_enabled_servers()),
                 "mounted_servers": len(self.server_manager.mounted_servers),
                 "servers": {}
             }
-            
+
             for name, server in config.servers.items():
                 server_info = {
                     "source": server.source,
@@ -818,8 +640,7 @@ Return ONLY valid JSON, no explanations or markdown formatting."""
                     "notes": server.notes
                 }
                 analysis_data["servers"][name] = server_info
-            
-            # If context available, use LLM for insights
+
             if ctx:
                 prompt = f"""Analyze this MAGG server configuration and provide insights:
 
@@ -831,34 +652,41 @@ Please provide:
 3. Suggestions for optimization
 4. Missing capabilities that could be added"""
 
-                # Use simple string sampling
                 result = await ctx.sample(
                     messages=prompt,
                     max_tokens=1000
                 )
-                
+
                 if result and result.text:
                     # noinspection PyTypeChecker
                     analysis_data["insights"] = result.text
-            
+
             return MAGGResponse.success(analysis_data)
-            
+
         except Exception as e:
             return MAGGResponse.error(f"Failed to analyze servers: {str(e)}")
-    
+
+    # ============================================================================
+    # endregion
+    # region MCP Server Management - Setup and Run Methods
+    # ============================================================================
+
     async def setup(self):
         """Initialize MAGG and mount existing servers."""
         if not self._is_setup:
             self._is_setup = True
-            # Mount all enabled servers
             await self.server_manager.mount_all_enabled()
     
     async def run_stdio(self):
         """Run MAGG in stdio mode."""
-        # Don't call setup() here - it's already called by ServerRunner
+        assert self._is_setup, "MAGG must be set up before running"
         await self.mcp.run_stdio_async()
     
     async def run_http(self, host: str = "localhost", port: int = 8000):
         """Run MAGG in HTTP mode."""
-        # Don't call setup() here - it's already called by ServerRunner
+        assert self._is_setup, "MAGG must be set up before running"
         await self.mcp.run_http_async(host=host, port=port, log_level="WARNING")
+
+    # ============================================================================
+    # endregion
+    # ============================================================================

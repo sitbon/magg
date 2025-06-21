@@ -234,5 +234,5 @@ class TestAddServer:
             
             assert result.is_success
             assert result.output["server"]["enabled"] is False
-            assert result.output["server"]["mounted"] is True  # Still true in response
+            assert result.output["server"]["mounted"] is None, "Server not mounted"
             mock_mount.assert_not_called()  # Should not attempt to mount

@@ -355,6 +355,8 @@ test = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "aiocache" },
+    { name = "prompt-toolkit" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
 ]
@@ -375,6 +377,8 @@ provides-extras = ["test", "mbro"]
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "aiocache", specifier = ">=0.12.3" },
+    { name = "prompt-toolkit", specifier = ">=3.0.51" },
     { name = "pytest", specifier = ">=8.4.0" },
     { name = "pytest-asyncio", specifier = ">=1.0.0" },
 ]

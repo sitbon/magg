@@ -4,7 +4,7 @@ import logging
 import os
 from functools import cached_property
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 
 from pydantic import field_validator, Field, model_validator, AnyUrl
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -20,10 +20,15 @@ class ServerConfig(BaseSettings):
         # Allow arbitrary types
         arbitrary_types_allowed=True
     )
+
+    PREFIX_SEP: ClassVar[str] = "_"
     
     name: str = Field(..., description="Unique server name - can contain any characters")
     source: str = Field(..., description="URL/URI/path of the server package, repository, or listing")
-    prefix: str = Field(default="", description="Tool prefix for this server - must be a valid Python identifier without underscores")
+    prefix: str = Field(
+        default="",
+        description=f"Tool prefix for this server - must be a valid Python identifier without {PREFIX_SEP!r}."
+    )
     notes: str | None = Field(None, description="Setup notes for LLM and humans")
     
     # Connection details
@@ -47,9 +52,13 @@ class ServerConfig(BaseSettings):
         """Validate that prefix is a valid Python identifier without underscores."""
         if v:  # Only validate if non-empty
             if not v.isidentifier():
-                raise ValueError(f"Server prefix '{v}' must be a valid Python identifier (letters and numbers only, not starting with a number)")
-            if '_' in v:
-                raise ValueError("Server prefix cannot contain underscores ('_')")
+                raise ValueError(
+                    f"Server prefix {v!r} must be a valid Python identifier (letters and numbers only, not starting with a number)"
+                )
+            if cls.PREFIX_SEP in v:
+                raise ValueError(
+                    f"Server prefix {v!r} must be a valid Python identifier and cannot contain {cls.PREFIX_SEP!r}"
+                )
         return v
 
     @field_validator('transport')
@@ -71,17 +80,19 @@ class ServerConfig(BaseSettings):
         Removes special characters and ensures it's a valid Python identifier
         without underscores.
         """
-        # Replace common separators with nothing
-        prefix = name.replace('-', '').replace('_', '').replace('.', '').replace(' ', '')
-        
-        # Remove any remaining non-alphanumeric characters
+        prefix = (
+            name.replace('-', '')
+                .replace('_', '')
+                .replace('.', '')
+                .replace(' ', '')
+                .replace(cls.PREFIX_SEP, '')
+        )
+
         prefix = ''.join(c for c in prefix if c.isalnum())
         
-        # Ensure it doesn't start with a number
         if prefix and prefix[0].isdigit():
             prefix = 'srv' + prefix
         
-        # If empty or still invalid, use a default
         if not prefix or not prefix.isidentifier():
             prefix = 'server'
         

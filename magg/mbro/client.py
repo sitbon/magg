@@ -1,13 +1,13 @@
 """MCP client connectivity for mbro.
 """
 import logging
-from functools import cache
 from typing import Any
 
 from aiocache import cached
 from fastmcp import Client
 from mcp import GetPromptResult
-from mcp.types import TextContent, ImageContent, EmbeddedResource, BlobResourceContents, TextResourceContents
+from mcp.types import TextContent, ImageContent, EmbeddedResource, BlobResourceContents, TextResourceContents, Tool, \
+    Resource, ResourceTemplate, Prompt
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +22,28 @@ class MCPConnection:
         self.client: Client | None = None
         self.connected = False
         self._context_manager = None
-    
+
+    @classmethod
+    def parse_tool(cls, tool: Tool) -> dict[str, Any]:
+        """Parse a single tool into a more usable format."""
+        return {
+            "name": tool.name,
+            "description": tool.description,
+            "inputSchema": (
+                tool.inputSchema.model_dump()
+                if hasattr(tool.inputSchema, 'model_dump') and tool.inputSchema
+                else (tool.inputSchema if tool.inputSchema else {})
+            )
+        }
+
+    @classmethod
+    def parse_tools_list(cls, tools: list[Tool]) -> list[dict[str, Any]]:
+        """Parse tools list into a more usable format."""
+        return [
+            cls.parse_tool(tool)
+            for tool in tools
+        ]
+
     @cached()
     async def get_tools(self) -> list[dict[str, Any]]:
         """Get tools list (cached)."""
@@ -31,15 +52,21 @@ class MCPConnection:
         
         async with self.client as conn:
             tools_result = await conn.list_tools()
-            return [
-                {
-                    "name": tool.name,
-                    "description": tool.description,
-                    "inputSchema": tool.inputSchema.model_dump() if hasattr(tool.inputSchema, 'model_dump') and tool.inputSchema else (tool.inputSchema if tool.inputSchema else {})
-                }
-                for tool in tools_result
-            ]
-    
+            return self.parse_tools_list(tools_result)
+
+    @classmethod
+    def parse_resource(cls, resource: Resource | ResourceTemplate) -> dict[str, Any]:
+        """Parse a single resource into a more usable format."""
+        return resource.model_dump(exclude_defaults=True, exclude_none=True, exclude_unset=True)
+
+    @classmethod
+    def parse_resources_list(cls, resources: list[Resource | ResourceTemplate]) -> list[dict[str, Any]]:
+        """Parse resources list into a more usable format."""
+        return [
+            cls.parse_resource(resource)
+            for resource in resources
+        ]
+
     @cached()
     async def get_resources(self) -> list[dict[str, Any]]:
         """Get resources list (cached)."""
@@ -50,34 +77,43 @@ class MCPConnection:
         async with self.client as conn:
             try:
                 resources_result = await conn.list_resources()
-                resources_data = [
-                    {
-                        "uri": resource.uri,
-                        "name": resource.name,
-                        "description": resource.description,
-                        "mimeType": resource.mimeType
-                    }
-                    for resource in resources_result
-                ]
+                resources_data = self.parse_resources_list(resources_result)
             except Exception as e:
                 logger.error(f"Failed to list resources: {e}")
             
             # Fetch and store resource templates
             try:
                 resource_templates = await conn.list_resource_templates()
-                for template in resource_templates:
-                    resources_data.append({
-                        "uriTemplate": template.uriTemplate,
-                        "name": template.name,
-                        "description": template.description,
-                        "mimeType": template.mimeType,
-                        "annotations": template.annotations,
-                    })
+                resources_data.extend(self.parse_resources_list(resource_templates))
             except Exception as e:
                 logger.error(f"Failed to list resource templates: {e}")
         
         return resources_data
-    
+
+    @classmethod
+    def parse_prompt(cls, prompt: Prompt) -> dict[str, Any]:
+        """Parse a single prompt into a more usable format."""
+        return {
+            "name": prompt.name,
+            "description": prompt.description,
+            "arguments": [
+                {
+                    "name": arg.name,
+                    "description": arg.description,
+                    "required": arg.required
+                }
+                for arg in (prompt.arguments or [])
+            ]
+        }
+
+    @classmethod
+    def parse_prompts_list(cls, prompts: list[Prompt]) -> list[dict[str, Any]]:
+        """Parse prompts list into a more usable format."""
+        return [
+            cls.parse_prompt(prompt)
+            for prompt in prompts
+        ]
+
     @cached()
     async def get_prompts(self) -> list[dict[str, Any]]:
         """Get prompts list (cached)."""
@@ -88,23 +124,9 @@ class MCPConnection:
         async with self.client as conn:
             try:
                 prompts_result = await conn.list_prompts()
-                prompts_data = [
-                    {
-                        "name": prompt.name,
-                        "description": prompt.description,
-                        "arguments": [
-                            {
-                                "name": arg.name,
-                                "description": arg.description,
-                                "required": arg.required
-                            }
-                            for arg in (prompt.arguments or [])
-                        ]
-                    }
-                    for prompt in prompts_result
-                ]
-            except Exception:
-                pass
+                prompts_data = self.parse_prompts_list(prompts_result)
+            except Exception as e:
+                logger.error(f"Failed to list prompts: {e}")
         
         return prompts_data
     
@@ -182,7 +204,7 @@ class MCPConnection:
 
         except Exception as e:
             raise RuntimeError(f"Failed to call tool '{tool_name}': {e}")
-    
+
     async def get_resource(self, uri: str) -> list[TextResourceContents | BlobResourceContents]:
         """Get a resource from the connected MCP server."""
         if not self.client or not self.connected:

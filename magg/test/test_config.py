@@ -92,7 +92,7 @@ class TestMAGGConfig:
         """Test default configuration values."""
         config = MAGGConfig()
         assert config.config_path == Path.cwd() / ".magg" / "config.json"
-        assert config.log_level == "INFO"
+        assert config.log_level is None, "Default log level should be None"
         assert config.servers == {}
     
     def test_add_remove_server(self):

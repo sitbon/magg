@@ -7,7 +7,8 @@ from pathlib import Path
 
 import pytest
 
-from magg.server.server import MAGGServer, ServerManager
+from magg.server.server import MAGGServer
+from magg.server.manager import ServerManager
 from magg.settings import ConfigManager
 
 

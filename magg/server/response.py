@@ -1,4 +1,4 @@
-"""Response models for MAGG tools.
+"""Response model for MAGG tools.
 """
 import json
 from typing import Any, Union
@@ -159,6 +159,8 @@ class MAGGResponse(BaseModel):
         Create a JSON response for MCP tools or resources.
 
         If data is not a dict, attempts to call .model_dump() and then json.dumps() on the data.
+
+        NOTE: This does not handle things like already-serialized TextContent or tool call result lists.
         """
         json_dump_kwds = json_dump_kwds or {"indent": 0, "default": str}
         model_dump_kwds = model_dump_kwds or {}

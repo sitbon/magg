@@ -13,14 +13,16 @@ from json import JSONDecodeError
 from pathlib import Path
 
 from mcp import GetPromptResult
+from mcp.types import TextContent, ImageContent, EmbeddedResource, Tool
 from prompt_toolkit.completion import WordCompleter
 from prompt_toolkit.history import FileHistory
 from prompt_toolkit import PromptSession, HTML
 from rich.traceback import install as install_rich_traceback
 
 from .. import process
+from ..server.proxy import ProxyMCP
 from . import acon
-from .client import MCPBrowser
+from .client import MCPBrowser, MCPConnection
 from .formatter import OutputFormatter
 
 # Install rich traceback handler
@@ -33,7 +35,7 @@ class MCPBrowserCLI:
     running: bool
     formatter: OutputFormatter
     verbose: bool
-    
+
     def __init__(self, json_only: bool = False, use_rich: bool = True, indent: int = 2, verbose: bool = False):
         self.browser = MCPBrowser()
         self.running = True
@@ -119,12 +121,12 @@ class MCPBrowserCLI:
                     completer=self._completer,
                     complete_while_typing=True,
                 )
-                
+
                 if not command:
                     continue
-                
+
                 await self.handle_command(command)
-                
+
             except KeyboardInterrupt:
                 if not self.formatter.json_only:
                     self.formatter.print("\nUse 'quit' to exit.")
@@ -134,20 +136,20 @@ class MCPBrowserCLI:
                 break
             except Exception as e:
                 self.formatter.format_error("Unexpected error in command handling", e)
-        
+
         # Cleanup connections
         for conn in self.browser.connections.values():
             await conn.disconnect()
-    
+
     async def handle_command(self, command: str):
         """Handle a CLI command."""
         parts = command.split()
         if not parts:
             return
-        
+
         cmd = parts[0].lower()
         args = parts[1:]
-        
+
         if cmd == "help":
             self.show_help()
         elif cmd == "quit" or cmd == "exit":
@@ -183,24 +185,75 @@ class MCPBrowserCLI:
 
         if not self.formatter.json_only:
             self.formatter.print()
-    
+
+    async def handle_proxy_query_result(self, tool_name: str, result: list[TextContent | ImageContent | EmbeddedResource]):
+        """
+        Handle the ProxyMCP tool's [list, info] actions on [tool, resource, prompt].
+
+        This allows us to present the results as if they were called directly,
+        rather than as a proxy result.
+
+        Returns True if the result was handled, False otherwise.
+        """
+        if tool_name != ProxyMCP.PROXY_TOOL_NAME or not result or len(result) != 1:
+            return False
+
+        result = result[0]
+
+        if not isinstance(result, EmbeddedResource):
+            return False
+
+        if not result.annotations or getattr(result.annotations, "proxyAction", None) not in {"list", "info"}:
+            return False
+
+        proxy_type = getattr(result.annotations, "proxyType", None)
+
+        if (result := ProxyMCP.get_proxy_query_result(result)) is None:
+            self.formatter.format_error(f"Failed to handle apparent proxy query result for tool '{tool_name}'")
+            return True
+
+        match proxy_type:
+            case "tool":
+                if isinstance(result, list):
+                    self.formatter.format_tools_list(MCPConnection.parse_tools_list(result))
+                else:
+                    self.formatter.format_tool_info(MCPConnection.parse_tool(result))
+
+            case "resource":
+                if isinstance(result, list):
+                    self.formatter.format_resources_list(MCPConnection.parse_resources_list(result))
+                else:
+                    self.formatter.format_resource_info(MCPConnection.parse_resource(result))
+
+            case "prompt":
+                if isinstance(result, list):
+                    self.formatter.format_prompts_list(MCPConnection.parse_prompts_list(result))
+                else:
+                    self.formatter.format_prompt_info(MCPConnection.parse_prompt(result))
+
+            case _:
+                self.formatter.format_error(f"Unknown proxy type '{result.annotations.proxyType}' in result")
+
+        return True
+
+
     def show_help(self):
         """Show help text."""
         self.formatter.format_help()
-    
+
     async def cmd_connect(self, args: list[str]):
         """Connect to an MCP server."""
         if len(args) < 2:
             self.formatter.format_error("Usage: connect <name> <connection_string>")
             return
-        
+
         name = args[0]
         connection_string = " ".join(args[1:])
-        
+
         # Remove quotes if present
         if connection_string.startswith('"') and connection_string.endswith('"'):
             connection_string = connection_string[1:-1]
-        
+
         success = await self.browser.add_connection(name, connection_string)
         if success:
             conn = self.browser.connections[name]
@@ -211,7 +264,7 @@ class MCPBrowserCLI:
             self.formatter.format_success(f"Connected to '{name}' (Tools: {len(tools)}, Resources: {len(resources)}, Prompts: {len(prompts)})")
         else:
             self.formatter.format_error(f"Failed to connect to '{name}'")
-    
+
     async def cmd_connections(self, args: list[str]):
         """List all connections."""
         extended = False
@@ -229,50 +282,50 @@ class MCPBrowserCLI:
 
         connections = await self.browser.list_connections(extended=extended)
         self.formatter.format_connections_table(connections, extended=extended)
-    
+
     async def cmd_switch(self, args: list[str]):
         """Switch to a different connection."""
         if not args:
             self.formatter.format_error("Usage: switch <connection_name>")
             return
-        
+
         name = args[0]
         success = await self.browser.switch_connection(name)
         if success:
             self.formatter.format_success(f"Switched to connection '{name}'")
         else:
             self.formatter.format_error(f"Failed to switch to '{name}'")
-    
+
     async def cmd_disconnect(self, args: list[str]):
         """Disconnect from a server."""
         if not args:
             self.formatter.format_error("Usage: disconnect <connection_name>")
             return
-        
+
         name = args[0]
         success = await self.browser.remove_connection(name)
         if success:
             self.formatter.format_success(f"Disconnected from '{name}'")
         else:
             self.formatter.format_error(f"Connection '{name}' not found")
-    
+
     async def cmd_tools(self, args: list[str]):
         """List available tools."""
         conn = self.browser.get_current_connection()
         if not conn:
             self.formatter.format_error("No active connection.")
             return
-        
+
         filter_term = args[0].lower() if args else None
-        
+
         tools = await conn.get_tools()
         if filter_term:
             tools = [t for t in tools if filter_term in t["name"].lower() or filter_term in t["description"].lower()]
-        
+
         if not tools:
             self.formatter.format_info("No tools available." + (f" (filtered by '{filter_term}')" if filter_term else ""))
             return
-        
+
         self.formatter.format_tools_list(tools)
 
     async def cmd_resources(self, args: list[str]):
@@ -281,58 +334,58 @@ class MCPBrowserCLI:
         if not conn:
             self.formatter.format_error("No active connection.")
             return
-        
+
         filter_term = args[0].lower() if args else None
-        
+
         resources = await conn.get_resources()
         if filter_term:
             resources = [r for r in resources if filter_term in r["name"].lower() or filter_term in r.get("uri", r.get("uriTemplate")).lower()]
-        
+
         if not resources:
             self.formatter.format_info("No resources available." + (f" (filtered by '{filter_term}')" if filter_term else ""))
             return
 
         self.formatter.format_resources_list(resources)
-    
+
     async def cmd_prompts(self, args: list[str]):
         """List available prompts."""
         conn = self.browser.get_current_connection()
         if not conn:
             self.formatter.format_error("No active connection.")
             return
-        
+
         filter_term = args[0].lower() if args else None
-        
+
         prompts = await conn.get_prompts()
         if filter_term:
             prompts = [p for p in prompts if filter_term in p["name"].lower() or filter_term in p["description"].lower()]
-        
+
         if not prompts:
             self.formatter.format_info("No prompts available." + (f" (filtered by '{filter_term}')" if filter_term else ""))
             return
 
         self.formatter.format_prompts_list(prompts)
-    
+
     async def cmd_call(self, args: list[str]):
         """Call a tool."""
         if not args:
             self.formatter.format_error("Usage: call <tool_name> [json_arguments]")
             if not self.formatter.json_only:
                 self.formatter.format_info("\nExamples:\n"
-                    "  call magg_status\n"
-                    "  call magg_search_tools {\"query\": \"calculator\", \"limit\": 3}\n"
-                    "  call add {\"a\": 5, \"b\": 3}\n"
-                )
+                                           "  call magg_status\n"
+                                           "  call magg_search_tools {\"query\": \"calculator\", \"limit\": 3}\n"
+                                           "  call add {\"a\": 5, \"b\": 3}\n"
+                                           )
             return
-        
+
         conn = self.browser.get_current_connection()
         if not conn:
             self.formatter.format_error("No active connection.")
             return
-        
+
         tool_name = args[0]
         arguments = {}
-        
+
         if len(args) > 1:
             json_str = " ".join(args[1:])
             try:
@@ -347,30 +400,36 @@ class MCPBrowserCLI:
                         "  - Booleans: {\"enabled\": true}"
                     )
                 return
-        
+
         try:
             result = await conn.call_tool(tool_name, arguments)
 
             if result:
+                # Proxy queries are always done through tool calls,
+                # but proxied tool calls will still get passed through
+                # to the normal formatting below.
+                if await self.handle_proxy_query_result(tool_name, result):
+                    return
+
                 self.formatter.format_content_list(result)
 
         except Exception as e:
             args = (e,) if self.verbose else ()
             self.formatter.format_error(str(e), *args)
-    
+
     async def cmd_resource(self, args: list[str]):
         """Get a resource."""
         if not args:
             self.formatter.format_error("Usage: resource <uri>")
             return
-        
+
         conn = self.browser.get_current_connection()
         if not conn:
             self.formatter.format_error("No active connection.")
             return
-        
+
         uri = args[0]
-        
+
         try:
             result = await conn.get_resource(uri)
 
@@ -388,22 +447,22 @@ class MCPBrowserCLI:
         if not args:
             self.formatter.format_error("Usage: prompt <name> [json_arguments]")
             return
-        
+
         conn = self.browser.get_current_connection()
         if not conn:
             self.formatter.format_error("No active connection.")
             return
-        
+
         name = args[0]
         arguments = {}
-        
+
         if len(args) > 1:
             try:
                 arguments = json.loads(" ".join(args[1:]))
             except json.JSONDecodeError as e:
                 self.formatter.format_error(f"Invalid JSON arguments: {e}")
                 return
-        
+
         try:
             result: GetPromptResult = await conn.get_prompt(name, arguments)
 
@@ -411,7 +470,7 @@ class MCPBrowserCLI:
 
         except Exception as e:
             self.formatter.format_error(f"Error getting prompt: {e}", e)
-    
+
     async def cmd_refresh(self):
         """Refresh capabilities for current connection."""
         success = await self.browser.refresh_current()
@@ -426,77 +485,77 @@ class MCPBrowserCLI:
                 "resources": len(resources),
                 "prompts": len(prompts)
             })
-    
+
     async def cmd_search(self, args: list[str]):
         """Search tools, resources, and prompts."""
         if not args:
             self.formatter.format_error("Usage: search <term>")
             return
-        
+
         conn = self.browser.get_current_connection()
         if not conn:
             self.formatter.format_error("No active connection.")
             return
-        
+
         term = " ".join(args).lower()
-        
+
         # Get all capabilities
         tools = await conn.get_tools()
         resources = await conn.get_resources()
         prompts = await conn.get_prompts()
-        
+
         # Search tools
         matching_tools = [t for t in tools if term in t["name"].lower() or term in t["description"].lower()]
-        
+
         # Search resources
         matching_resources = [r for r in resources if term in r["name"].lower() or term in r.get("uri", r.get("uriTemplate", "")).lower() or term in r["description"].lower()]
-        
+
         # Search prompts
         matching_prompts = [p for p in prompts if term in p["name"].lower() or term in p["description"].lower()]
 
         self.formatter.format_search_results(term, matching_tools, matching_resources, matching_prompts)
-    
+
     async def cmd_info(self, args: list[str]):
         """Show detailed info about a tool, resource, or prompt."""
         if len(args) < 2:
             self.formatter.format_error("Usage: info <tool|resource|prompt> <name>")
             return
-        
+
         conn = self.browser.get_current_connection()
         if not conn:
             self.formatter.format_error("No active connection.")
             return
-        
+
         item_type = args[0].lower()
         name = args[1]
-        
+
         if item_type == "tool":
             tools = await conn.get_tools()
             tool = next((t for t in tools if t["name"] == name), None)
             if not tool:
                 self.formatter.format_error(f"Tool '{name}' not found.")
                 return
-            
+
             self.formatter.format_tool_info(tool)
-        
+
         elif item_type == "resource":
             resources = await conn.get_resources()
             resource = next((r for r in resources if r["name"] == name), None)
             if not resource:
                 self.formatter.format_error(f"Resource '{name}' not found.")
                 return
-            
+
             self.formatter.format_resource_info(resource)
-        
+
         elif item_type == "prompt":
             prompts = await conn.get_prompts()
             prompt = next((p for p in prompts if p["name"] == name), None)
             if not prompt:
                 self.formatter.format_error(f"Prompt '{name}' not found.")
                 return
-            
+
             self.formatter.format_prompt_info(prompt)
-        
+
         else:
             self.formatter.format_error("Item type must be 'tool', 'resource', or 'prompt'")
 

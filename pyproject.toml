@@ -1,6 +1,6 @@
 [project]
 name = "magg"
-version = "0.2.0"
+version = "0.3.0"
 description = "MCP Aggregator"
 requires-python = ">=3.13"
 packages = [{include = "magg"}]
@@ -32,6 +32,8 @@ build-backend = "poetry.core.masonry.api"
 
 [dependency-groups]
 dev = [
+    "aiocache>=0.12.3",
+    "prompt-toolkit>=3.0.51",
     "pytest>=8.4.0",
     "pytest-asyncio>=1.0.0",
 ]

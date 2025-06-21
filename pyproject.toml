@@ -1,8 +1,45 @@
 [project]
 name = "magg"
-version = "0.3.0"
-description = "MCP Aggregator"
+version = "0.3.4"
 requires-python = ">=3.13"
+description = "MCP Aggregator"
+authors = [{ name = "Phillip Sitbon", email = "phillip.sitbon@gmail.com"}]
+readme = "readme.md"
+license = "license.md"
+repository = "https://github.com/sitbon/magg"
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Web Environment",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: GNU Affero General Public License v3 or later (AGPLv3+)",
+    "Natural Language :: English",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Programming Language :: Python :: 3.15",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Programming Language :: Python :: 3 :: Only",
+    "Topic :: Software Development :: Libraries",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Internet :: Proxy Servers",
+    "Topic :: Internet :: WWW/HTTP :: HTTP Servers",
+    "Topic :: Internet :: WWW/HTTP :: Dynamic Content",
+]
+keywords = [
+    "model",
+    "context",
+    "protocol",
+    "ai",
+    "agent",
+    "mcp",
+    "aggregator",
+    "proxy",
+    "fastmcp",
+    "aiohttp",
+    "pydantic",
+    "pydantic-settings",
+    "rich",
+]
 packages = [{include = "magg"}]
 dependencies = [
     "fastmcp<3",
@@ -11,6 +48,9 @@ dependencies = [
     "pydantic-settings<3",
     "rich>=14.0.0",
 ]
+
+[project.urls]
+Repository = "https://github.com/sitbon/magg"
 
 [project.scripts]
 magg = "magg.cli:main"
@@ -22,17 +62,13 @@ test = [
     "pytest-asyncio>=1.0.0",
 ]
 mbro = [
-    "aiocache>=0.12.3",
     "prompt-toolkit>=3.0.51",
 ]
 
-[build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
-
 [dependency-groups]
 dev = [
-    "aiocache>=0.12.3",
+    "anthropic>=0.54.0",
+    "keyring>=25.6.0",
     "prompt-toolkit>=3.0.51",
     "pytest>=8.4.0",
     "pytest-asyncio>=1.0.0",
@@ -42,3 +78,7 @@ dev = [
 markers = [
     "integration: marks tests as integration tests (deselect with '-m \"not integration\"')",
 ]
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

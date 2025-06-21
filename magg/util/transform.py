@@ -1,5 +1,6 @@
 """Transformation utilities for MCP results.
 """
+import base64
 from typing import TypeAlias
 
 from mcp import GetPromptResult
@@ -18,7 +19,7 @@ __all__ = (
     "resource_result_as_tool_result", "tool_result_as_resource_result",
     "prompt_result_as_tool_result", "tool_result_as_prompt_result",
     "annotate_content", "deserialize_embedded_resource_python_object",
-    "embed_python_object_list_in_resource",
+    "embed_python_object_list_in_resource", "get_mcp_result_contents",
 )
 
 
@@ -27,6 +28,29 @@ ResourceResult: TypeAlias = TextResourceContents | BlobResourceContents
 PromptResult: TypeAlias = GetPromptResult
 ClientMCPResult: TypeAlias = ToolResult | ResourceResult | PromptResult
 
+
+def get_mcp_result_contents(
+    data: ClientMCPResult,
+) -> str | bytes | None:
+    """
+    Get the raw content from a MCP tool or resource result item.
+
+    Args:
+        data: The MCP tool or resource result item.
+
+    Returns:
+        str | bytes | None: The raw content if available, otherwise None.
+    """
+    if isinstance(data, TextContent):
+        return data.text
+
+    if isinstance(data, EmbeddedResource):
+        data = data.resource
+
+    if isinstance(data, (TextResourceContents, BlobResourceContents)):
+        return data.text if hasattr(data, 'text') else base64.b64decode(data.blob)
+
+    return None
 
 def is_mcp_result_json_typed(
     data: ClientMCPResult,

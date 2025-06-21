@@ -12,6 +12,7 @@ from fastmcp import Context
 from mcp.types import PromptMessage, TextContent, EmbeddedResource
 from pydantic import Field, AnyUrl
 
+from .defaults import MAGG_ADD_SERVER_DOC, PROXY_TOOL_DOC
 from .manager import ServerManager
 from .proxy import ProxyMCP
 from .response import MAGGResponse
@@ -165,7 +166,8 @@ class MAGGServer(ProxyMCP):
         self,
         source: Annotated[str, Field(description="URL of the server to configure")],
         server_name: Annotated[str | None, Field(description="Optional server name")] = None,
-    ) -> list[dict[str, str]]:
+        context: Context | None = None,
+    ) -> list[PromptMessage]:
         """Generate an enriched prompt template for configuring a server from a URL.
 
         This prompt can be used with any LLM to generate server configuration.
@@ -214,7 +216,14 @@ Consider the URL type and metadata:
 - Python packages may use uvx or python -m
 - HTTP/HTTPS URLs may be direct MCP servers
 
-Return the configuration as a JSON object."""
+Return the configuration as a JSON object.
+
+Documentation for {self.self_prefix_}add_server tool:
+{MAGG_ADD_SERVER_DOC}
+
+Documentation for proxy tool:
+{PROXY_TOOL_DOC}
+"""
 
         messages.append(
             PromptMessage(
@@ -445,7 +454,10 @@ Return the configuration as a JSON object."""
         server_name: Annotated[str | None, Field(
             description="Optional server name (auto-generated if not provided)"
         )] = None,
-        ctx: Context | None = None,
+        allow_add: Annotated[bool, Field(
+            description="Whether to automatically add the server after configuration (default: False)"
+        )] = False,
+        context: Context | None = None,
     ) -> MAGGResponse:
         """Use LLM sampling to intelligently configure and add a server from a URL.
 
@@ -464,27 +476,27 @@ Return the configuration as a JSON object."""
             metadata_summary = []
 
             for entry in metadata_entries:
-                source = entry.get("source", "unknown")
+                entry_source = entry.get("source", "unknown")
                 data = entry.get("data", {})
 
-                if source == "github" and data:
+                if entry_source == "github" and data:
                     metadata_summary.append(f"GitHub: {data.get('description', 'No description')}")
                     metadata_summary.append(f"Language: {data.get('language', 'Unknown')}")
                     metadata_summary.append(f"Stars: {data.get('stars', 0)}")
                     if data.get("setup_instructions"):
                         metadata_summary.append("Setup hints found in README")
 
-                elif source == "filesystem" and data.get("exists"):
+                elif entry_source == "filesystem" and data.get("exists"):
                     if data.get("is_directory"):
                         metadata_summary.append(f"Project type: {data.get('project_type', 'unknown')}")
                         if data.get("setup_hints"):
                             metadata_summary.append(f"Setup commands: {', '.join(data['setup_hints'])}")
 
-                elif source == "http_check" and data.get("is_mcp_server"):
+                elif entry_source == "http_check" and data.get("is_mcp_server"):
                     metadata_summary.append("Direct MCP server detected via HTTP")
 
 
-            if not ctx:
+            if not context:
                 config_suggestion = {
                     "name": server_name or Path(source).stem.replace('-', '').replace('_', ''),
                     "source": source
@@ -520,58 +532,89 @@ Server name requested: {server_name or '<auto-generate based on source>'}
 
 === TASK ===
 Based on the URL and metadata above, generate a complete JSON configuration that will be automatically added to the user's MAGG server configuration.
+* Search for existing tools in the MCP catalog if needed
+* Search the web for additional setup instructions if needed
+* Examine and use the MAGG MCP server tools directly as needed.
+  - The (un-prefixed) `proxy` tool can be used to call any MCP capability and interact with MAGG's dynamic state.
 
 Required fields:
 1. name: A human-readable string (can contain any characters)
 2. prefix: A valid Python identifier for tool prefixing (no underscores)
-3. command: The appropriate command (python, node, npx, uvx, or null for HTTP/SSE servers)
+3. command: The appropriate command and args (python, node, npx, uvx, or null for HTTP/SSE servers)
 4. uri: For HTTP/SSE servers (if applicable)
 5. working_dir: If needed
 6. env_vars: Environment variables as an object (if needed)
 7. notes: Helpful setup instructions for the user
 8. transport: Any transport-specific configuration (optional dict)
 
-Return ONLY valid JSON, no explanations or markdown formatting."""
+Return ONLY valid JSON, no explanations or markdown formatting.
 
-            result = await ctx.sample(
+Documentation for {self.self_prefix_}add_server tool:
+{MAGG_ADD_SERVER_DOC}
+
+Documentation for proxy tool:
+{PROXY_TOOL_DOC}
+"""
+
+            result = await context.sample(
                 messages=prompt,
-                max_tokens=1000
+                max_tokens=1000,
+                temperature=0.7,
             )
 
-            if not result or not result.text:
-                return MAGGResponse.error("Failed to get configuration from LLM")
+            if allow_add:
+                if not result or not result.text:
+                    return MAGGResponse.error("Failed to get configuration from LLM")
 
-            try:
-                json_match = re.search(r'{.*}', result.text, re.DOTALL)
-                if not json_match:
-                    return MAGGResponse.error("No valid JSON configuration found in LLM response")
+                try:
+                    json_match = re.search(r'{.*}', result.text, re.DOTALL)
+                    if not json_match:
+                        return MAGGResponse.error("No valid JSON configuration found in LLM response")
 
-                config_data = json.loads(json_match.group())
+                    config_data = json.loads(json_match.group())
 
-                add_result = await self.add_server(
-                    name=config_data.get("name", server_name or "generated"),
-                    source=source,
-                    prefix=config_data.get("prefix"),
-                    command=config_data.get("command"),
-                    uri=config_data.get("uri"),
-                    env_vars=config_data.get("env_vars"),
-                    working_dir=config_data.get("working_dir"),
-                    notes=config_data.get("notes"),
-                    enable=config_data.get("enabled"),
-                    transport=config_data.get("transport"),
-                )
+                    add_result = await self.add_server(
+                        name=config_data.get("name", server_name or "generated"),
+                        source=source,
+                        prefix=config_data.get("prefix"),
+                        command=config_data.get("command"),
+                        uri=config_data.get("uri"),
+                        env_vars=config_data.get("env_vars"),
+                        working_dir=config_data.get("working_dir"),
+                        notes=config_data.get("notes"),
+                        enable=config_data.get("enabled"),
+                        transport=config_data.get("transport"),
+                    )
 
-                if add_result.is_success:
-                    return MAGGResponse.success({
-                        "action": "smart_configured",
-                        "server": add_result.output["server"],
-                        "llm_config": config_data
-                    })
+                    if add_result.is_success:
+                        return MAGGResponse.success({
+                            "action": "smart_configured",
+                            "server": add_result.output["server"],
+                            "llm_config": config_data
+                        })
+                    else:
+                        return add_result
+
+                except json.JSONDecodeError as e:
+                    return MAGGResponse.error(f"Failed to parse LLM configuration: {str(e)}")
+
+            else:
+                if result and hasattr(result, 'text'):
+                    output = result.text
+
+                    try:
+                        output = json.loads(output)
+                    except json.JSONDecodeError:
+                        pass
                 else:
-                    return add_result
+                    output = "No valid configuration generated by LLM"
 
-            except json.JSONDecodeError as e:
-                return MAGGResponse.error(f"Failed to parse LLM configuration: {str(e)}")
+                return MAGGResponse.success({
+                    "action": "smart_configure_prompt",
+                    "source": source,
+                    "metadata": metadata_summary,
+                    "response": output,
+                })
 
         except Exception as e:
             return MAGGResponse.error(f"Smart configuration failed: {str(e)}")

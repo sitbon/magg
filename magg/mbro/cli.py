@@ -48,13 +48,14 @@ class MCPBrowserCLI:
             [
                 'help', 'quit', 'exit', 'connect', 'connections', 'conns', 'switch',
                 'disconnect', 'tools', 'resources', 'prompts', 'call', 'resource',
-                'prompt', 'refresh', 'search', 'info'
+                'prompt', 'status', 'search', 'info'
             ],
             meta_dict={
                 'help': "Show this help message",
                 'quit': "Exit the CLI",
                 'exit': "Exit the CLI",
                 'connect': "Connect to an MCP server",
+                'status': "Show status of the current connection",
                 'connections': "List all connections",
                 'conns': "List all connections (alias)",
                 'switch': "Switch to a different connection",
@@ -65,7 +66,6 @@ class MCPBrowserCLI:
                 'call': "Call a tool with JSON arguments",
                 'resource': "Get a resource by URI",
                 'prompt': "Get a prompt by name with optional arguments",
-                'refresh': "Refresh capabilities for current connection",
                 'search': "Search tools, resources, and prompts by term",
                 'info': "Show detailed info about a tool/resource/prompt"
             }
@@ -174,8 +174,8 @@ class MCPBrowserCLI:
             await self.cmd_resource(args)
         elif cmd == "prompt":
             await self.cmd_prompt(args)
-        elif cmd == "refresh":
-            await self.cmd_refresh()
+        elif cmd == "status":
+            await self.cmd_status()
         elif cmd == "search":
             await self.cmd_search(args)
         elif cmd == "info":
@@ -471,20 +471,19 @@ class MCPBrowserCLI:
         except Exception as e:
             self.formatter.format_error(f"Error getting prompt: {e}", e)
 
-    async def cmd_refresh(self):
-        """Refresh capabilities for current connection."""
-        success = await self.browser.refresh_current()
-        if success:
-            conn = self.browser.get_current_connection()
-            # Get counts for display
-            tools = await conn.get_tools()
-            resources = await conn.get_resources()
-            prompts = await conn.get_prompts()
-            self.formatter.format_json({
-                "tools": len(tools),
-                "resources": len(resources),
-                "prompts": len(prompts)
-            })
+    async def cmd_status(self):
+        """Get status of the current connection.
+        This includes counts of tools, resources, and prompts.
+        """
+        conn = self.browser.get_current_connection()
+        tools = await conn.get_tools()
+        resources = await conn.get_resources()
+        prompts = await conn.get_prompts()
+        self.formatter.format_json({
+            "tools": len(tools),
+            "resources": len(resources),
+            "prompts": len(prompts)
+        })
 
     async def cmd_search(self, args: list[str]):
         """Search tools, resources, and prompts."""

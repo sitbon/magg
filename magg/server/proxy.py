@@ -88,19 +88,19 @@ class ProxyMCP(ManagedServer):
     async def _proxy_tool(
         self,
         action: Annotated[Literal["list", "info", "call"], Field(
-            description="Action to perform: list capabilities, get info, or call a tool/resource/prompt."
+            description="Action to perform: list, info, or call."
         )],
         atyp: Annotated[Literal["tool", "resource", "prompt"], Field(
-            description="Type of MCP capability to interact with.",
+            description="Type of MCP capability to interact with: tool, resource, or prompt.",
             alias="type"
         )],
         args: Annotated[dict[str, Any] | None, Field(
             description="Arguments for a 'call' action (call tool, read resource, or get prompt)."
         )] = None,
         path: Annotated[str | None, Field(
-            description="Name or URI of the specific tool/resource/prompt (with FastMCP prefixing)."
-                        "Not allowed for 'list' and 'info' actions. (aliases: name, uri)",
-            validation_alias=AliasChoices("name", "uri"),
+            description="Name or URI of the specific tool/resource/prompt (with FastMCP prefixing).\n"
+                        "Not allowed for 'list' and 'info' actions.",
+            # validation_alias=AliasChoices("name", "uri"),
         )] = None,
     ) -> Any:
         """Main proxy tool for dynamic access to mounted MCP servers.
@@ -109,6 +109,10 @@ class ProxyMCP(ManagedServer):
         - Listing available tools, resources, or prompts across servers
         - Getting detailed info about specific capabilities
         - Calling tools, reading resources, or getting prompts
+
+        Annotations are used to provide rich type information for results,
+        which can generally be expected to ultimately include JSON-encoded
+        EmbeddedResource results that can be interpreted by the client.
         """
         # Validate inputs
         if action in {"info", "call"} and not path:

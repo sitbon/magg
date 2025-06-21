@@ -56,7 +56,7 @@ def get_transport_for_command(
         if args:
             return NoValidateNodeStdioTransport(
                 script_path=args[0],  # Could be script path or other Node arg
-                args=args[1:] if len(args) > 1 else None,
+                args=args[1:],
                 env=env,
                 cwd=working_dir,
                 node_cmd=transport_config.get("node_cmd", "node"),
@@ -68,7 +68,7 @@ def get_transport_for_command(
         if args:
             return NpxStdioTransport(
                 package=args[0],
-                args=args[1:] if len(args) > 1 else None,
+                args=args[1:],
                 project_directory=working_dir,
                 env_vars=env,
                 use_package_lock=transport_config.get("use_package_lock", True),
@@ -80,7 +80,7 @@ def get_transport_for_command(
         if args:
             return UvxStdioTransport(
                 tool_name=args[0],
-                tool_args=args[1:] if len(args) > 1 else None,
+                tool_args=args[1:],
                 project_directory=working_dir,
                 python_version=transport_config.get("python_version"),
                 with_packages=transport_config.get("with_packages"),
@@ -97,7 +97,7 @@ def get_transport_for_command(
             if script_idx < len(args):
                 return FastMCPStdioTransport(
                     script_path=args[script_idx],
-                    args=args[script_idx+1:] if script_idx+1 < len(args) else None,
+                    args=args[script_idx + 1:],
                     env=env,
                     cwd=working_dir,
                     keep_alive=transport_config.get("keep_alive", True)

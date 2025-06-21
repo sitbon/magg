@@ -3,7 +3,6 @@
 import logging
 from typing import Any
 
-from aiocache import cached
 from fastmcp import Client
 from mcp import GetPromptResult
 from mcp.types import TextContent, ImageContent, EmbeddedResource, BlobResourceContents, TextResourceContents, Tool, \
@@ -44,9 +43,8 @@ class MCPConnection:
             for tool in tools
         ]
 
-    @cached()
     async def get_tools(self) -> list[dict[str, Any]]:
-        """Get tools list (cached)."""
+        """Get tools list."""
         if not self.client or not self.connected:
             return []
 
@@ -67,9 +65,8 @@ class MCPConnection:
             for resource in resources
         ]
 
-    @cached()
     async def get_resources(self) -> list[dict[str, Any]]:
-        """Get resources list (cached)."""
+        """Get resources list."""
         if not self.client or not self.connected:
             return []
 
@@ -114,9 +111,8 @@ class MCPConnection:
             for prompt in prompts
         ]
 
-    @cached()
     async def get_prompts(self) -> list[dict[str, Any]]:
-        """Get prompts list (cached)."""
+        """Get prompts list."""
         if not self.client or not self.connected:
             return []
 
@@ -129,13 +125,6 @@ class MCPConnection:
                 logger.error(f"Failed to list prompts: {e}")
 
         return prompts_data
-
-    async def _clear_cache(self):
-        """Clear all cached methods.
-        """
-        await self.get_tools.cache.clear()
-        await self.get_resources.cache.clear()
-        await self.get_prompts.cache.clear()
 
     async def connect(self) -> bool:
         """Connect to the MCP server using FastMCP Client."""
@@ -165,10 +154,6 @@ class MCPConnection:
                 return False
 
             self.client = client
-
-            # Clear cache before connecting
-            await self._clear_cache()
-
             self.connected = True
             return True
 
@@ -177,15 +162,6 @@ class MCPConnection:
             pass
             self.client = None
             return False
-
-    async def refresh_capabilities(self) -> None:
-        """Refresh the list of available tools, resources, and prompts."""
-        if not self.client:
-            return
-
-        # Clear the cache to force re-fetch
-        await self._clear_cache()
-
 
     async def call_tool(self, tool_name: str, arguments: dict[str, Any] = None) -> list[
         TextContent | ImageContent | EmbeddedResource
@@ -241,11 +217,12 @@ class MCPConnection:
                 pass
             self.client = None
         self.connected = False
-        await self._clear_cache()
 
 
 class MCPBrowser:
     """Main MCP browser class for managing connections."""
+    connections: dict[str, MCPConnection]
+    current_connection: str | None
 
     def __init__(self):
         self.connections: dict[str, MCPConnection] = {}
@@ -339,12 +316,3 @@ class MCPBrowser:
                 **extend,
             })
         return result
-
-    async def refresh_current(self) -> bool:
-        """Refresh capabilities for the current connection."""
-        conn = self.get_current_connection()
-        if not conn:
-            return False
-
-        await conn.refresh_capabilities()
-        return True

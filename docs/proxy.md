@@ -136,7 +136,7 @@ All call results include annotations with:
 MAGG provides a `ProxyClient` class that simplifies interaction with proxy-enabled servers:
 
 ```python
-from magg.client.proxy import ProxyClient
+from magg.proxy.client import ProxyClient
 
 # Create a proxy-aware client
 async with ProxyClient("http://localhost:8080/mcp") as client:
@@ -205,7 +205,7 @@ All transparent methods handle result transformation automatically using the tra
 
 ## Server Implementation
 
-MAGG's proxy server implementation (`ProxyMCP` mixin) provides:
+MAGG's proxy server implementation provides:
 
 1. **Self-introspection**: Server can list its own capabilities via FastMCPTransport
 2. **Result transformation**: Automatic conversion between MCP types
@@ -214,12 +214,26 @@ MAGG's proxy server implementation (`ProxyMCP` mixin) provides:
 
 ### Key Classes
 
-#### `ProxyMCP`
+#### `ProxyFastMCP`
 
-A mixin class that adds proxy functionality to MCP servers:
+A wrapper class that adds proxy functionality to FastMCP instances:
 
 ```python
-from magg.server.proxy import ProxyMCP, ManagedServer
+from magg.proxy.server import ProxyFastMCP
+from fastmcp import FastMCP
+
+# Wrap an existing FastMCP instance
+mcp = FastMCP(name="my-server")
+proxy_mcp = ProxyFastMCP(mcp)
+```
+
+#### `ProxyMCP`
+
+A mixin class that servers can inherit from:
+
+```python
+from magg.proxy.mixin import ProxyMCP
+from magg.server.manager import ManagedServer
 
 class MyAggregator(ManagedServer, ProxyMCP):
     def __init__(self):
@@ -233,7 +247,7 @@ class MyAggregator(ManagedServer, ProxyMCP):
 Metadata extracted from proxy response annotations:
 
 ```python
-from magg.server.proxy import ProxyResponseInfo
+from magg.proxy.server import ProxyResponseInfo
 
 # Extract metadata from annotations
 info = ProxyResponseInfo.from_annotations(result.annotations)
@@ -275,7 +289,7 @@ MAGG provides transform utilities for working with proxy results:
 from magg.util.transform import (
     tool_result_as_prompt_result,
     tool_result_as_resource_result,
-    embedded_resource_python_object,
+    get_embedded_resource_python_object,
     deserialize_embedded_resource_python_object
 )
 
@@ -286,7 +300,7 @@ prompt_result = tool_result_as_prompt_result(tool_result)
 resource_result = tool_result_as_resource_result(tool_result)
 
 # Get metadata from embedded resource
-python_type, json_data, many = embedded_resource_python_object(embedded_resource)
+python_type, json_data, many = get_embedded_resource_python_object(embedded_resource)
 
 # Deserialize to proper MCP types
 obj = deserialize_embedded_resource_python_object(

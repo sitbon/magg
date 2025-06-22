@@ -1,7 +1,9 @@
 """Terminal utilities for better CLI output."""
-
+import os
 import sys
 from typing import Optional, List, Dict, Any
+
+from .system import initterm
 
 
 class Colors:
@@ -118,3 +120,30 @@ def confirm_action(prompt: str) -> bool:
     except (EOFError, KeyboardInterrupt):
         print()  # New line after Ctrl+C
         return False
+
+
+def print_startup_banner():
+    """Print a nice startup banner."""
+    banner = """
+╔═══════════════════════════════════════════════════╗
+║                                                   ║
+║        ███╗   ███╗ █████╗  ██████╗  ██████╗       ║
+║        ████╗ ████║██╔══██╗██╔════╝ ██╔════╝       ║
+║        ██╔████╔██║███████║██║  ███╗██║  ███╗      ║
+║        ██║╚██╔╝██║██╔══██║██║   ██║██║   ██║      ║
+║        ██║ ╚═╝ ██║██║  ██║╚██████╔╝╚██████╔╝      ║
+║        ╚═╝     ╚═╝╚═╝  ╚═╝ ╚═════╝  ╚═════╝       ║
+║                                                   ║
+║          MCP Aggregator - Tool Ecosystem          ║
+║   Organizing and Managing Your MCP Environment    ║
+╚═══════════════════════════════════════════════════╝
+"""
+    if not os.environ.get("MAGG_QUIET", "").lower() in ("1", "true", "yes"):
+        if os.environ.get("NO_RICH", "").lower() in ("1", "true", "yes"):
+            print(banner, file=sys.stderr)
+        else:
+            try:
+                console = initterm()
+                console.print(banner, style="bold cyan purple italic", width=60)
+            except ImportError:
+                print(banner, file=sys.stderr)

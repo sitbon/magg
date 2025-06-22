@@ -7,20 +7,21 @@ from fastmcp import FastMCP, Client
 
 from .defaults import MAGG_INSTRUCTIONS
 from ..settings import ConfigManager, MAGGConfig, ServerConfig
-from ..util import get_transport_for_command, get_transport_for_uri
+from ..proxy.server import ProxyFastMCP
+from ..util.transport import get_transport_for_command, get_transport_for_uri
 
-LOG = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
 
 
 class ServerManager:
     """Manages MCP servers - mounting, unmounting, and tracking."""
     config_manager: ConfigManager
-    mcp: FastMCP
+    mcp: ProxyFastMCP
     mounted_servers: dict
 
     def __init__(self, config_manager: ConfigManager):
         self.config_manager = config_manager
-        self.mcp = FastMCP(
+        self.mcp = ProxyFastMCP(
             name=self.self_prefix,
             instructions=MAGG_INSTRUCTIONS.format(self_prefix=self.self_prefix),
         )
@@ -48,11 +49,11 @@ class ServerManager:
     async def mount_server(self, server: ServerConfig) -> bool:
         """Mount a server using FastMCP."""
         if not server.enabled:
-            LOG.info("Server %s is disabled, skipping mount", server.name)
+            logger.info("Server %s is disabled, skipping mount", server.name)
             return False
 
         if server.name in self.mounted_servers:
-            LOG.warning("Server %s is already mounted, skipping", server.name)
+            logger.warning("Server %s is already mounted, skipping", server.name)
             return False
 
         try:
@@ -76,7 +77,7 @@ class ServerManager:
                 client = Client(transport)
 
             else:
-                LOG.error("No command or URI specified for %s", server.name)
+                logger.error("No command or URI specified for %s", server.name)
                 return False
 
             # Create proxy and mount
@@ -88,11 +89,11 @@ class ServerManager:
                 'client': client
             }
 
-            LOG.debug("Mounted server %s with prefix %s", server.name, server.prefix)
+            logger.debug("Mounted server %s with prefix %s", server.name, server.prefix)
             return True
 
         except Exception as e:
-            LOG.error("Failed to mount server %s: %s", server.name, e)
+            logger.error("Failed to mount server %s: %s", server.name, e)
             return False
 
     # noinspection PyProtectedMember
@@ -105,15 +106,15 @@ class ServerManager:
             if server and server.prefix in self.mcp._mounted_servers:
                 # Properly unmount from FastMCP
                 self.mcp.unmount(server.prefix)
-                LOG.debug("Called unmount for prefix %s", server.prefix)
+                logger.debug("Called unmount for prefix %s", server.prefix)
 
             # Remove from our tracking
             del self.mounted_servers[name]
-            LOG.info("Unmounted server %s", name)
+            logger.info("Unmounted server %s", name)
             return True
 
         else:
-            LOG.warning("Server %s is not mounted, cannot unmount", name)
+            logger.warning("Server %s is not mounted, cannot unmount", name)
             return False
 
     async def mount_all_enabled(self):
@@ -122,10 +123,10 @@ class ServerManager:
         enabled_servers = config.get_enabled_servers()
 
         if not enabled_servers:
-            LOG.info("No enabled servers to mount")
+            logger.info("No enabled servers to mount")
             return
 
-        LOG.info("Mounting %d enabled servers...", len(enabled_servers))
+        logger.info("Mounting %d enabled servers...", len(enabled_servers))
 
         results = []
         for name, server in enabled_servers.items():
@@ -133,7 +134,7 @@ class ServerManager:
                 success = await self.mount_server(server)
                 results.append((name, success))
             except Exception as e:
-                LOG.error("Error mounting %s: %s", name, e)
+                logger.error("Error mounting %s: %s", name, e)
                 results.append((name, False))
 
         # Log results
@@ -141,9 +142,9 @@ class ServerManager:
         failed = [name for name, success in results if not success]
 
         if successful:
-            LOG.info("Successfully mounted: %s", ', '.join(successful))
+            logger.info("Successfully mounted: %s", ', '.join(successful))
         if failed:
-            LOG.warning("Failed to mount: %s", ', '.join(failed))
+            logger.warning("Failed to mount: %s", ', '.join(failed))
 
 
 class ManagedServer:

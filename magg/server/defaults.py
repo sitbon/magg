@@ -126,12 +126,12 @@ Parameters:
     Not allowed for 'list' and 'info' actions.
 
 Example usage (MBRO commands):
-    - List all tools:
-      -  `call proxy {"action": "list", "type": "tool"}`
+  - List all tools:
+    -  `call proxy {"action": "list", "type": "tool"}`
 
-    - Get info about a specific tool:
-      -  `call proxy {"action": "info", "type": "tool", "path": "calc:add"}`
+  - Get info about a specific tool:
+    -  `call proxy {"action": "info", "type": "tool", "path": "calc:add"}`
 
-    - Call a tool with arguments:
-      -  `call proxy {"action": "call", "type": "tool", "path": "calc:add", "args": {"a": 5, "b": 10}}`
+  - Call a tool with arguments:
+    -  `call proxy {"action": "call", "type": "tool", "path": "calc:add", "args": {"a": 5, "b": 10}}`
 """

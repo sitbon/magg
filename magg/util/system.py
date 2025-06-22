@@ -11,7 +11,7 @@ try:
 except (ImportError, ModuleNotFoundError):
     pass
 
-__all__ = "chown", "initterm"
+__all__ = "chown", "initterm", "is_subdirectory", "get_project_root"
 
 
 def chown(path: Path, uid: int | str | None = None, gid: int | str | None = None, *, recursive: bool = False) -> None:
@@ -43,14 +43,34 @@ def initterm(**kwds) -> Optional["console.Console"]:
     try:
         global _rc
 
-        if _rc is not None:
-            return _rc
+        if _rc is None:
+            kwds.setdefault("color_system", "truecolor")
+            _rc = console.Console(**kwds)
+            pretty.install(console=_rc)
+            traceback.install(console=_rc, show_locals=True)
 
-        kwds.setdefault("color_system", "truecolor")
-        _rc = console.Console(**kwds)
-        pretty.install(console=_rc)
-        traceback.install(console=_rc, show_locals=True)
         return _rc
 
     except NameError:
         return None
+
+
+def is_subdirectory(child: Path, parent: Path) -> bool:
+    """Check if child is a subdirectory of parent.
+
+    Args:
+        child: Potential subdirectory path
+        parent: Parent directory path
+
+    Returns:
+        True if child is same as or subdirectory of parent
+    """
+    child_abs = child.resolve()
+    parent_abs = parent.resolve()
+
+    return child_abs.is_relative_to(parent_abs)
+
+
+def get_project_root() -> Path:
+    """Get the current project root (where .magg directory is)."""
+    return Path.cwd()

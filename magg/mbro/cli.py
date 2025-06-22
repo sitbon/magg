@@ -1,32 +1,25 @@
 #!/usr/bin/env python3
 """Interactive CLI for MBRO - MCP Browser."""
 
+import argparse
 import asyncio
 import json
 import sys
-import argparse
-import readline
-import atexit
 from asyncio import CancelledError
 from functools import cached_property
-from json import JSONDecodeError
 from pathlib import Path
 
 from mcp import GetPromptResult
-from mcp.types import TextContent, ImageContent, EmbeddedResource, Tool
+from mcp.types import TextContent, ImageContent, EmbeddedResource
+from prompt_toolkit import PromptSession, HTML
 from prompt_toolkit.completion import WordCompleter
 from prompt_toolkit.history import FileHistory
-from prompt_toolkit import PromptSession, HTML
-from rich.traceback import install as install_rich_traceback
 
-from .. import process
-from ..server.proxy import ProxyMCP
 from . import acon
 from .client import MCPBrowser, MCPConnection
 from .formatter import OutputFormatter
-
-# Install rich traceback handler
-install_rich_traceback(show_locals=True)
+from .. import process
+from ..proxy import ProxyMCP
 
 
 class MCPBrowserCLI:

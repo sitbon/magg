@@ -14,7 +14,8 @@ from mcp.types import (
     GetPromptResult, TextResourceContents, BlobResourceContents, ResourceTemplate
 )
 
-from ..server.proxy import ProxyMCP, LiteralProxyType, LiteralProxyAction
+from .mixin import ProxyMCP
+from .types import LiteralProxyType, LiteralProxyAction
 from ..util.transform import tool_result_as_prompt_result, tool_result_as_resource_result
 
 __all__ = "ProxyClient",

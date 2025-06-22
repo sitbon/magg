@@ -4,6 +4,10 @@ from pathlib import Path
 from urllib.parse import urlparse, unquote
 import os
 
+from .system import get_project_root, is_subdirectory
+
+__all__ = "extract_directory_from_uri", "validate_working_directory"
+
 
 def extract_directory_from_uri(uri: str) -> Path | None:
     """Extract a directory path from a URI.
@@ -36,33 +40,6 @@ def extract_directory_from_uri(uri: str) -> Path | None:
     else:
         # Unknown scheme
         return None
-
-
-def is_subdirectory(child: Path, parent: Path) -> bool:
-    """Check if child is a subdirectory of parent.
-
-    Args:
-        child: Potential subdirectory path
-        parent: Parent directory path
-
-    Returns:
-        True if child is same as or subdirectory of parent
-    """
-    try:
-        # Resolve to absolute paths
-        child_abs = child.resolve()
-        parent_abs = parent.resolve()
-
-        # Check if child is same as or starts with parent
-        return child_abs == parent_abs or parent_abs in child_abs.parents
-    except (OSError, RuntimeError):
-        # Path resolution failed
-        return False
-
-
-def get_project_root() -> Path:
-    """Get the current project root (where .magg directory is)."""
-    return Path.cwd()
 
 
 def validate_working_directory(working_dir: Path | str | None, source_uri: str | None) -> tuple[Path | None, str | None]:

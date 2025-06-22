@@ -8,6 +8,8 @@
 
 This specification defines the Model Context Protocol (MCP) Proxy Extension, which enables dynamic access to MCP capabilities through a single, unified tool interface. The proxy pattern allows MCP servers to aggregate, gateway, and dynamically expose capabilities from other servers without requiring clients to manage multiple connections.
 
+This specification is based on the implementation in MAGG (MCP Aggregator) and serves as a reference for other MCP servers that want to implement similar proxy functionality. The reference implementation can be found in the `magg.proxy` package.
+
 ## 1. Introduction
 
 The MCP Proxy Extension provides a standardized way for MCP servers to expose capabilities from other servers through a single tool. This enables powerful aggregation scenarios while maintaining the simplicity of the MCP protocol.
@@ -394,6 +396,21 @@ Response (tool result):
 - [Model Context Protocol Specification](https://modelcontextprotocol.io/docs)
 - [MCP TypeScript SDK](https://github.com/modelcontextprotocol/typescript-sdk)
 - [MAGG Implementation](https://github.com/sitbon/magg)
+
+## 12. Reference Implementation
+
+The reference implementation in MAGG includes:
+
+1. **Server-side proxy** (`magg/proxy/server.py` and `magg/proxy/mixin.py`):
+   - `ProxyFastMCP` wrapper class that adds proxy capabilities to FastMCP instances
+   - `ProxyMCP` mixin class for servers that want built-in proxy support
+   - Automatic tool registration and capability aggregation
+   - Result transformation and annotation
+
+2. **Client-side wrapper** (`magg/proxy/client.py`):
+   - `ProxyClient` class that provides transparent access to proxied servers
+   - Automatic result unwrapping and type conversion
+   - Lazy connection management
 
 ## Appendix A: Future Considerations
 

@@ -4,9 +4,8 @@ import logging
 from typing import Any
 
 from fastmcp import Client
-from mcp import GetPromptResult
 from mcp.types import TextContent, ImageContent, EmbeddedResource, BlobResourceContents, TextResourceContents, Tool, \
-    Resource, ResourceTemplate, Prompt
+    Resource, ResourceTemplate, Prompt, GetPromptResult
 
 logger = logging.getLogger(__name__)
 

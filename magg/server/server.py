@@ -6,29 +6,24 @@ import os
 import re
 from functools import wraps
 from pathlib import Path
-from typing import Any, Annotated, TypeAlias
+from typing import Any, Annotated
 
 from fastmcp import Context
-from mcp.types import PromptMessage, TextContent, EmbeddedResource
+from mcp.types import PromptMessage, TextContent
 from pydantic import Field, AnyUrl
 
 from .defaults import MAGG_ADD_SERVER_DOC, PROXY_TOOL_DOC
-from .manager import ServerManager
-from .proxy import ProxyMCP
+from .manager import ServerManager, ManagedServer
 from .response import MAGGResponse
 from ..discovery.metadata import CatalogManager, SourceMetadataCollector
 from ..settings import ConfigManager, ServerConfig
-from ..util import (
-    validate_working_directory,
-    TRANSPORT_DOCS,
-)
+from ..util.transport import TRANSPORT_DOCS
+from ..util.uri import validate_working_directory
 
-JSONToolResponse: TypeAlias = TextContent | EmbeddedResource
-LOG = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
 
 
-# noinspection PyMethodMayBeStatic
-class MAGGServer(ProxyMCP):
+class MAGGServer(ManagedServer):
     """Main MAGG server with tools for managing other MCP servers."""
     _is_setup = False
 
@@ -73,7 +68,6 @@ class MAGGServer(ProxyMCP):
 
         self._register_resources()
         self._register_prompts()
-        self._register_proxy_tool()
 
     def _register_resources(self):
         """Register MCP resources for server metadata.
@@ -132,7 +126,8 @@ class MAGGServer(ProxyMCP):
     # region MCP Prompt Methods - Templates for LLM-assisted configuration
     # ============================================================================
 
-    def _format_metadata_for_prompt(self, metadata_entries: list[dict]) -> str:
+    @classmethod
+    def _format_metadata_for_prompt(cls, metadata_entries: list[dict]) -> str:
         """Format metadata entries into a readable string for prompts."""
         lines = []
         for entry in metadata_entries:
@@ -166,7 +161,6 @@ class MAGGServer(ProxyMCP):
         self,
         source: Annotated[str, Field(description="URL of the server to configure")],
         server_name: Annotated[str | None, Field(description="Optional server name")] = None,
-        context: Context | None = None,
     ) -> list[PromptMessage]:
         """Generate an enriched prompt template for configuring a server from a URL.
 
@@ -622,6 +616,7 @@ Documentation for proxy tool:
         except Exception as e:
             return MAGGResponse.error(f"Smart configuration failed: {str(e)}")
 
+    # noinspection PyMethodMayBeStatic
     async def search_servers(
         self,
         query: Annotated[str, Field(description="Search query for MCP servers")],

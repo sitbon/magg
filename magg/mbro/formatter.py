@@ -1,12 +1,11 @@
-"""Output formatters for mbro."""
-
+"""Output formatters for mbro.
+"""
 import json
 import sys
 import traceback
 from typing import Any, List
 
-from mcp import GetPromptResult
-from mcp.types import Content, TextResourceContents, BlobResourceContents
+from mcp.types import Content, TextResourceContents, BlobResourceContents, GetPromptResult
 from rich.console import Console
 from rich.json import JSON
 from rich.table import Table

@@ -14,6 +14,8 @@ from fastmcp.client.transports import (
 )
 from .transports import NoValidatePythonStdioTransport, NoValidateNodeStdioTransport
 
+__all__ = "get_transport_for_command", "get_transport_for_uri", "TRANSPORT_DOCS"
+
 
 def get_transport_for_command(
     command: str,

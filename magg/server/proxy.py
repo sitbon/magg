@@ -1,21 +1,61 @@
 """ProxyMCP - Mixin for dynamic MCP server access.
 """
 import logging
-from typing import Any, Literal, Annotated, Callable, ClassVar
+from typing import Any, Literal, Annotated, Callable, ClassVar, Self
 
-from mcp.types import Tool, Resource, Prompt, EmbeddedResource, ResourceTemplate
-from pydantic import Field, AliasChoices, BaseModel
 from fastmcp.client import Client, FastMCPTransport
+from mcp.types import Tool, Resource, Prompt, EmbeddedResource, ResourceTemplate, Annotations
+from pydantic import Field, BaseModel
 
 from .manager import ManagedServer
 from ..util.transform import resource_result_as_tool_result, prompt_result_as_tool_result, annotate_content, \
     embed_python_object_list_in_resource, embed_python_object_in_resource, embedded_resource_python_object, \
     deserialize_embedded_resource_python_object
 
+__all__ = (
+    "LiteralProxyType",
+    "LiteralProxyAction",
+    "ProxyResponseInfo",
+    "ProxyMCP",
+)
+
 LOG = logging.getLogger(__name__)
 
+LiteralProxyType = Literal["tool", "resource", "prompt"]
+LiteralProxyAction = Literal["list", "info", "call"]
 
-# noinspection PyMethodMayBeStatic
+
+class ProxyResponseInfo(BaseModel):
+    """Metadata for proxy tool responses, pulled from annotations.
+
+    Note that this info cannot always be retrieved, e.g., for empty results.
+
+    It is mostly useful for introspection and debugging, and identifying
+    query-typed results (list, info) that can be further processed by the client.
+    """
+    proxy_type: LiteralProxyType | None = Field(
+        None,
+        description="Type of the proxied capability (tool, resource, prompt).",
+    )
+    proxy_action: LiteralProxyAction | None = Field(
+        None,
+        description="Action performed by the proxy (list, info, call).",
+    )
+    proxy_path: str | None = Field(
+        None,
+        description="Name or URI of the specific tool/resource/prompt (with FastMCP prefixing).",
+    )
+
+    @classmethod
+    def from_annotations(cls, annotations: Annotations) -> Self:
+        """Create ProxyResponseInfo from Annotations."""
+        return cls(
+            proxy_type=getattr(annotations, "proxyType", None),
+            proxy_action=getattr(annotations, "proxyAction", None),
+            proxy_path=getattr(annotations, "proxyPath", None),
+        )
+
+
 class ProxyMCP(ManagedServer):
     """Mixin that provides proxy functionality for accessing mounted MCP servers.
 
@@ -34,6 +74,19 @@ class ProxyMCP(ManagedServer):
     PROXY_TOOL_NAME: ClassVar[str] = "proxy"
 
     @classmethod
+    def validate_operation(
+        cls,
+        action: LiteralProxyAction,
+        a_type: LiteralProxyType
+    ) -> None:
+        """Validate the proxy operation parameters."""
+        if action not in frozenset({"list", "info", "call"}):
+            raise ValueError(f"Invalid proxy action '{action}'")
+
+        if a_type not in frozenset({"tool", "resource", "prompt"}):
+            raise ValueError(f"Invalid proxy type '{a_type}'")
+
+    @classmethod
     def get_proxy_query_result(
             cls,
             result: EmbeddedResource
@@ -44,7 +97,7 @@ class ProxyMCP(ManagedServer):
         Proxy query results are always returned as a single EmbeddedResource with JSON-encoded text content.
 
         These results can be further interpreted by the calling code to emulate native MCP behavior,
-        for example using CLI preferences to control tool or prompt list display format.
+        for example, using CLI preferences to control tool or prompt list display format.
         """
         decoded = None
 
@@ -87,10 +140,10 @@ class ProxyMCP(ManagedServer):
     # noinspection PyShadowingBuiltins
     async def _proxy_tool(
         self,
-        action: Annotated[Literal["list", "info", "call"], Field(
+        action: Annotated[LiteralProxyAction, Field(
             description="Action to perform: list, info, or call."
         )],
-        atyp: Annotated[Literal["tool", "resource", "prompt"], Field(
+        a_type: Annotated[LiteralProxyType, Field(
             description="Type of MCP capability to interact with: tool, resource, or prompt.",
             alias="type"
         )],
@@ -114,13 +167,14 @@ class ProxyMCP(ManagedServer):
         which can generally be expected to ultimately include JSON-encoded
         EmbeddedResource results that can be interpreted by the client.
         """
-        # Validate inputs
-        if action in {"info", "call"} and not path:
+        self.validate_operation(action=action, a_type=a_type)
+
+        if action in frozenset({"info", "call"}) and not path:
             raise ValueError(
                 f"Parameter 'path' is required for action {action!r}"
             )
 
-        if action in {"list", "info"} and args:
+        if action in frozenset({"list", "info"}) and args:
             raise ValueError(
                 f"Parameter 'args' should not be provided for action {action!r}"
             )
@@ -131,33 +185,33 @@ class ProxyMCP(ManagedServer):
             )
 
         if action == "list":
-            result, result_type = await self._proxy_list(atyp)
+            result, result_type = await self._proxy_list(a_type)
 
             if result:
                 # Send results as a single json/object-encoded EmbeddedResource result
                 result = embed_python_object_list_in_resource(
                     typ=result_type,
                     obj=result,
-                    uri=f"{self.PROXY_TOOL_NAME}:{action}/{atyp}",
+                    uri=f"{self.PROXY_TOOL_NAME}:{action}/{a_type}",
                     proxyAction=action,
-                    proxyType=atyp,
+                    proxyType=a_type,
                 )
 
         elif action == "info":
-            result = await self._proxy_info(atyp, path)
+            result = await self._proxy_info(a_type, path)
 
             if result:
                 # Send results as a json/object-encoded EmbeddedResource result
                 result = embed_python_object_in_resource(
                     obj=result,
-                    uri=f"{self.PROXY_TOOL_NAME}:{action}/{atyp}/{path}",
+                    uri=f"{self.PROXY_TOOL_NAME}:{action}/{a_type}/{path}",
                     proxyAction=action,
-                    proxyType=atyp,
+                    proxyType=a_type,
                     proxyPath=path,
                 )
 
         elif action == "call":
-            result = await self._proxy_call(atyp, path, args or {})
+            result = await self._proxy_call(a_type, path, args or {})
         else:
             raise ValueError(
                 f"Unknown action: {action!r}. Supported actions are 'list', 'info', and 'call'."
@@ -206,20 +260,25 @@ class ProxyMCP(ManagedServer):
         """Call a tool, read a resource, or get a prompt by connecting to ourselves as a client.
         """
         client = await self._get_self_client()
+        annotations = {
+            "proxyType": capability_type,
+            "proxyAction": "call",
+            "proxyPath": path,
+        }
 
         async with client:
             if capability_type == "tool":
                 result = await client.call_tool(path, args)  # Returns list[TextContent | ImageContent | EmbeddedResource]
-                result = [annotate_content(item, proxyType="tool", proxyPath=path) for item in result]
+                result = [annotate_content(item, **annotations) for item in result]
 
             elif capability_type == "resource":
                 # For resources, the 'path' is the URI
                 result = await client.read_resource(path)  # Returns list[TextResourceContents | BlobResourceContents]
-                result = [resource_result_as_tool_result(item) for item in result]
+                result = [resource_result_as_tool_result(item, **annotations) for item in result]
 
             elif capability_type == "prompt":
                 result = await client.get_prompt(path, args)  # Returns GetPromptResult
-                result = prompt_result_as_tool_result(result, f"proxy:{path}")
+                result = prompt_result_as_tool_result(result, f"proxy:{path}", **annotations)
 
             else:
                 raise ValueError(f"Unknown capability type: {capability_type}")

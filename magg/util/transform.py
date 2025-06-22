@@ -296,6 +296,7 @@ def tool_result_as_resource_result(
 def prompt_result_as_tool_result(
         data: PromptResult,
         name: str,
+        **annotations,
 ) -> EmbeddedResource:
     """
     Converts a GetPromptResult into a tool result format.
@@ -307,16 +308,19 @@ def prompt_result_as_tool_result(
     Args:
         data: The GetPromptResult instance to convert.
         name: The name of the prompt, or any URI-compatible string to use as the resource URI.
+        annotations: Additional annotations to include in the result.
     """
     try:
         uri = AnyUrl(name)
     except ValidationError:
         uri = AnyUrl(f"urn:prompt:{name}")
 
+    annotations.setdefault("proxyType", "prompt")
+
     return embed_python_object_in_resource(
         obj=data,
         uri=uri,
-        proxyType="prompt",
+        **annotations,
     )
 
 
@@ -332,7 +336,7 @@ def tool_result_as_prompt_result(
     Returns:
         GetPromptResult | None: The original prompt call result, or None if the data is not a prompt result.
     """
-    if object_info := embedded_resource_python_object(data, proxy_type="prompt"):
+    if object_info := embedded_resource_python_object(data, proxyType="prompt"):
         python_type, json_data, many = object_info
 
         return deserialize_embedded_resource_python_object(

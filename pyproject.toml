@@ -47,7 +47,6 @@ dependencies = [
     "pydantic<3",
     "pydantic-settings<3",
     "rich>=14.0.0",
-    "asgiref>=3.8.1",
 ]
 
 [project.urls]
@@ -81,6 +80,8 @@ dev = [
 verbosity = -1
 
 [tool.poe.tasks]
+fix-whitespace.shell = "find . -name '*.py' -type f | python scripts/fix_whitespace.py"
+
 git_commit_num.cmd = "git rev-list --count HEAD"
 git_commit_sha.cmd = "git show --pretty=format:'%H' --no-patch"
 version.cmd = "uv version --short"

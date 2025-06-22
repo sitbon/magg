@@ -95,7 +95,7 @@ build-sha.shell = "sha512sum dist/magg-$(poe -q version).tar.gz"
 
 build.sequence = [
     { ref = "commit-info" },
-    { cmd = "rm dist/*" },
+    { cmd = "rm -f dist/*" },
     { cmd = "uv build" },
     { ref = "build-sha" },
 ]

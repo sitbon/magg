@@ -1,6 +1,6 @@
 [project]
 name = "magg"
-version = "0.3.4"
+version = "0.3.4.27"
 requires-python = ">=3.13"
 description = "MCP Aggregator"
 authors = [{ name = "Phillip Sitbon", email = "phillip.sitbon@gmail.com"}]
@@ -47,6 +47,7 @@ dependencies = [
     "pydantic<3",
     "pydantic-settings<3",
     "rich>=14.0.0",
+    "asgiref>=3.8.1",
 ]
 
 [project.urls]
@@ -60,6 +61,7 @@ mbro = "magg.mbro.cli:main"
 test = [
     "pytest>=8.4.0",
     "pytest-asyncio>=1.0.0",
+    "prompt-toolkit>=3.0.51",
 ]
 mbro = [
     "prompt-toolkit>=3.0.51",
@@ -67,12 +69,64 @@ mbro = [
 
 [dependency-groups]
 dev = [
-    "anthropic>=0.54.0",
-    "keyring>=25.6.0",
-    "prompt-toolkit>=3.0.51",
     "pytest>=8.4.0",
     "pytest-asyncio>=1.0.0",
+    "prompt-toolkit>=3.0.51",
+    "poethepoet>=0.35.0",
+    "keyring>=25.6.0",
+    "anthropic>=0.54.0",
 ]
+
+[tool.poe]
+verbosity = -1
+
+[tool.poe.tasks]
+git_commit_num.cmd = "git rev-list --count HEAD"
+git_commit_sha.cmd = "git show --pretty=format:'%H' --no-patch"
+version.cmd = "uvx --from=toml-cli toml get --toml-path=pyproject.toml project.version"
+
+commit-info.sequence = [
+    { ref = "version" },
+    { ref = "git_commit_num" },
+    { ref = "git_commit_sha" },
+]
+
+build-sha.shell = "sha512sum dist/magg-$(poe -q version).tar.gz"
+
+build.sequence = [
+    { ref = "commit-info" },
+    { cmd = "rm dist/*" },
+    { cmd = "uv build" },
+    { ref = "build-sha" },
+]
+
+sync-git-version.shell = """
+VERSION=$(echo -n $(poe -q version) | sed 's/\\(\\.\\)[0-9]*$/\\.'"$(poe -q git_commit_num)"'/')
+uvx --from=toml-cli toml set --toml-path=pyproject.toml project.version $VERSION
+git add pyproject.toml
+"""
+
+publish-commit-message.shell = """
+echo $(poe -q version) $(poe -q git_commit_sha)
+echo $(poe -q build-sha)
+"""
+
+verified-publish-commit.shell = """
+git commit -s -S -m "$(poe -q publish-commit-message)"
+"""
+
+create-publish-commit.sequence = [
+    { ref = "sync-git-version" },
+    { ref = "build" },
+    { ref = "verified-publish-commit" },
+]
+
+pypi-publish.cmd = "uv publish --token $PYPI_TOKEN"
+
+# publish.sequence = [
+#     { ref = "build" },
+#     { cmd =  }
+# ]
 
 [tool.pytest.ini_options]
 markers = [

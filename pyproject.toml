@@ -1,6 +1,6 @@
 [project]
 name = "magg"
-version = "0.3.6.30"
+version = "0.3.7.30"
 requires-python = ">=3.13"
 description = "MCP Aggregator"
 authors = [{ name = "Phillip Sitbon", email = "phillip.sitbon@gmail.com"}]
@@ -80,7 +80,7 @@ dev = [
 verbosity = -1
 
 [tool.poe.tasks]
-fix-whitespace.shell = "find . -name '*.py' -type f | python scripts/fix_whitespace.py"
+fix-whitespace.cmd = "python scripts/fix_whitespace.py"
 
 git_commit_num.cmd = "git rev-list --count HEAD"
 git_commit_sha.cmd = "git show --pretty=format:'%H' --no-patch"

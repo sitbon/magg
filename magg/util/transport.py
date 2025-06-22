@@ -1,6 +1,7 @@
 """Transport utilities for MAGG - handles FastMCP transport selection and configuration.
 """
 import sys
+from pathlib import Path
 from typing import Any
 from fastmcp.client.transports import (
     infer_transport,
@@ -21,7 +22,7 @@ def get_transport_for_command(
     command: str,
     args: list[str],
     env: dict[str, str] | None = None,
-    working_dir: str | None = None,
+    working_dir: Path | None = None,
     transport_config: dict[str, Any] | None = None
 ) -> ClientTransport:
     """
@@ -48,7 +49,7 @@ def get_transport_for_command(
                 script_path=args[0],  # Could be script path, -m, or other Python arg
                 args=args[1:] if len(args) > 1 else None,
                 env=env,
-                cwd=working_dir,
+                cwd=str(working_dir) if working_dir else None,
                 python_cmd=transport_config.get("python_cmd", sys.executable),
                 keep_alive=transport_config.get("keep_alive", True)
             )
@@ -60,7 +61,7 @@ def get_transport_for_command(
                 script_path=args[0],  # Could be script path or other Node arg
                 args=args[1:],
                 env=env,
-                cwd=working_dir,
+                cwd=str(working_dir) if working_dir else None,
                 node_cmd=transport_config.get("node_cmd", "node"),
                 keep_alive=transport_config.get("keep_alive", True)
             )
@@ -71,7 +72,7 @@ def get_transport_for_command(
             return NpxStdioTransport(
                 package=args[0],
                 args=args[1:],
-                project_directory=working_dir,
+                project_directory=str(working_dir) if working_dir else None,
                 env_vars=env,
                 use_package_lock=transport_config.get("use_package_lock", True),
                 keep_alive=transport_config.get("keep_alive", True)
@@ -83,7 +84,7 @@ def get_transport_for_command(
             return UvxStdioTransport(
                 tool_name=args[0],
                 tool_args=args[1:],
-                project_directory=working_dir,
+                project_directory=str(working_dir) if working_dir else None,
                 python_version=transport_config.get("python_version"),
                 with_packages=transport_config.get("with_packages"),
                 from_package=transport_config.get("from_package"),
@@ -101,7 +102,7 @@ def get_transport_for_command(
                     script_path=args[script_idx],
                     args=args[script_idx + 1:],
                     env=env,
-                    cwd=working_dir,
+                    cwd=str(working_dir) if working_dir else None,
                     keep_alive=transport_config.get("keep_alive", True)
                 )
 
@@ -110,7 +111,7 @@ def get_transport_for_command(
         command=command,
         args=args,
         env=env,
-        cwd=working_dir,
+        cwd=str(working_dir) if working_dir else None,
         keep_alive=transport_config.get("keep_alive", True)
     )
 

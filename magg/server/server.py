@@ -27,7 +27,7 @@ class MAGGServer(ManagedServer):
     """Main MAGG server with tools for managing other MCP servers."""
     _is_setup = False
 
-    def __init__(self, config_path: str | None = None):
+    def __init__(self, config_path: Path | str | None = None):
         super().__init__(ServerManager(ConfigManager(config_path)))
         self._register_tools()
 
@@ -272,11 +272,11 @@ Documentation for proxy tool:
                     actual_command = parts[0]
                     actual_args = None
 
-            if actual_command and working_dir:
+            if working_dir:
                 validated_dir, error = validate_working_directory(working_dir, source)
                 if error:
                     return MAGGResponse.error(error)
-                working_dir = str(validated_dir)
+                working_dir = validated_dir
 
             try:
                 server = ServerConfig(
@@ -374,7 +374,7 @@ Documentation for proxy tool:
                 if server.uri:
                     server_data["uri"] = server.uri
                 if server.working_dir:
-                    server_data["working_dir"] = server.working_dir
+                    server_data["working_dir"] = str(server.working_dir)
                 if server.notes:
                     server_data["notes"] = server.notes
 
@@ -713,19 +713,27 @@ Please provide:
     # ============================================================================
 
     async def setup(self):
-        """Initialize MAGG and mount existing servers."""
+        """Initialize MAGG and mount existing servers.
+
+        This is called automatically by run_stdio() and run_http().
+        For in-memory usage via FastMCPTransport, call this manually:
+
+            server = MAGGServer()
+            await server.setup()
+            client = Client(FastMCPTransport(server.mcp))
+        """
         if not self._is_setup:
             self._is_setup = True
             await self.server_manager.mount_all_enabled()
 
     async def run_stdio(self):
         """Run MAGG in stdio mode."""
-        assert self._is_setup, "MAGG must be set up before running"
+        await self.setup()
         await self.mcp.run_stdio_async()
 
     async def run_http(self, host: str = "localhost", port: int = 8000):
         """Run MAGG in HTTP mode."""
-        assert self._is_setup, "MAGG must be set up before running"
+        await self.setup()
         await self.mcp.run_http_async(host=host, port=port, log_level="WARNING")
 
     # ============================================================================

@@ -64,7 +64,7 @@ class TestServerConfig:
         ServerConfig(name="test", source="test", prefix="validprefix")
 
         # Invalid prefixes - no underscores allowed
-        with pytest.raises(ValueError, match="cannot contain underscores"):
+        with pytest.raises(ValueError, match="cannot contain '_'"):
             ServerConfig(name="test", source="test", prefix="invalid_prefix")
 
         # Invalid prefixes - must be identifier

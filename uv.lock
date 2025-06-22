@@ -455,7 +455,7 @@ wheels = [
 
 [[package]]
 name = "magg"
-version = "0.3.4.27"
+version = "0.3.6.0"
 source = { editable = "." }
 dependencies = [
     { name = "aiohttp" },

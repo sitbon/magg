@@ -1,6 +1,6 @@
 [project]
 name = "magg"
-version = "0.3.4.27"
+version = "0.3.6.0"
 requires-python = ">=3.13"
 description = "MCP Aggregator"
 authors = [{ name = "Phillip Sitbon", email = "phillip.sitbon@gmail.com"}]
@@ -83,7 +83,7 @@ verbosity = -1
 [tool.poe.tasks]
 git_commit_num.cmd = "git rev-list --count HEAD"
 git_commit_sha.cmd = "git show --pretty=format:'%H' --no-patch"
-version.cmd = "uvx --from=toml-cli toml get --toml-path=pyproject.toml project.version"
+version.cmd = "uv version --short"
 
 commit-info.sequence = [
     { ref = "version" },
@@ -102,8 +102,8 @@ build.sequence = [
 
 sync-git-version.shell = """
 VERSION=$(echo -n $(poe -q version) | sed 's/\\(\\.\\)[0-9]*$/\\.'"$(poe -q git_commit_num)"'/')
-uvx --from=toml-cli toml set --toml-path=pyproject.toml project.version $VERSION
-git add pyproject.toml
+uv version $VERSION
+git add pyproject.toml uv.lock
 """
 
 publish-commit-message.shell = """
@@ -113,6 +113,7 @@ echo $(poe -q build-sha)
 
 verified-publish-commit.shell = """
 git commit -s -S -m "$(poe -q publish-commit-message)"
+git tag -s -m "$(poe -q publish-commit-message)" magg/v$(poe -q version)
 """
 
 create-publish-commit.sequence = [
@@ -123,10 +124,10 @@ create-publish-commit.sequence = [
 
 pypi-publish.cmd = "uv publish --token $PYPI_TOKEN"
 
-# publish.sequence = [
-#     { ref = "build" },
-#     { cmd =  }
-# ]
+verified-publish.sequence = [
+    { ref = "create-publish-commit" },
+    { ref = "pypi-publish" },
+]
 
 [tool.pytest.ini_options]
 markers = [

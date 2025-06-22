@@ -1,0 +1,117 @@
+name: Publish to PyPI
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      
+      - name: Set up Python
+        run: uv python install
+      
+      - name: Install dependencies
+        run: |
+          uv sync --all-groups --locked
+      
+      - name: Run tests
+        run: |
+          uv run pytest -v
+
+  publish:
+    needs: test
+    runs-on: ubuntu-latest
+    environment: publish
+    permissions:
+      contents: write
+      id-token: write
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Need full history for commit count
+          token: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      
+      - name: Set up Python
+        run: uv python install
+      
+      - name: Install dependencies
+        run: |
+          uv sync --all-groups --locked
+      
+      - name: Import GPG key
+        uses: crazy-max/ghaction-import-gpg@v6
+        with:
+          gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
+          passphrase: ${{ secrets.GPG_PASSPHRASE }}
+          git_user_signingkey: true
+          git_commit_gpgsign: true
+          git_tag_gpgsign: true
+      
+      - name: Configure Git
+        run: |
+          git config user.name "${{ vars.SIGNED_COMMIT_USER }}"
+          git config user.email "${{ vars.SIGNED_COMMIT_EMAIL }}"
+          git config commit.gpgsign true
+          git config tag.gpgsign true
+      
+      - name: Create publish commit and build
+        run: |
+          # This command does everything:
+          # - Updates version in pyproject.toml
+          # - Builds the package
+          # - Creates signed commit with version/hash info
+          # - Creates signed tag
+          uv run poe create-publish-commit
+          
+          # Export values for the release step
+          echo "VERSION=$(uv run poe -q version)" >> $GITHUB_ENV
+          echo "COMMIT_SHA=$(uv run poe -q git_commit_sha)" >> $GITHUB_ENV
+          echo "BUILD_SHA=$(uv run poe -q build-sha)" >> $GITHUB_ENV
+      
+      - name: Publish to PyPI
+        env:
+          PYPI_TOKEN: ${{ secrets.PYPI_TOKEN }}
+        run: |
+          uv run poe pypi-publish
+      
+      - name: Push changes back to main
+        if: success()
+        run: |
+          git push origin main
+          git push origin --tags
+      
+      - name: Create GitHub Release
+        if: success()
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: magg/v${{ env.VERSION }}
+          name: magg v${{ env.VERSION }}
+          body: |
+            ## Package Info
+            - Version: ${{ env.VERSION }}
+            - Commit: ${{ env.COMMIT_SHA }}
+            - SHA512: ${{ env.BUILD_SHA }}
+            
+            ## Installation
+            ```bash
+            pip install magg==${{ env.VERSION }}
+            ```
+          files: |
+            dist/*.tar.gz
+            dist/*.whl

@@ -1,0 +1,90 @@
+name: Manual Publish (Dry Run)
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run (no actual publish)'
+        required: true
+        default: true
+        type: boolean
+
+jobs:
+  dry-run-publish:
+    runs-on: ubuntu-latest
+    environment: publish
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      
+      - name: Set up Python
+        run: uv python install
+      
+      - name: Install dependencies
+        run: |
+          uv sync --all-groups --locked
+      
+      - name: Import GPG key
+        uses: crazy-max/ghaction-import-gpg@v6
+        with:
+          gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
+          passphrase: ${{ secrets.GPG_PASSPHRASE }}
+          git_user_signingkey: true
+          git_commit_gpgsign: true
+          git_tag_gpgsign: true
+      
+      - name: Configure Git
+        run: |
+          git config user.name "${{ vars.SIGNED_COMMIT_USER }}"
+          git config user.email "${{ vars.SIGNED_COMMIT_EMAIL }}"
+          git config commit.gpgsign true
+          git config tag.gpgsign true
+      
+      - name: Test publish commit creation
+        run: |
+          # Create a temporary branch for testing
+          git checkout -b test-publish-${{ github.run_id }}
+          
+          # Run the create-publish-commit command
+          # This will create the commit and tag locally
+          uv run poe create-publish-commit
+          
+          # Show what was created
+          echo "=== Version Update ==="
+          git diff HEAD~1 pyproject.toml || echo "First commit on branch"
+          
+          echo "=== Build Output ==="
+          ls -la dist/
+          
+          echo "=== Commit Created ==="
+          git log -1 --pretty=fuller
+          
+          echo "=== Tag Created ==="
+          git tag -l --points-at HEAD
+          git tag -v $(git tag -l --points-at HEAD) || echo "Tag verification requires GPG public key"
+          
+          VERSION=$(uv run poe -q version)
+          echo "=== Would push: ==="
+          echo "  - Commit to main branch"
+          echo "  - Tag: magg/v${VERSION}"
+      
+      - name: Test PyPI publish (dry run)
+        if: ${{ inputs.dry_run }}
+        env:
+          PYPI_TOKEN: ${{ secrets.PYPI_TOKEN }}
+        run: |
+          echo "Would run: uv run poe pypi-publish"
+          echo "Dry run complete - no actual publish performed"
+      
+      - name: Cleanup
+        if: always()
+        run: |
+          git checkout -
+          git branch -D test-publish-${{ github.run_id }} || true

@@ -319,7 +319,10 @@ Documentation for proxy tool:
                     "name": server.name,
                     "source": server.source,
                     "prefix": server.prefix,
-                    "command": f"{server.command} {' '.join(server.args) if server.args else ''}".strip(),
+                    "command": (
+                        f"{server.command} {' '.join(server.args) if server.args else ''}".strip()
+                        if server.command else None
+                    ),
                     "uri": server.uri,
                     "working_dir": server.working_dir,
                     "notes": server.notes,

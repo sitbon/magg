@@ -1,4 +1,10 @@
-# MAGG - The MCP (Model Context Protocol) Aggregator
+# 🧲 MAGG - The MCP (Model Context Protocol) Aggregator
+
+[![Tests](https://img.shields.io/github/actions/workflow/status/sitbon/magg/test.yml?style=flat-square&label=tests)](https://github.com/sitbon/magg/actions/workflows/test.yml)
+[![Python Version](https://img.shields.io/pypi/pyversions/magg?style=flat-square&logo=python&logoColor=white)](https://pypi.org/project/magg/)
+[![PyPI Version](https://img.shields.io/pypi/v/magg?style=flat-square&logo=pypi&logoColor=white)](https://pypi.org/project/magg/)
+[![GitHub Release](https://img.shields.io/github/v/release/sitbon/magg?style=flat-square&logo=github)](https://github.com/sitbon/magg/releases)
+[![Downloads](https://img.shields.io/pypi/dm/magg?style=flat-square)](https://pypistats.org/packages/magg)
 
 An MCP server that manages and aggregates other MCP servers, enabling LLMs to dynamically extend their own capabilities.
 
@@ -26,8 +32,8 @@ Think of MAGG as a "package manager for LLM tools" - it lets AI assistants insta
 
 ### Prerequisites
 
-- Python 3.11 or higher
-- `uv` (recommended) or `pip`
+- Python 3.13 or higher
+- `uv`, `poetry`, or `pip`
 
 ### Run Directly from GitHub
 

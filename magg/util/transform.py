@@ -15,7 +15,7 @@ from pydantic import AnyUrl, ValidationError, BaseModel, TypeAdapter
 __all__ = (
     "ToolResult", "ResourceResult", "PromptResult", "ClientMCPResult",
     "is_mcp_result_json_typed", "extract_mcp_result_json",
-    "embed_python_object_in_resource", "embedded_resource_python_object",
+    "embed_python_object_in_resource", "get_embedded_resource_python_object",
     "resource_result_as_tool_result", "tool_result_as_resource_result",
     "prompt_result_as_tool_result", "tool_result_as_prompt_result",
     "annotate_content", "deserialize_embedded_resource_python_object",
@@ -148,7 +148,7 @@ def embed_python_object_list_in_resource(
     )
 
 
-def embedded_resource_python_object(
+def get_embedded_resource_python_object(
     data: EmbeddedResource,
         **check: str | None
 ) -> tuple[str, str, bool] | None:
@@ -160,8 +160,8 @@ def embedded_resource_python_object(
         check: Optional keyword arguments to filter annotations on.
 
     Returns:
-        tuple[str, str] | None: A tuple containing the Python type and JSON data if available,
-            otherwise None.
+        tuple[str, str, bool] | None: When available, a tuple containing the Python type,
+                                      raw JSON string, and a boolean indicating if it is a list.
     """
     object_info = None
 
@@ -296,6 +296,7 @@ def tool_result_as_resource_result(
 def prompt_result_as_tool_result(
         data: PromptResult,
         name: str,
+        **annotations,
 ) -> EmbeddedResource:
     """
     Converts a GetPromptResult into a tool result format.
@@ -307,16 +308,19 @@ def prompt_result_as_tool_result(
     Args:
         data: The GetPromptResult instance to convert.
         name: The name of the prompt, or any URI-compatible string to use as the resource URI.
+        annotations: Additional annotations to include in the result.
     """
     try:
         uri = AnyUrl(name)
     except ValidationError:
         uri = AnyUrl(f"urn:prompt:{name}")
 
+    annotations.setdefault("proxyType", "prompt")
+
     return embed_python_object_in_resource(
         obj=data,
         uri=uri,
-        proxyType="prompt",
+        **annotations,
     )
 
 
@@ -332,7 +336,7 @@ def tool_result_as_prompt_result(
     Returns:
         GetPromptResult | None: The original prompt call result, or None if the data is not a prompt result.
     """
-    if object_info := embedded_resource_python_object(data, proxy_type="prompt"):
+    if object_info := get_embedded_resource_python_object(data, proxyType="prompt"):
         python_type, json_data, many = object_info
 
         return deserialize_embedded_resource_python_object(

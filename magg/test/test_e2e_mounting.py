@@ -68,7 +68,7 @@ if __name__ == "__main__":
         config_path = config_dir / "config.json"
         with open(config_path, 'w') as f:
             json.dump({
-                'servers': {s.name: s.model_dump() for s in config.servers.values()}
+                'servers': {s.name: s.model_dump(mode="json") for s in config.servers.values()}
             }, f, indent=2)
 
         print(f"Config saved to: {config_path}")

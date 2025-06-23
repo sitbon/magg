@@ -1,12 +1,11 @@
-"""Output formatters for mbro."""
-
+"""Output formatters for mbro.
+"""
 import json
 import sys
 import traceback
 from typing import Any, List
 
-from mcp import GetPromptResult
-from mcp.types import Content, TextResourceContents, BlobResourceContents
+from mcp.types import Content, TextResourceContents, BlobResourceContents, GetPromptResult
 from rich.console import Console
 from rich.json import JSON
 from rich.table import Table
@@ -35,6 +34,7 @@ class OutputFormatter:
         if self.json_only:
             error_data = {"error": message}
             if exception:
+                # noinspection PyTypeChecker
                 error_data["exception"] = {
                     "type": type(exception).__name__,
                     "message": str(exception),
@@ -85,7 +85,7 @@ class OutputFormatter:
 
         if self.json_only:
             if isinstance(resource_data, str):
-                resource_dict = resource.model_dump(exclude_defaults=True, exclude_none=True, exclude_unset=True)
+                resource_dict = resource.model_dump(mode="json", exclude_defaults=True, exclude_none=True, exclude_unset=True)
             else:
                 resource_dict = resource_data
 
@@ -99,23 +99,11 @@ class OutputFormatter:
                 self.format_json(resource_data)
 
     def format_content(self, content: Content):
-        # Check for encapsulated prompt or resource (from proxy tool)
-        # (Now done in cli)
-        # if isinstance(content, EmbeddedResource):
-        #     # (1) try to decode as encapsulated prompt response, (2) try to decode as encapsulated resource response
-        #     if (prompt_result := tool_result_as_prompt_result(content)) is not None:
-        #         self.format_prompt_result(prompt_result)
-        #         return
-        #
-        #     if (resource_result := tool_result_as_resource_result(content)) is not None:
-        #         self.format_resource(resource_result)
-        #         return
-
         content_data = self.decode_content(content)
 
         if self.json_only:
             if isinstance(content_data, str):
-                content_dict = content.model_dump(exclude_defaults=True, exclude_none=True, exclude_unset=True)
+                content_dict = content.model_dump(mode="json", exclude_defaults=True, exclude_none=True, exclude_unset=True)
             else:
                 content_dict = content_data
 
@@ -137,7 +125,7 @@ class OutputFormatter:
             for resource in resources:
                 decoded = self.decode_resource(resource)
                 if isinstance(decoded, str):
-                    output.append(resource.model_dump(exclude_defaults=True, exclude_none=True, exclude_unset=True))
+                    output.append(resource.model_dump(mode="json", exclude_defaults=True, exclude_none=True, exclude_unset=True))
                 else:
                     output.append(decoded)
 
@@ -155,7 +143,7 @@ class OutputFormatter:
             for content in contents:
                 decoded = self.decode_content(content)
                 if isinstance(decoded, str):
-                    output.append(content.model_dump(exclude_defaults=True, exclude_none=True, exclude_unset=True))
+                    output.append(content.model_dump(mode="json", exclude_defaults=True, exclude_none=True, exclude_unset=True))
                 else:
                     output.append(decoded)
 
@@ -182,7 +170,7 @@ class OutputFormatter:
             # TODO: Find a way to indicate the mime type and/or base64 encoding?
             return resource.blob
 
-        return resource.model_dump(exclude_defaults=True, exclude_none=True, exclude_unset=True)
+        return resource.model_dump(mode="json", exclude_defaults=True, exclude_none=True, exclude_unset=True)
 
     @classmethod
     def decode_content(cls, content: Content) -> str | dict[str, Any] | list:
@@ -201,7 +189,7 @@ class OutputFormatter:
             case "resource":
                 return cls.decode_resource(content.resource)
 
-        return content.model_dump(exclude_defaults=True, exclude_none=True, exclude_unset=True)
+        return content.model_dump(mode="json", exclude_defaults=True, exclude_none=True, exclude_unset=True)
 
     def format_connections_table(self, connections: list[dict[str, Any]], *, extended: bool = False) -> None:
         """Format connections as a table.
@@ -422,10 +410,11 @@ class OutputFormatter:
     def format_prompt_result(self, result: GetPromptResult):
         """Format the result of a prompt call.
 
-        GetPromptResult has a description and messages, each message has "role" and "content" ("type" and "text" for Content, usually).
+        GetPromptResult has a description and messages.
+        Each message has "role" and "content" ("type" and "text" for Content, usually).
         """
         if self.json_only:
-            prompt_data = result.model_dump(exclude_none=True, exclude_defaults=True, exclude_unset=True, by_alias=True)
+            prompt_data = result.model_dump(mode="json", exclude_none=True, exclude_defaults=True, exclude_unset=True, by_alias=True)
             self.format_json(prompt_data)
         else:
             if result.description:
@@ -550,7 +539,7 @@ class OutputFormatter:
                         {"command": "connections, conns", "description": "List all connections"},
                         {"command": "switch <name>", "description": "Switch to a different connection"},
                         {"command": "disconnect <name>", "description": "Disconnect from a server"},
-                        {"command": "refresh", "description": "Refresh capabilities for current connection"}
+                        {"command": "status", "description": "Show current status"},
                     ],
                     "server_exploration": [
                         {"command": "tools [filter]", "description": "List available tools"},

@@ -11,7 +11,7 @@ import logging
 from . import __version__, process
 from .settings import ConfigManager, ServerConfig
 from .util.terminal import (
-    print_success, print_error, print_warning,
+    print_success, print_error, print_warning, print_startup_banner,
     print_info, print_server_list, print_status_summary, confirm_action
 )
 
@@ -23,15 +23,14 @@ logger: logging.Logger | None = logging.getLogger(__name__)
 
 async def cmd_serve(args) -> None:
     """Start MAGG server."""
-    from magg.server.runner import print_startup_banner
-    from magg.server.runner import ServerRunner
+    from magg.server.runner import MAGGRunner
 
     logger.info("Starting MAGG server (mode: %s)", 'http' if args.http else 'stdio')
 
     if args.http:
         print_startup_banner()
 
-    runner = ServerRunner(args.config)
+    runner = MAGGRunner(args.config)
 
     if args.http:
         logger.info("Starting HTTP server on %s:%s", args.host, args.port)
@@ -235,6 +234,7 @@ async def cmd_export(args) -> None:
     export_data = {
         'servers': {
             name: server.model_dump(
+                mode="json",
                 exclude_none=True, exclude_unset=True, exclude_defaults=True, by_alias=True
             )
             for name, server in config.servers.items()
@@ -363,7 +363,7 @@ def main():
         sys.exit(130)  # Standard exit code for SIGINT
     except Exception as e:
         print_error(f"Unexpected error: {e}")
-        if os.getenv('MAGG_DEBUG').lower() in {'1', 'true', 'yes'}:
+        if os.getenv('MAGG_DEBUG', '').lower() in {'1', 'true', 'yes'}:
             import traceback
             traceback.print_exc()
         sys.exit(1)

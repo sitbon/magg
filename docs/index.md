@@ -3,13 +3,15 @@
 ## Table of Contents
 
 1. [Overview](#overview)
-2. [Getting Started](#getting-started)
-3. [Usage Flows](#usage-flows)
-4. [Tools Reference](#tools-reference)
-5. [Resources Reference](#resources-reference)
-6. [Prompts Reference](#prompts-reference)
-7. [Example Sessions](#example-sessions)
-8. [Advanced Configuration](#advanced-configuration)
+2. [Project Components](#project-components)
+3. [Getting Started](#getting-started)
+4. [Usage Flows](#usage-flows)
+5. [Tools Reference](#tools-reference)
+6. [Resources Reference](#resources-reference)
+7. [Prompts Reference](#prompts-reference)
+8. [Proxy Documentation](#proxy-documentation)
+9. [Example Sessions](#example-sessions)
+10. [Advanced Configuration](#advanced-configuration)
 
 ## Overview
 
@@ -22,34 +24,91 @@ MAGG (MCP Aggregator) is a meta-MCP server that acts as a central hub for managi
 - **Mounting**: The process of connecting to an MCP server and exposing its tools
 - **Tool Delegation**: Proxying tool calls to the appropriate server
 
+## Project Components
+
+This project consists of three main components:
+
+### 1. MAGG (MCP Aggregator)
+The main server-of-servers that manages multiple MCP servers, providing:
+- Dynamic server discovery and configuration
+- Tool namespace management with prefixes
+- Unified access to tools from multiple servers
+- Server lifecycle management
+
+### 2. ProxyMCP
+A powerful proxy system that enables:
+- Tool-based access to all MCP capabilities (tools, resources, prompts)
+- Transparent proxying of MCP operations
+- Embedded resource responses for better LLM handling
+- Support for both FastMCP and standard MCP implementations
+
+### 3. MBRO (MCP Browser)
+A command-line tool for browsing and interacting with MCP servers:
+- Interactive command shell for exploring MCP capabilities
+- Browse tools, resources, and prompts from any MCP server
+- Execute operations with proper JSON argument formatting
+- Connect to multiple servers and switch between them
+
+**[MBRO Documentation](mbro.md)**: Complete guide for using the MBRO CLI tool
+
 ## Getting Started
+
+### Installation
+
+#### Recommended: Install with uv tool
+```bash
+uv tool install magg
+```
+
+#### Alternative Installation Methods
+
+**With Poetry:**
+```bash
+poetry add magg
+```
+
+**With pip:**
+```bash
+pip install magg
+```
+
+**Direct run without installation (requires uvx):**
+```bash
+# From PyPI
+uvx magg serve
+
+# From git repository
+uvx --from git+https://github.com/sitbon/magg.git magg serve
+```
 
 ### Quick Start with Claude Desktop
 
-1. Add MAGG to your Claude Desktop configuration:
-   ```json
-   {
-     "mcpServers": {
-       "magg": {
-         "command": "uvx",
-         "args": ["--from", "git+https://github.com/sitbon/magg.git", "magg", "serve"]
-       }
-     }
-   }
-   ```
+Add MAGG to your Claude Desktop configuration (no installation required):
 
-2. Restart Claude Desktop
+```json
+{
+  "mcpServers": {
+    "magg": {
+      "command": "uvx",
+      "args": ["magg", "serve"]
+    }
+  }
+}
+```
 
-3. Ask Claude to list available servers or search for tools
+Then restart Claude Desktop and ask Claude to list available servers or search for tools.
 
 ### Quick Start with Command Line
 
 ```bash
-# Run MAGG server
-uvx --from git+https://github.com/sitbon/magg.git magg
+# Run MAGG server in stdio mode (after installation)
+magg serve
 
 # Or for HTTP mode
-uvx --from git+https://github.com/sitbon/magg.git magg serve --http
+magg serve --http
+
+# Or run directly without installation (if you have uvx)
+uvx magg serve
 ```
 
 ## Usage Flows
@@ -154,10 +213,28 @@ Add a new MCP server to the configuration.
 ```json
 {
     "name": "playwright",
-    "url": "https://github.com/microsoft/playwright-mcp",
+    "source": "https://github.com/microsoft/playwright-mcp",
     "command": "npx @playwright/mcp@latest",
     "prefix": "pw",
     "notes": "Browser automation tools"
+}
+```
+
+**Returns:**
+```json
+{
+    "action": "server_added",
+    "server": {
+        "name": "playwright",
+        "source": "https://github.com/microsoft/playwright-mcp",
+        "prefix": "pw",
+        "command": "npx @playwright/mcp@latest",
+        "uri": null,
+        "working_dir": null,
+        "notes": "Browser automation tools",
+        "enabled": true,
+        "mounted": true
+    }
 }
 ```
 
@@ -170,17 +247,16 @@ Remove a server from the configuration.
 #### `magg_list_servers`
 List all configured servers with their status.
 
-**Returns:**
+**Returns:** List of server objects with their current status
 ```json
-{
-    "servers": [{
-        "name": "calculator",
-        "url": "...",
-        "prefix": "calc",
-        "enabled": true,
-        "mounted": true
-    }]
-}
+[{
+    "name": "calculator",
+    "source": "https://github.com/wrtnlabs/calculator-mcp",
+    "prefix": "calc",
+    "enabled": true,
+    "mounted": true,
+    "command": "npx -y @wrtnlabs/calculator-mcp@latest"
+}]
 ```
 
 #### `magg_enable_server` / `magg_disable_server`
@@ -201,30 +277,18 @@ Search for MCP servers across multiple sources.
 **Returns:**
 ```json
 {
+    "query": "browser playwright",
     "results": [{
+        "source": "github",
         "name": "Playwright MCP",
         "description": "Browser automation...",
         "url": "https://github.com/microsoft/playwright-mcp",
-        "source": "github",
         "install_command": "npm install @playwright/mcp"
-    }]
-}
-```
-
-#### `magg_list_tools`
-List all available tools from all mounted servers.
-
-**Returns:**
-```json
-{
-    "tool_groups": [{
-        "prefix": "calc",
-        "tools": ["calc_add", "calc_subtract", ...],
-        "count": 6
     }],
-    "total_tools": 15
+    "total": 1
 }
 ```
+
 
 ### Configuration Tools
 
@@ -232,15 +296,46 @@ List all available tools from all mounted servers.
 Intelligently configure a server from just a URL using MCP sampling.
 
 **Parameters:**
-- `url` (str, required): URL of the server
-- `server_name` (str, optional): Preferred server name
+- `source` (str, required): URL of the server package/repository
+- `server_name` (str, optional): Preferred server name (auto-generated if not provided)
+- `allow_add` (bool, optional): Whether to automatically add the server after configuration (default: False)
 
-**Note:** Requires MCP client support for sampling.
+**Note:** Requires MCP client support for sampling. If `allow_add` is True, the server will be automatically added with the generated configuration.
 
 #### `magg_analyze_servers`
 Analyze configured servers and provide insights/recommendations.
 
 **Note:** Requires MCP client support for sampling.
+
+### Proxy Tool
+
+#### `proxy`
+Universal proxy tool for accessing all MCP capabilities through a tool interface.
+
+**Parameters:**
+- `action` (str, required): Operation to perform - "list", "info", or "call"
+- `type` (str, required): Capability type - "tool", "resource", or "prompt"
+- `path` (str, optional): Name/URI of the specific capability (required for "info" and "call")
+- `args` (object, optional): Arguments to pass when calling a capability
+
+**Examples:**
+
+List all available tools:
+```json
+{"action": "list", "type": "tool"}
+```
+
+Get info about a specific resource:
+```json
+{"action": "info", "type": "resource", "path": "file:///example.txt"}
+```
+
+Call a tool with arguments:
+```json
+{"action": "call", "type": "tool", "path": "calc_add", "args": {"a": 5, "b": 3}}
+```
+
+**Note:** The proxy tool enables access to resources and prompts even when the LLM client doesn't natively support them.
 
 ## Resources Reference
 
@@ -263,7 +358,62 @@ Get metadata for all configured servers.
 ### `configure_server`
 Interactive prompt for configuring a server with LLM assistance.
 
-**Usage:** The LLM can use this prompt to help determine optimal configuration for a server based on its URL.
+**Parameters:**
+- `source` (str, required): URL of the server to configure
+- `server_name` (str, optional): Optional server name
+
+**Returns:** A prompt template that guides the LLM to analyze the URL and generate optimal server configuration.
+
+**Usage:** The LLM can use this prompt to help determine optimal configuration for a server based on its URL. The prompt includes metadata collection and guides the LLM to generate a complete JSON configuration.
+
+## Proxy Documentation
+
+MAGG includes a powerful tool called `proxy` that provides tool-based access to all MCP capabilities. The proxy enables LLMs to interact with resources and prompts through a tool interface, making all MCP operations accessible even when the client doesn't support direct resource or prompt access.
+
+### Key Features
+- **Unified Interface**: Access tools, resources, and prompts through a single `proxy` tool
+- **Transparent Proxying**: Maintains full compatibility with the MCP protocol
+- **Embedded Resources**: Returns resources as embedded content for better LLM handling
+- **Type Safety**: Includes metadata annotations for operation tracking
+
+### Documentation
+- **[Proxy User Guide](proxy.md)**: Comprehensive guide for using the proxy tool
+- **[Proxy Specification](proxy-spec.md)**: Technical specification and implementation details
+
+### Using the Proxy Tool
+
+The `proxy` tool accepts a JSON object as its arguments. Here are some examples:
+
+**List all tools from mounted servers:**
+```json
+{
+  "action": "list",
+  "type": "tool"
+}
+```
+
+**Call a specific tool through the proxy:**
+```json
+{
+  "action": "call",
+  "type": "tool",
+  "path": "calc_add",
+  "args": {"a": 5, "b": 3}
+}
+```
+
+**Read a resource:**
+```json
+{
+  "action": "call",
+  "type": "resource",
+  "path": "file:///example.txt"
+}
+```
+
+When using MAGG through an LLM interface (like Claude), you would call it like:
+- Tool name: `proxy`
+- Arguments: One of the JSON objects shown above
 
 ## Example Sessions
 
@@ -273,7 +423,7 @@ See [examples.md](examples.md) for detailed example sessions demonstrating MAGG'
 
 ### Server Configuration File
 
-Servers are stored in the current directory under `.magg/servers.json`:
+Servers are stored in the current directory under `.magg/config.json`:
 
 ```json
 {
@@ -320,7 +470,7 @@ For servers requiring special setup:
      "source": "docker://myimage:tag", 
      "prefix": "myimage",
      "command": "docker run -i myimage:tag",
-     "env_vars": {
+     "env": {
        "DOCKER_HOST": "unix:///var/run/docker.sock"
      }
    }

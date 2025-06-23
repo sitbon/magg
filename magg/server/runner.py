@@ -2,33 +2,52 @@
 """
 import asyncio
 import logging
-import os
 import signal
-import sys
 from contextlib import asynccontextmanager
-from typing import Optional
+from functools import cached_property
+from typing import Callable, Coroutine
 
-from magg.server import MAGGServer
+from fastmcp import Client
+from fastmcp.client import FastMCPTransport
+
+from .server import MAGGServer
 
 logger = logging.getLogger(__name__)
 
 
-class ServerRunner:
+class MAGGRunner:
     """Manages MAGG server lifecycle with proper signal handling."""
+    _config_path: str | None
+    _server: MAGGServer | None
+    _shutdown_event: asyncio.Event
+    _original_sigint: Callable | None
+    _original_sigterm: Callable | None
+    _hook_signals: bool
 
-    def __init__(self, config_path: Optional[str] = None):
-        self.config_path = config_path
-        self.server: Optional[MAGGServer] = None
-        self.shutdown_event = asyncio.Event()
+    def __init__(self, config_path: str | None = None, *, hook_signals: bool = True):
+        self._config_path = config_path
+        self._server = None
+        self._shutdown_event = asyncio.Event()
         self._original_sigint = None
         self._original_sigterm = None
+        self._hook_signals = hook_signals
 
+    @cached_property
+    def client(self) -> Client:
+        """Create an in-memory client connected to the MAGG server. [cached]"""
+        return Client(FastMCPTransport(self._server.mcp))
+
+    @property
+    def server(self) -> MAGGServer | None:
+        """Get the current MAGG server instance."""
+        return self._server
+
+    # noinspection PyUnusedLocal
     def _handle_signal(self, signum, frame):
         """Handle shutdown signals gracefully."""
         signame = signal.Signals(signum).name
-        print(f"\n\nReceived {signame}, shutting down gracefully...", file=sys.stderr)
-        print("Please wait for cleanup to complete.", file=sys.stderr)
-        self.shutdown_event.set()
+        logger.info("Received signal %s, shutting down gracefully...", signame)
+        self._shutdown_event.set()
 
         # Prevent multiple signal handlers from firing
         signal.signal(signal.SIGINT, signal.SIG_IGN)
@@ -36,136 +55,73 @@ class ServerRunner:
 
     def _setup_signal_handlers(self):
         """Setup signal handlers for graceful shutdown."""
-        # Store original handlers
-        self._original_sigint = signal.signal(signal.SIGINT, self._handle_signal)
-        self._original_sigterm = signal.signal(signal.SIGTERM, self._handle_signal)
+        if self._hook_signals:
+            self._original_sigint = signal.signal(signal.SIGINT, self._handle_signal)
+            self._original_sigterm = signal.signal(signal.SIGTERM, self._handle_signal)
 
     def _restore_signal_handlers(self):
         """Restore original signal handlers."""
-        if self._original_sigint:
-            signal.signal(signal.SIGINT, self._original_sigint)
-        if self._original_sigterm:
-            signal.signal(signal.SIGTERM, self._original_sigterm)
+        if self._hook_signals:
+            if self._original_sigint:
+                signal.signal(signal.SIGINT, self._original_sigint)
+            if self._original_sigterm:
+                signal.signal(signal.SIGTERM, self._original_sigterm)
 
     @asynccontextmanager
-    async def server_context(self):
+    async def _server_context(self):
         """Context manager for server lifecycle."""
+        if self._server:
+            raise RuntimeError("Server is already running")
+
+        self._setup_signal_handlers()
+
         try:
-            # Create and setup server
-            self.server = MAGGServer(self.config_path)
-            await self.server.setup()
-            yield self.server
+            self._server = MAGGServer(self._config_path)
+            await self._server.setup()
+            yield self._server
         finally:
-            # Cleanup
-            if self.server:
-                # Any cleanup needed
+            self._restore_signal_handlers()
+
+            if self._server:
+                self._server = None
+
+    async def _serve(self, coro: Coroutine):
+        server_task = asyncio.create_task(coro)
+        shutdown_task = asyncio.create_task(self._shutdown_event.wait())
+
+        done, pending = await asyncio.wait(
+            [server_task, shutdown_task],
+            return_when=asyncio.FIRST_COMPLETED
+        )
+
+        for task in pending:
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
                 pass
+
+        for task in done:
+            if task is server_task and task.exception():
+                logger.error("Server task failed with exception: %s", task.exception())
+                raise task.exception()
 
     async def run_stdio(self):
         """Run server in stdio mode with proper signal handling."""
-        self._setup_signal_handlers()
-
         try:
-            async with self.server_context() as server:
-                print("MAGG server started in stdio mode", file=sys.stderr)
-                print("Ready for MCP client connections...", file=sys.stderr)
-                print("Press Ctrl+C to stop gracefully", file=sys.stderr)
-
-                # Create task for the server
-                server_task = asyncio.create_task(server.run_stdio())
-                shutdown_task = asyncio.create_task(self.shutdown_event.wait())
-
-                # Wait for either completion or shutdown
-                done, pending = await asyncio.wait(
-                    [server_task, shutdown_task],
-                    return_when=asyncio.FIRST_COMPLETED
-                )
-
-                # Cancel pending tasks
-                for task in pending:
-                    task.cancel()
-                    try:
-                        await task
-                    except asyncio.CancelledError:
-                        pass
-
-                # Check if server task had an error
-                for task in done:
-                    if task is server_task and task.exception():
-                        logger.error("Server task failed with exception: %s", task.exception())
-                        raise task.exception()
+            async with self._server_context() as server:
+                logger.debug("Starting MAGG server in stdio mode")
+                await self._serve(server.run_stdio())
 
         finally:
-            self._restore_signal_handlers()
             logger.debug("MAGG server stopped")
-            # print("\nMAGG server stopped.", file=sys.stderr)
 
     async def run_http(self, host: str = "localhost", port: int = 8000):
         """Run server in HTTP mode with proper signal handling."""
-        self._setup_signal_handlers()
-
         try:
-            async with self.server_context() as server:
+            async with self._server_context() as server:
                 logger.debug("Starting MAGG HTTP server on %s:%s", host, port)
-                # print(f"Starting MAGG HTTP server on {host}:{port}", file=sys.stderr)
-                # print(f"Server URL: http://{host}:{port}/", file=sys.stderr)
-                # print("Press Ctrl+C to stop gracefully", file=sys.stderr)
-                # print("-" * 50, file=sys.stderr)
-
-                # Create task for the server
-                server_task = asyncio.create_task(server.run_http(host, port))
-                shutdown_task = asyncio.create_task(self.shutdown_event.wait())
-
-                # Wait for either completion or shutdown
-                done, pending = await asyncio.wait(
-                    [server_task, shutdown_task],
-                    return_when=asyncio.FIRST_COMPLETED
-                )
-
-                # Cancel pending tasks
-                for task in pending:
-                    task.cancel()
-                    try:
-                        await task
-                    except asyncio.CancelledError:
-                        pass
-
-                # Check if server task had an error
-                for task in done:
-                    if task is server_task and task.exception():
-                        logger.error("HTTP server task failed with exception: %s", task.exception())
-                        raise task.exception()
+                await self._serve(server.run_http(host, port))
 
         finally:
-            self._restore_signal_handlers()
             logger.debug("MAGG HTTP server stopped")
-            # print("\nMAGG HTTP server stopped.", file=sys.stderr)
-
-
-def print_startup_banner():
-    """Print a nice startup banner."""
-    banner = """
-╔═══════════════════════════════════════════════════╗
-║                                                   ║
-║        ███╗   ███╗ █████╗  ██████╗  ██████╗       ║
-║        ████╗ ████║██╔══██╗██╔════╝ ██╔════╝       ║
-║        ██╔████╔██║███████║██║  ███╗██║  ███╗      ║
-║        ██║╚██╔╝██║██╔══██║██║   ██║██║   ██║      ║
-║        ██║ ╚═╝ ██║██║  ██║╚██████╔╝╚██████╔╝      ║
-║        ╚═╝     ╚═╝╚═╝  ╚═╝ ╚═════╝  ╚═════╝       ║
-║                                                   ║
-║          MCP Aggregator - Tool Ecosystem          ║
-║   Organizing and Managing Your MCP Environment    ║
-╚═══════════════════════════════════════════════════╝
-"""
-    if not os.environ.get("MAGG_QUIET", "").lower() in ("1", "true", "yes"):
-        if os.environ.get("NO_RICH", "").lower() in ("1", "true", "yes"):
-            print(banner, file=sys.stderr)
-        else:
-            try:
-                from rich.console import Console
-                console = Console(file=sys.stderr, width=80)
-                # style the banner with rich
-                console.print(banner, style="bold cyan purple italic")
-            except ImportError:
-                print(banner, file=sys.stderr)

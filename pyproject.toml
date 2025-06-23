@@ -1,6 +1,6 @@
 [project]
 name = "magg"
-version = "0.3.6.30"
+version = "0.4.0.30"
 requires-python = ">=3.13"
 description = "MCP Aggregator"
 authors = [{ name = "Phillip Sitbon", email = "phillip.sitbon@gmail.com"}]
@@ -46,12 +46,16 @@ dependencies = [
     "aiohttp<4",
     "pydantic<3",
     "pydantic-settings<3",
-    "rich>=14.0.0",
-    "asgiref>=3.8.1",
+    "rich<15",
+    "prompt-toolkit<4",
 ]
 
 [project.urls]
-Repository = "https://github.com/sitbon/magg"
+Homepage = "https://github.com/sitbon/magg"
+Repository = "https://github.com/sitbon/magg.git"
+Documentation = "https://github.com/sitbon/magg#readme"
+Issues = "https://github.com/sitbon/magg/issues"
+"Release Notes" = "https://github.com/sitbon/magg/releases"
 
 [project.scripts]
 magg = "magg.cli:main"
@@ -61,9 +65,6 @@ mbro = "magg.mbro.cli:main"
 test = [
     "pytest>=8.4.0",
     "pytest-asyncio>=1.0.0",
-    "prompt-toolkit>=3.0.51",
-]
-mbro = [
     "prompt-toolkit>=3.0.51",
 ]
 
@@ -81,6 +82,8 @@ dev = [
 verbosity = -1
 
 [tool.poe.tasks]
+fix-whitespace.cmd = "python scripts/fix_whitespace.py"
+
 git_commit_num.cmd = "git rev-list --count HEAD"
 git_commit_sha.cmd = "git show --pretty=format:'%H' --no-patch"
 version.cmd = "uv version --short"

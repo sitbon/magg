@@ -9,6 +9,10 @@ from typing import Any, ClassVar
 from pydantic import field_validator, Field, model_validator, AnyUrl
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from .util.system import get_project_root
+
+__all__ = "ServerConfig", "MAGGConfig", "ConfigManager"
+
 
 class ServerConfig(BaseSettings):
     """Server configuration - defines how to run an MCP server."""
@@ -36,7 +40,7 @@ class ServerConfig(BaseSettings):
     args: list[str] | None = Field(None, description="Command arguments")
     uri: str | None = Field(None, description="URI for HTTP servers")
     env: dict[str, str] | None = Field(None, description="Environment variables")
-    working_dir: str | None = Field(None, description="Working directory")
+    working_dir: Path | None = Field(None, description="Working directory")
     transport: dict[str, Any] | None = Field(None, description="Transport-specific configuration")
     enabled: bool = Field(True, description="Whether server is enabled")
 
@@ -111,7 +115,7 @@ class MAGGConfig(BaseSettings):
     )
 
     config_path: Path = Field(
-        default_factory=lambda: Path.cwd() / ".magg" / "config.json",
+        default_factory=lambda: get_project_root() / ".magg" / "config.json",
         description="Configuration file path (can be overridden by MAGG_CONFIG_PATH)"
     )
     quiet: bool = Field(default=False, description="Suppress output unless errors occur (env: MAGG_QUIET)")
@@ -167,7 +171,7 @@ class MAGGConfig(BaseSettings):
 class ConfigManager:
     """Manages MAGG configuration persistence."""
 
-    def __init__(self, config_path: str | None = None):
+    def __init__(self, config_path: Path | str | None = None):
         """Initialize config manager."""
         # Load base settings (gets env vars)
         self.settings = MAGGConfig()
@@ -230,6 +234,7 @@ class ConfigManager:
             data = {
                 'servers': {
                     name: server.model_dump(
+                        mode="json",
                         exclude_unset=True, exclude_none=True, exclude_defaults=True, by_alias=True,
                         exclude={'name'},
                     )

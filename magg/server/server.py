@@ -6,33 +6,28 @@ import os
 import re
 from functools import wraps
 from pathlib import Path
-from typing import Any, Annotated, TypeAlias
+from typing import Any, Annotated
 
 from fastmcp import Context
-from mcp.types import PromptMessage, TextContent, EmbeddedResource
+from mcp.types import PromptMessage, TextContent
 from pydantic import Field, AnyUrl
 
 from .defaults import MAGG_ADD_SERVER_DOC, PROXY_TOOL_DOC
-from .manager import ServerManager
-from .proxy import ProxyMCP
+from .manager import ServerManager, ManagedServer
 from .response import MAGGResponse
 from ..discovery.metadata import CatalogManager, SourceMetadataCollector
 from ..settings import ConfigManager, ServerConfig
-from ..util import (
-    validate_working_directory,
-    TRANSPORT_DOCS,
-)
+from ..util.transport import TRANSPORT_DOCS
+from ..util.uri import validate_working_directory
 
-JSONToolResponse: TypeAlias = TextContent | EmbeddedResource
-LOG = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
 
 
-# noinspection PyMethodMayBeStatic
-class MAGGServer(ProxyMCP):
+class MAGGServer(ManagedServer):
     """Main MAGG server with tools for managing other MCP servers."""
     _is_setup = False
 
-    def __init__(self, config_path: str | None = None):
+    def __init__(self, config_path: Path | str | None = None):
         super().__init__(ServerManager(ConfigManager(config_path)))
         self._register_tools()
 
@@ -73,7 +68,6 @@ class MAGGServer(ProxyMCP):
 
         self._register_resources()
         self._register_prompts()
-        self._register_proxy_tool()
 
     def _register_resources(self):
         """Register MCP resources for server metadata.
@@ -109,7 +103,7 @@ class MAGGServer(ProxyMCP):
 
         if name in config.servers:
             server = config.servers[name]
-            return server.model_dump(exclude_none=True, exclude_defaults=True, exclude_unset=True, by_alias=True)
+            return server.model_dump(mode="json", exclude_none=True, exclude_defaults=True, exclude_unset=True, by_alias=True)
 
         raise ValueError(f"Server '{name}' not found in configuration")
 
@@ -119,6 +113,7 @@ class MAGGServer(ProxyMCP):
 
         return {
             name: server.model_dump(
+                mode="json",
                 exclude_none=True,
                 exclude_defaults=True,
                 exclude_unset=True,
@@ -132,7 +127,8 @@ class MAGGServer(ProxyMCP):
     # region MCP Prompt Methods - Templates for LLM-assisted configuration
     # ============================================================================
 
-    def _format_metadata_for_prompt(self, metadata_entries: list[dict]) -> str:
+    @classmethod
+    def _format_metadata_for_prompt(cls, metadata_entries: list[dict]) -> str:
         """Format metadata entries into a readable string for prompts."""
         lines = []
         for entry in metadata_entries:
@@ -166,7 +162,6 @@ class MAGGServer(ProxyMCP):
         self,
         source: Annotated[str, Field(description="URL of the server to configure")],
         server_name: Annotated[str | None, Field(description="Optional server name")] = None,
-        context: Context | None = None,
     ) -> list[PromptMessage]:
         """Generate an enriched prompt template for configuring a server from a URL.
 
@@ -278,11 +273,11 @@ Documentation for proxy tool:
                     actual_command = parts[0]
                     actual_args = None
 
-            if actual_command and working_dir:
+            if working_dir:
                 validated_dir, error = validate_working_directory(working_dir, source)
                 if error:
                     return MAGGResponse.error(error)
-                working_dir = str(validated_dir)
+                working_dir = validated_dir
 
             try:
                 server = ServerConfig(
@@ -380,7 +375,7 @@ Documentation for proxy tool:
                 if server.uri:
                     server_data["uri"] = server.uri
                 if server.working_dir:
-                    server_data["working_dir"] = server.working_dir
+                    server_data["working_dir"] = str(server.working_dir)
                 if server.notes:
                     server_data["notes"] = server.notes
 
@@ -622,6 +617,7 @@ Documentation for proxy tool:
         except Exception as e:
             return MAGGResponse.error(f"Smart configuration failed: {str(e)}")
 
+    # noinspection PyMethodMayBeStatic
     async def search_servers(
         self,
         query: Annotated[str, Field(description="Search query for MCP servers")],
@@ -718,19 +714,27 @@ Please provide:
     # ============================================================================
 
     async def setup(self):
-        """Initialize MAGG and mount existing servers."""
+        """Initialize MAGG and mount existing servers.
+
+        This is called automatically by run_stdio() and run_http().
+        For in-memory usage via FastMCPTransport, call this manually:
+
+            server = MAGGServer()
+            await server.setup()
+            client = Client(FastMCPTransport(server.mcp))
+        """
         if not self._is_setup:
             self._is_setup = True
             await self.server_manager.mount_all_enabled()
 
     async def run_stdio(self):
         """Run MAGG in stdio mode."""
-        assert self._is_setup, "MAGG must be set up before running"
+        await self.setup()
         await self.mcp.run_stdio_async()
 
     async def run_http(self, host: str = "localhost", port: int = 8000):
         """Run MAGG in HTTP mode."""
-        assert self._is_setup, "MAGG must be set up before running"
+        await self.setup()
         await self.mcp.run_http_async(host=host, port=port, log_level="WARNING")
 
     # ============================================================================

@@ -1,6 +1,6 @@
 # mbro - MCP Browser and Management Tool
 
-`mbro` (MCP Browser) is a command-line tool for browsing, managing, and interacting with MCP (Model Context Protocol) servers. It provides an interactive REPL interface for exploring MCP capabilities and executing tools.
+`mbro` (MCP Browser) is a command-line tool for browsing, managing, and interacting with MCP (Model Context Protocol) servers. It provides an interactive command shell for exploring MCP capabilities and executing tools.
 
 ## Overview
 
@@ -14,12 +14,27 @@
 
 `mbro` is included as part of the MAGG package:
 
+### Recommended: Install with uv tool
 ```bash
-# Install via pip
-pip install magg
+uv tool install magg
+```
 
-# Or use uvx for isolated execution
-uvx magg mbro
+### Alternative Installation Methods
+
+**With Poetry:**
+```bash
+poetry add magg
+```
+
+**With pip:**
+```bash
+pip install magg
+```
+
+**Direct run without installation (requires uvx):**
+```bash
+# Run mbro directly
+uvx --from magg mbro
 ```
 
 ## Quick Start
@@ -54,7 +69,7 @@ mbro:memory> tools
 # Get detailed information about a tool
 mbro:memory> tool create_memory
 
-# Call a tool with arguments (no quotes needed in REPL)
+# Call a tool with arguments (no quotes needed in interactive mode)
 mbro:memory> call create_memory {"content": "Remember this important note"}
 
 # List resources
@@ -72,13 +87,13 @@ mbro:memory> prompt summarize {"topic": "recent_memories"}
 
 ## Commands Reference
 
-### Server Management
+### Connection Management
 
 | Command | Description | Example |
 |---------|-------------|---------|
-| `servers` | List configured servers | `servers` |
-| `server <name>` | Show server details | `server memory` |
-| `connect <server>` | Connect to a server | `connect "npx calculator"` |
+| `connections` | List all connections | `connections` |
+| `connect <name> <connection>` | Connect to a server | `connect calc "npx @modelcontextprotocol/server-calculator"` |
+| `switch <name>` | Switch to another connection | `switch calc` |
 | `disconnect` | Disconnect from current server | `disconnect` |
 
 ### Tool Operations
@@ -86,16 +101,14 @@ mbro:memory> prompt summarize {"topic": "recent_memories"}
 | Command | Description | Example |
 |---------|-------------|---------|
 | `tools` | List all available tools | `tools` |
-| `tool <name>` | Show tool details | `tool add_numbers` |
-| `call <tool> <args>` | Execute a tool | `call add_numbers {"a": 5, "b": 3}` |
+| `call <tool> <args>` | Execute a tool | `call add {"a": 5, "b": 3}` |
 
 ### Resource Operations
 
 | Command | Description | Example |
 |---------|-------------|---------|
 | `resources` | List all resources | `resources` |
-| `resource <uri>` | Show resource details | `resource file:///data.txt` |
-| `read <uri>` | Read resource content | `read memory://notes/latest` |
+| `resource <uri>` | Read resource content | `resource file:///data.txt` |
 
 ### Prompt Operations
 
@@ -104,21 +117,18 @@ mbro:memory> prompt summarize {"topic": "recent_memories"}
 | `prompts` | List all prompts | `prompts` |
 | `prompt <name> [args]` | Execute a prompt | `prompt code_review {"file": "main.py"}` |
 
-### Search and Discovery
+### Search and Information
 
 | Command | Description | Example |
 |---------|-------------|---------|
-| `search <query>` | Search for MCP servers | `search weather` |
-| `install <server>` | Install and connect to server | `install @example/weather-mcp` |
+| `search <query>` | Search tools, resources, and prompts | `search add` |
+| `info <type> <name>` | Get detailed info | `info tool add` |
+| `status` | Show connection status | `status` |
 
 ### Utility Commands
 
 | Command | Description | Example |
 |---------|-------------|---------|
-| `help` | Show help message | `help` |
-| `debug` | Toggle debug mode | `debug` |
-| `clear` | Clear the screen | `clear` |
-| `history` | Show command history | `history` |
 | `exit` / `quit` | Exit mbro | `exit` |
 
 ## Advanced Features
@@ -128,7 +138,7 @@ mbro:memory> prompt summarize {"topic": "recent_memories"}
 mbro supports multiple ways to provide tool arguments:
 
 ```bash
-# In the REPL, use JSON directly (no surrounding quotes)
+# In interactive mode, use JSON directly (no surrounding quotes)
 call search {"query": "python tutorials", "limit": 10}
 
 # Complex nested structures
@@ -166,6 +176,44 @@ mbro --connect local "./my-mcp-server --port 8080"
 # UV/UVX packages
 mbro --connect server "uvx myserver"
 ```
+
+### Async Python REPL
+
+For advanced users and debugging, mbro includes an async Python REPL mode that provides direct access to the underlying MCP client connection:
+
+```bash
+# Start mbro with Python REPL mode
+mbro --connect myserver "npx some-server" --repl
+```
+
+In the Python REPL, you have access to:
+- `current_connection`: The active MCP connection object
+- `self`: The MCPBrowserCLI instance for executing commands
+- All standard Python functionality with async/await support
+
+Example REPL session:
+```python
+>>> # Direct access to the current connection
+>>> tools = await current_connection.list_tools()
+>>> print(tools[0].name)
+'add'
+
+>>> # Execute mbro commands via self
+>>> await self.handle_command('tools')
+Available tools:
+  - add: Add two numbers
+  ...
+
+>>> # Call a tool directly
+>>> result = await current_connection.call_tool('add', {'a': 5, 'b': 3})
+>>> print(result)
+[TextContent(type='text', text='8')]
+```
+
+This is particularly useful for:
+- Testing and debugging MCP servers
+- Exploring the raw MCP protocol responses
+- Building custom scripts and automation
 
 ## Integration with MAGG
 
@@ -293,20 +341,25 @@ echo $result | jq '.'
 
 ## Tips and Tricks
 
-1. **Tab Completion**: mbro supports tab completion for commands and tool names
-2. **History**: Use up/down arrows to navigate command history
-3. **JSON in REPL vs Command Line**: In the REPL, use JSON directly without surrounding quotes. On the command line, you may need single quotes to protect from shell parsing.
-4. **Command Line Options**: 
+1. **Tab Completion**: mbro supports tab completion for commands (not tool names)
+2. **JSON in Interactive Shell vs Command Line**: In the interactive shell, use JSON directly without surrounding quotes. On the command line, you may need single quotes to protect from shell parsing.
+3. **Multiple Connections**: You can connect to multiple servers and switch between them using the `switch` command.
+4. **Direct Commands**: Use command line options like `--call-tool` to execute operations without entering the interactive shell.
+5. **Empty Arguments**: When calling tools with no arguments, you can omit the empty `{}` in the interactive shell
+
+### Command Line Options 
    - `--connect NAME CONNECTION` - Connect to a server on startup
    - `--json` - Output only JSON (machine-readable)
    - `--no-rich` - Disable Rich formatting
    - `--indent N` - Set JSON indent level (0 for compact)
+   - `--repl` - Start in async Python REPL mode instead of command shell
    - `--list-connections` - List all available connections
    - `--list-tools` - List available tools
    - `--list-resources` - List available resources  
    - `--list-prompts` - List available prompts
    - `--call-tool TOOL [ARGS]` - Call a tool directly (use quotes for JSON args on command line)
    - `--get-resource URI` - Get a resource directly
+   - `--get-prompt NAME [ARGS]` - Get a prompt directly
    - `--search TERM` - Search tools, resources, and prompts
    - `--info TYPE NAME` - Show info about tool/resource/prompt
    - `--help` - Show help message
@@ -317,7 +370,7 @@ echo $result | jq '.'
 
 1. **Connection Failed**: Ensure the MCP server is installed and the command is correct
 2. **Tool Not Found**: Use `tools` to list available tools and check the exact name
-3. **Invalid Arguments**: Tool arguments must be valid JSON. In the REPL, don't surround JSON with quotes.
+3. **Invalid Arguments**: Tool arguments must be valid JSON. In the interactive shell, don't surround JSON with quotes.
 4. **Permission Denied**: Some servers require specific permissions or environment variables
 
 ## See Also

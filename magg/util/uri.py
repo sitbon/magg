@@ -4,6 +4,10 @@ from pathlib import Path
 from urllib.parse import urlparse, unquote
 import os
 
+from .system import get_project_root, is_subdirectory
+
+__all__ = "extract_directory_from_uri", "validate_working_directory"
+
 
 def extract_directory_from_uri(uri: str) -> Path | None:
     """Extract a directory path from a URI.
@@ -38,33 +42,6 @@ def extract_directory_from_uri(uri: str) -> Path | None:
         return None
 
 
-def is_subdirectory(child: Path, parent: Path) -> bool:
-    """Check if child is a subdirectory of parent.
-
-    Args:
-        child: Potential subdirectory path
-        parent: Parent directory path
-
-    Returns:
-        True if child is same as or subdirectory of parent
-    """
-    try:
-        # Resolve to absolute paths
-        child_abs = child.resolve()
-        parent_abs = parent.resolve()
-
-        # Check if child is same as or starts with parent
-        return child_abs == parent_abs or parent_abs in child_abs.parents
-    except (OSError, RuntimeError):
-        # Path resolution failed
-        return False
-
-
-def get_project_root() -> Path:
-    """Get the current project root (where .magg directory is)."""
-    return Path.cwd()
-
-
 def validate_working_directory(working_dir: Path | str | None, source_uri: str | None) -> tuple[Path | None, str | None]:
     """Validate and normalize working directory for a server.
 
@@ -75,21 +52,14 @@ def validate_working_directory(working_dir: Path | str | None, source_uri: str |
     Returns:
         Tuple of (normalized_path or None, error_message or None)
     """
+    if working_dir is None:
+        # No validation needed if no working_dir provided
+        return None, None
+
     project_root = get_project_root()
 
-    # Parse source URI to get source directory
-    source_dir = extract_directory_from_uri(source_uri) if source_uri else None
-
-    if working_dir is None:
-        # No working_dir provided - try to use source directory
-        if source_dir is None:
-            return None, "Working directory required for remote sources"
-
-        # Use source directory as working directory
-        working_dir = source_dir
-    else:
-        # Normalize the provided path
-        working_dir = Path(working_dir)
+    # Normalize the provided path
+    working_dir = Path(working_dir)
 
     # Make absolute if relative
     if not working_dir.is_absolute():
@@ -112,10 +82,12 @@ def validate_working_directory(working_dir: Path | str | None, source_uri: str |
     if working_dir == project_root:
         return None, "Working directory cannot be the project root"
 
-    # If source has a directory, validate relationship
-    if source_dir is not None:
-        source_dir_abs = source_dir.resolve()
-        if not is_subdirectory(working_dir, source_dir_abs):
-            return None, f"Working directory must be within source directory: {source_dir_abs}"
+    # If source has a local directory, validate relationship
+    if source_uri:
+        source_dir = extract_directory_from_uri(source_uri)
+        if source_dir is not None:
+            source_dir_abs = source_dir.resolve()
+            if not is_subdirectory(working_dir, source_dir_abs):
+                return None, f"Working directory must be within source directory: {source_dir_abs}"
 
     return working_dir, None

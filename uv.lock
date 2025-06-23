@@ -98,15 +98,6 @@ wheels = [
 ]
 
 [[package]]
-name = "asgiref"
-version = "3.8.1"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/29/38/b3395cc9ad1b56d2ddac9970bc8f4141312dbaec28bc7c218b0dfafd0f42/asgiref-3.8.1.tar.gz", hash = "sha256:c343bd80a0bec947a9860adb4c432ffa7db769836c64238fc34bdc3fec84d590", size = 35186, upload-time = "2024-03-22T14:39:36.863Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/39/e3/893e8757be2612e6c266d9bb58ad2e3651524b5b40cf56761e985a28b13e/asgiref-3.8.1-py3-none-any.whl", hash = "sha256:3e1e3ecc849832fe52ccf2cb6686b7a55f82bb1d6aee72a58826471390335e47", size = 23828, upload-time = "2024-03-22T14:39:34.521Z" },
-]
-
-[[package]]
 name = "attrs"
 version = "25.3.0"
 source = { registry = "https://pypi.org/simple" }
@@ -455,21 +446,18 @@ wheels = [
 
 [[package]]
 name = "magg"
-version = "0.3.6.30"
+version = "0.4.0.30"
 source = { editable = "." }
 dependencies = [
     { name = "aiohttp" },
-    { name = "asgiref" },
     { name = "fastmcp" },
+    { name = "prompt-toolkit" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
     { name = "rich" },
 ]
 
 [package.optional-dependencies]
-mbro = [
-    { name = "prompt-toolkit" },
-]
 test = [
     { name = "prompt-toolkit" },
     { name = "pytest" },
@@ -489,17 +477,16 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "aiohttp", specifier = "<4" },
-    { name = "asgiref", specifier = ">=3.8.1" },
     { name = "fastmcp", specifier = "<3" },
-    { name = "prompt-toolkit", marker = "extra == 'mbro'", specifier = ">=3.0.51" },
+    { name = "prompt-toolkit", specifier = "<4" },
     { name = "prompt-toolkit", marker = "extra == 'test'", specifier = ">=3.0.51" },
     { name = "pydantic", specifier = "<3" },
     { name = "pydantic-settings", specifier = "<3" },
     { name = "pytest", marker = "extra == 'test'", specifier = ">=8.4.0" },
     { name = "pytest-asyncio", marker = "extra == 'test'", specifier = ">=1.0.0" },
-    { name = "rich", specifier = ">=14.0.0" },
+    { name = "rich", specifier = "<15" },
 ]
-provides-extras = ["test", "mbro"]
+provides-extras = ["test"]
 
 [package.metadata.requires-dev]
 dev = [

@@ -1,4 +1,4 @@
-"""Small CLI to run the MAGG server directly.
+"""Small CLI to run the MAGG server directly, e.g. `python -m magg.server`
 """
 import argparse
 import asyncio

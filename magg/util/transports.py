@@ -5,6 +5,8 @@ letting the underlying command fail if the script doesn't exist.
 """
 from fastmcp.client import PythonStdioTransport, StdioTransport, NodeStdioTransport
 
+__all__ = "NoValidatePythonStdioTransport", "NoValidateNodeStdioTransport"
+
 
 class NoValidatePythonStdioTransport(PythonStdioTransport):
     """Python transport that doesn't validate script paths."""

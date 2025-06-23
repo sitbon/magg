@@ -8,5 +8,6 @@
 *.py[co]
 __pycache__/
 
-# Not tracking playground files for now
 play/
+local/
+CLAUDE.local.md

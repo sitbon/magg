@@ -8,3 +8,5 @@ try:
     __version__ = metadata.version("magg")
 except metadata.PackageNotFoundError:
     __version__ = "unknown"
+
+del metadata

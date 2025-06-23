@@ -45,26 +45,26 @@ Parameters:
     Transport-specific configuration (optional)
     Common options for all command-based servers:
     - `keep_alive` (boolean): Keep the process alive between requests (default: true)
-    
+
     Python servers (command="python ..."):
     - `python_cmd` (string): Python executable path (default: sys.executable)
-    
+
     Node.js servers (command="node ..."):
     - `node_cmd` (string): Node executable path (default: "node")
-    
+
     NPX servers (command="npx ..."):
     - `use_package_lock` (boolean): Use package-lock.json if present (default: true)
-    
+
     UVX servers (command="uvx ..."):
     - `python_version` (string): Python version to use (e.g., "3.11")
     - `with_packages` (array): Additional packages to install
     - `from_package` (string): Install tool from specific package
-    
+
     HTTP/SSE servers (uri-based):
     - `headers` (object): HTTP headers to include
     - `auth` (string): Authentication method ("oauth" or bearer token)
     - `sse_read_timeout` (number): Timeout for SSE reads in seconds
-    
+
     Examples:
     - Python: `{"keep_alive": false, "python_cmd": "/usr/bin/python3"}`
     - UVX: `{"python_version": "3.11", "with_packages": ["requests", "pandas"]}`
@@ -126,12 +126,12 @@ Parameters:
     Not allowed for 'list' and 'info' actions.
 
 Example usage (MBRO commands):
-    - List all tools:
-      -  `call proxy {"action": "list", "type": "tool"}`
-        
-    - Get info about a specific tool:
-      -  `call proxy {"action": "info", "type": "tool", "path": "calc:add"}`
-        
-    - Call a tool with arguments:
-      -  `call proxy {"action": "call", "type": "tool", "path": "calc:add", "args": {"a": 5, "b": 10}}`
+  - List all tools:
+    -  `call proxy {"action": "list", "type": "tool"}`
+
+  - Get info about a specific tool:
+    -  `call proxy {"action": "info", "type": "tool", "path": "calc:add"}`
+
+  - Call a tool with arguments:
+    -  `call proxy {"action": "call", "type": "tool", "path": "calc:add", "args": {"a": 5, "b": 10}}`
 """

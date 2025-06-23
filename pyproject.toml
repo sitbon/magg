@@ -1,6 +1,6 @@
 [project]
 name = "magg"
-version = "0.4.1.30"
+version = "0.4.2.0"
 requires-python = ">=3.13"
 description = "MCP Aggregator"
 authors = [{ name = "Phillip Sitbon", email = "phillip.sitbon@gmail.com"}]
@@ -90,7 +90,7 @@ build.sequence = [
 ]
 
 sync-git-version.shell = """
-VERSION=$(echo -n $(uv version --short) | sed 's/\\(\\.\\)[0-9]*$/\\.'"$(poe -q git rev-list --count HEAD)"'/')
+VERSION=$(echo -n $(uv version --short) | sed 's/\\(\\.\\)[0-9]*$/\\.'"$(git rev-list --count HEAD)"'/')
 uv version $VERSION
 git add pyproject.toml uv.lock
 """
@@ -100,6 +100,11 @@ echo '[Automatic] Release Version' v$(uv version --short) from $(git show --pret
 """
 
 verified-publish-commit.shell = """
+# Check if there are any changes to commit
+if [ -z "$(git status --porcelain)" ]; then
+    echo "Error: No changes to commit. Version may not have been updated properly."
+    exit 1
+fi
 git commit -s -S -m "$(poe -q publish-commit-message)"
 git tag -s -m "$(poe -q publish-commit-message)" magg/v$(uv version --short)
 """

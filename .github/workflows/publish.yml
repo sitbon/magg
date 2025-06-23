@@ -87,7 +87,10 @@ jobs:
           git log magg/latest..${{ github.sha }} >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
           
-          # Update the latest tag to point to the current commit
+          # Delete remote latest tag FIRST (before creating new one)
+          git push origin :refs/tags/magg/latest || true
+          
+          # Now create the new latest tag locally
           git tag -d magg/latest || true
           git tag --no-sign magg/latest
 
@@ -95,8 +98,6 @@ jobs:
         run: |
           git push origin main
           git push origin --tags
-          # Also push the updated latest tag (force in case it exists)
-          git push origin magg/latest --force
       
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2

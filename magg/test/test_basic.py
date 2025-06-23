@@ -18,7 +18,7 @@ class TestMAGGBasicFunctionality:
         await server.setup()
 
         # Check for core MAGG tools
-        expected_tools = ["magg_list_servers", "magg_add_server"]
+        expected_tools = ["magg_list_servers", "magg_add_server", "magg_status", "magg_check"]
 
         async with Client(server.mcp) as client:
             tools = await client.list_tools()

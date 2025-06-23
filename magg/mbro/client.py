@@ -77,8 +77,9 @@ class MCPConnection:
 
         if self.connection_string.startswith("http"):
             url = self.connection_string
-            # if not url.endswith("/mcp/"):  # Not sure if the constant redirects are just a FastMCP thing?
-            #     url = url.rstrip("/") + "/mcp/"
+            # TODO: Handle redirects because FastMCP Client does not follow them automatically
+            if not url.endswith("/mcp/"):  # Not sure if the constant redirects are just a FastMCP thing?
+                url = url.rstrip("/") + "/mcp/"
             client = Client(url, auth=auth)  # type: ignore[call-arg]
         else:
             # For command connections, pass the string directly

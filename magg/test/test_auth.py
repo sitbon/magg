@@ -134,7 +134,7 @@ class TestBearerAuthManager:
         key_dir = tmp_path / "keys"
         key_dir.mkdir()
         private_key_path = key_dir / "test.key"
-        
+
         # Generate a test key
         private_key = rsa.generate_private_key(
             public_exponent=65537,
@@ -148,7 +148,7 @@ class TestBearerAuthManager:
                 encryption_algorithm=serialization.NoEncryption()
             )
         )
-        
+
         config = BearerAuthConfig(key_path=key_dir, audience="test")
         manager = BearerAuthManager(config)
         assert manager.enabled

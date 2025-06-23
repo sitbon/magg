@@ -1,12 +1,13 @@
 """MAGG - MCP Aggregator Server - Clean Class-Based Implementation"""
 
+import asyncio
 import json
 import logging
 import os
 import re
 from functools import wraps
 from pathlib import Path
-from typing import Any, Annotated
+from typing import Any, Annotated, Literal
 
 from fastmcp import Context
 from mcp.types import PromptMessage, TextContent
@@ -49,6 +50,8 @@ class MAGGServer(ManagedServer):
             (self.search_servers, f"{self_prefix_}search_servers", None),
             (self.smart_configure, f"{self_prefix_}smart_configure", None),
             (self.analyze_servers, f"{self_prefix_}analyze_servers", None),
+            (self.status, f"{self_prefix_}status", None),
+            (self.check, f"{self_prefix_}check", None),
         ]
 
         def call_tool_wrapper(func):
@@ -707,6 +710,109 @@ Please provide:
 
         except Exception as e:
             return MAGGResponse.error(f"Failed to analyze servers: {str(e)}")
+
+    async def status(self) -> MAGGResponse:
+        """Get basic MAGG server status and statistics."""
+        try:
+            config = self.config
+            total_tools = len(await self.mcp.get_tools())
+
+            status_data = {
+                "servers": {
+                    "total": len(config.servers),
+                    "enabled": len(config.get_enabled_servers()),
+                    "mounted": len(self.server_manager.mounted_servers),
+                    "disabled": len(config.servers) - len(config.get_enabled_servers())
+                },
+                "tools": {
+                    "total": total_tools,
+                },
+                "prefixes": {s.name: s.prefix for s in config.servers.values()}
+            }
+
+            return MAGGResponse.success(status_data)
+
+        except Exception as e:
+            return MAGGResponse.error(f"Failed to get status: {str(e)}")
+
+    async def check(
+        self,
+        action: Annotated[Literal["report", "remount", "unmount", "disable"], Field(
+            description="Action to take for unresponsive servers: 'report' (default), 'remount', 'unmount', or 'disable'"
+        )] = "report",
+        timeout: Annotated[float, Field(
+            description="Timeout in seconds for health check per server"
+        )] = 5.0,
+    ) -> MAGGResponse:
+        """Check health of all mounted servers and handle unresponsive ones."""
+        try:
+            results = {}
+            unresponsive_servers = []
+
+            for server_name, server_info in self.server_manager.mounted_servers.items():
+                client = server_info.get('client')
+                if not client:
+                    results[server_name] = {"status": "error", "reason": "No client found"}
+                    unresponsive_servers.append(server_name)
+                    continue
+
+                async with client:
+                    try:
+                        # Use asyncio timeout to prevent hanging
+                        async with asyncio.timeout(timeout):
+                            tools = await client.list_tools()
+                        results[server_name] = {
+                            "status": "healthy",
+                            "tools_count": len(tools)
+                        }
+                    except asyncio.TimeoutError:
+                        results[server_name] = {"status": "timeout", "reason": f"No response within {timeout}s"}
+                        unresponsive_servers.append(server_name)
+                    except Exception as e:
+                        results[server_name] = {"status": "error", "reason": str(e)}
+                        unresponsive_servers.append(server_name)
+
+            # Handle unresponsive servers based on action
+            actions_taken = []
+            if unresponsive_servers and action != "report":
+                for server_name in unresponsive_servers:
+                    if action == "remount":
+                        # Unmount then remount
+                        await self.server_manager.unmount_server(server_name)
+                        server = self.config.servers.get(server_name)
+                        if server and server.enabled:
+                            mount_success = await self.server_manager.mount_server(server)
+                            if mount_success:
+                                actions_taken.append(f"Remounted {server_name}")
+                                results[server_name]["action"] = "remounted"
+                            else:
+                                actions_taken.append(f"Failed to remount {server_name}")
+                                results[server_name]["action"] = "remount_failed"
+
+                    elif action == "unmount":
+                        await self.server_manager.unmount_server(server_name)
+                        actions_taken.append(f"Unmounted {server_name}")
+                        results[server_name]["action"] = "unmounted"
+
+                    elif action == "disable":
+                        disable_result = await self.disable_server(server_name)
+                        if disable_result.is_success:
+                            actions_taken.append(f"Disabled {server_name}")
+                            results[server_name]["action"] = "disabled"
+                        else:
+                            actions_taken.append(f"Failed to disable {server_name}")
+                            results[server_name]["action"] = "disable_failed"
+
+            return MAGGResponse.success({
+                "servers_checked": len(results),
+                "healthy": len([r for r in results.values() if r["status"] == "healthy"]),
+                "unresponsive": len(unresponsive_servers),
+                "results": results,
+                "actions_taken": actions_taken if actions_taken else None
+            })
+
+        except Exception as e:
+            return MAGGResponse.error(f"Failed to check servers: {str(e)}")
 
     # ============================================================================
     # endregion

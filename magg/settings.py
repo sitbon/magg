@@ -234,6 +234,7 @@ class ConfigManager:
             data = {
                 'servers': {
                     name: server.model_dump(
+                        mode="json",
                         exclude_unset=True, exclude_none=True, exclude_defaults=True, by_alias=True,
                         exclude={'name'},
                     )

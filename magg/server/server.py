@@ -103,7 +103,7 @@ class MAGGServer(ManagedServer):
 
         if name in config.servers:
             server = config.servers[name]
-            return server.model_dump(exclude_none=True, exclude_defaults=True, exclude_unset=True, by_alias=True)
+            return server.model_dump(mode="json", exclude_none=True, exclude_defaults=True, exclude_unset=True, by_alias=True)
 
         raise ValueError(f"Server '{name}' not found in configuration")
 
@@ -113,6 +113,7 @@ class MAGGServer(ManagedServer):
 
         return {
             name: server.model_dump(
+                mode="json",
                 exclude_none=True,
                 exclude_defaults=True,
                 exclude_unset=True,

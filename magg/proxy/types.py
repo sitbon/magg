@@ -33,4 +33,4 @@ class ProxyResponseInfo(Annotations):
     @classmethod
     def from_annotations(cls, annotations: Annotations) -> Self:
         """Create ProxyResponseInfo from Annotations."""
-        return cls(**annotations.model_dump(exclude_unset=True, exclude_defaults=True))
+        return cls(**annotations.model_dump(mode="json", exclude_unset=True, exclude_defaults=True))

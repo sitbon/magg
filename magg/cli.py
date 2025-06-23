@@ -234,6 +234,7 @@ async def cmd_export(args) -> None:
     export_data = {
         'servers': {
             name: server.model_dump(
+                mode="json",
                 exclude_none=True, exclude_unset=True, exclude_defaults=True, by_alias=True
             )
             for name, server in config.servers.items()

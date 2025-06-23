@@ -132,11 +132,16 @@ class MAGGResponse(BaseModel):
             uri = AnyUrl(uri)
 
         if isinstance(data, dict):
+            json_dump_kwds.setdefault("indent", None)
+            json_dump_kwds.setdefault("default", str)
+
             text_data = json.dumps(data, **json_dump_kwds)
+
             if mime_type is None:
                 mime_type = "application/json"
         else:
             text_data = data
+
             if mime_type is None:
                 mime_type = "text/plain"
 
@@ -165,7 +170,12 @@ class MAGGResponse(BaseModel):
         json_dump_kwds = json_dump_kwds or {"indent": 0, "default": str}
         model_dump_kwds = model_dump_kwds or {}
 
+        model_dump_kwds.setdefault("mode", "json")
+
         if isinstance(data, dict):
+            json_dump_kwds.setdefault("indent", None)
+            json_dump_kwds.setdefault("default", str)
+
             json_data = json.dumps(data, **json_dump_kwds)
 
         else:

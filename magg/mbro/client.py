@@ -21,27 +21,6 @@ class MCPConnection:
         self.connected = False
         self._context_manager = None
 
-    @classmethod
-    def parse_tool(cls, tool: Tool) -> dict[str, Any]:
-        """Parse a single tool into a more usable format."""
-        return {
-            "name": tool.name,
-            "description": tool.description,
-            "inputSchema": (
-                tool.inputSchema.model_dump()
-                if hasattr(tool.inputSchema, 'model_dump') and tool.inputSchema
-                else (tool.inputSchema if tool.inputSchema else {})
-            )
-        }
-
-    @classmethod
-    def parse_tools_list(cls, tools: list[Tool]) -> list[dict[str, Any]]:
-        """Parse tools list into a more usable format."""
-        return [
-            cls.parse_tool(tool)
-            for tool in tools
-        ]
-
     async def get_tools(self) -> list[dict[str, Any]]:
         """Get tools list."""
         if not self.client or not self.connected:
@@ -50,19 +29,6 @@ class MCPConnection:
         async with self.client as conn:
             tools_result = await conn.list_tools()
             return self.parse_tools_list(tools_result)
-
-    @classmethod
-    def parse_resource(cls, resource: Resource | ResourceTemplate) -> dict[str, Any]:
-        """Parse a single resource into a more usable format."""
-        return resource.model_dump(exclude_defaults=True, exclude_none=True, exclude_unset=True)
-
-    @classmethod
-    def parse_resources_list(cls, resources: list[Resource | ResourceTemplate]) -> list[dict[str, Any]]:
-        """Parse resources list into a more usable format."""
-        return [
-            cls.parse_resource(resource)
-            for resource in resources
-        ]
 
     async def get_resources(self) -> list[dict[str, Any]]:
         """Get resources list."""
@@ -86,30 +52,6 @@ class MCPConnection:
 
         return resources_data
 
-    @classmethod
-    def parse_prompt(cls, prompt: Prompt) -> dict[str, Any]:
-        """Parse a single prompt into a more usable format."""
-        return {
-            "name": prompt.name,
-            "description": prompt.description,
-            "arguments": [
-                {
-                    "name": arg.name,
-                    "description": arg.description,
-                    "required": arg.required
-                }
-                for arg in (prompt.arguments or [])
-            ]
-        }
-
-    @classmethod
-    def parse_prompts_list(cls, prompts: list[Prompt]) -> list[dict[str, Any]]:
-        """Parse prompts list into a more usable format."""
-        return [
-            cls.parse_prompt(prompt)
-            for prompt in prompts
-        ]
-
     async def get_prompts(self) -> list[dict[str, Any]]:
         """Get prompts list."""
         if not self.client or not self.connected:
@@ -127,40 +69,30 @@ class MCPConnection:
 
     async def connect(self) -> bool:
         """Connect to the MCP server using FastMCP Client."""
+        if self.connection_string.startswith("http"):
+            url = self.connection_string
+            # if not url.endswith("/mcp/"):  # Not sure if the constant redirects are just a FastMCP thing?
+            #     url = url.rstrip("/") + "/mcp/"
+            client = Client(url)  # type: ignore[call-arg]
+        else:
+            # For command connections, pass the string directly
+            # FastMCP Client will handle the parsing
+            client = Client(self.connection_string)  # type: ignore[call-arg]
+
         try:
-            # Create FastMCP client
-            if self.connection_string.startswith("http"):
-                # For HTTP connections, ensure proper MCP endpoint
-                url = self.connection_string
-                if not url.endswith("/mcp/"):
-                    url = url.rstrip("/") + "/mcp/"
-                client = Client(url)
-            else:
-                # For command connections, pass the string directly
-                # FastMCP Client will handle the parsing
-                client = Client(self.connection_string)
+            async with client as conn:
+                result = await conn.ping()
 
-            # Test the client
-            try:
-                async with client as conn:
-                    result = await conn.ping()
-
-                    if not result:
-                        logger.warning("Connected to %r but ping failed", client)
-
-            except Exception as e:
-                logger.error("Failed to connect to MCP server: %s", e)
-                return False
-
-            self.client = client
-            self.connected = True
-            return True
+                if not result:
+                    logger.warning("Connected to %r but ping failed", client)
 
         except Exception as e:
-            # Let caller handle error display
-            pass
-            self.client = None
+            logger.error("Failed to connect to MCP server: %s", e)
             return False
+
+        self.client = client
+        self.connected = True
+        return True
 
     async def call_tool(self, tool_name: str, arguments: dict[str, Any] = None) -> list[
         TextContent | ImageContent | EmbeddedResource
@@ -212,10 +144,68 @@ class MCPConnection:
         if self.client:
             try:
                 await self.client.__aexit__(None, None, None)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"Error during disconnect: {e}")
             self.client = None
         self.connected = False
+
+    @classmethod
+    def parse_tool(cls, tool: Tool) -> dict[str, Any]:
+        """Parse a single tool into a more usable format."""
+        return {
+            "name": tool.name,
+            "description": tool.description,
+            "inputSchema": (
+                tool.inputSchema.model_dump(mode="json")
+                if hasattr(tool.inputSchema, 'model_dump') and tool.inputSchema
+                else (tool.inputSchema if tool.inputSchema else {})
+            )
+        }
+
+    @classmethod
+    def parse_tools_list(cls, tools: list[Tool]) -> list[dict[str, Any]]:
+        """Parse tools list into a more usable format."""
+        return [
+            cls.parse_tool(tool)
+            for tool in tools
+        ]
+
+    @classmethod
+    def parse_resource(cls, resource: Resource | ResourceTemplate) -> dict[str, Any]:
+        """Parse a single resource into a more usable format."""
+        return resource.model_dump(mode="json", exclude_defaults=True, exclude_none=True, exclude_unset=True)
+
+    @classmethod
+    def parse_resources_list(cls, resources: list[Resource | ResourceTemplate]) -> list[dict[str, Any]]:
+        """Parse resources list into a more usable format."""
+        return [
+            cls.parse_resource(resource)
+            for resource in resources
+        ]
+
+    @classmethod
+    def parse_prompt(cls, prompt: Prompt) -> dict[str, Any]:
+        """Parse a single prompt into a more usable format."""
+        return {
+            "name": prompt.name,
+            "description": prompt.description,
+            "arguments": [
+                {
+                    "name": arg.name,
+                    "description": arg.description,
+                    "required": arg.required
+                }
+                for arg in (prompt.arguments or [])
+            ]
+        }
+
+    @classmethod
+    def parse_prompts_list(cls, prompts: list[Prompt]) -> list[dict[str, Any]]:
+        """Parse prompts list into a more usable format."""
+        return [
+            cls.parse_prompt(prompt)
+            for prompt in prompts
+        ]
 
 
 class MCPBrowser:

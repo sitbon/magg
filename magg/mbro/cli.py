@@ -15,7 +15,7 @@ from prompt_toolkit import PromptSession, HTML
 from prompt_toolkit.completion import WordCompleter
 from prompt_toolkit.history import FileHistory
 
-from . import acon
+from . import arepl
 from .client import MCPBrowser, MCPConnection
 from .formatter import OutputFormatter
 from .. import process
@@ -79,7 +79,7 @@ class MCPBrowserCLI:
                 self=self,
             )
 
-            await acon.interact(
+            await arepl.interact(
                 banner="Welcome to MBRO - MCP Browser REPL",
                 locals=local,
             )

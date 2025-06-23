@@ -17,16 +17,15 @@ logger = logging.getLogger(__name__)
 
 class MAGGRunner:
     """Manages MAGG server lifecycle with proper signal handling."""
-    _config_path: str | None
-    _server: MAGGServer | None
+    _server: MAGGServer
     _shutdown_event: asyncio.Event
     _original_sigint: Callable | None
     _original_sigterm: Callable | None
     _hook_signals: bool
+    _hooked_signals: bool = False
 
     def __init__(self, config_path: str | None = None, *, hook_signals: bool = True):
-        self._config_path = config_path
-        self._server = None
+        self._server = MAGGServer(config_path)
         self._shutdown_event = asyncio.Event()
         self._original_sigint = None
         self._original_sigterm = None
@@ -38,9 +37,18 @@ class MAGGRunner:
         return Client(FastMCPTransport(self._server.mcp))
 
     @property
-    def server(self) -> MAGGServer | None:
+    def server(self) -> MAGGServer:
         """Get the current MAGG server instance."""
         return self._server
+
+    async def __aenter__(self):
+        """Enter the server context manager."""
+        await self._server.__aenter__()
+        return self
+
+    async def __aexit__(self, exc_type, exc_value, traceback):
+        """Exit the server context manager."""
+        await self._server.__aexit__(exc_type, exc_value, traceback)
 
     # noinspection PyUnusedLocal
     def _handle_signal(self, signum, frame):
@@ -55,35 +63,30 @@ class MAGGRunner:
 
     def _setup_signal_handlers(self):
         """Setup signal handlers for graceful shutdown."""
-        if self._hook_signals:
+        if self._hook_signals and self._hooked_signals is False:
             self._original_sigint = signal.signal(signal.SIGINT, self._handle_signal)
             self._original_sigterm = signal.signal(signal.SIGTERM, self._handle_signal)
+            self._hooked_signals = True
 
     def _restore_signal_handlers(self):
         """Restore original signal handlers."""
-        if self._hook_signals:
+        if self._hook_signals and self._hooked_signals:
             if self._original_sigint:
                 signal.signal(signal.SIGINT, self._original_sigint)
             if self._original_sigterm:
                 signal.signal(signal.SIGTERM, self._original_sigterm)
+            self._hooked_signals = False
 
     @asynccontextmanager
     async def _server_context(self):
         """Context manager for server lifecycle."""
-        if self._server:
-            raise RuntimeError("Server is already running")
-
         self._setup_signal_handlers()
 
         try:
-            self._server = MAGGServer(self._config_path)
-            await self._server.setup()
-            yield self._server
+            async with self:
+                yield self._server
         finally:
             self._restore_signal_handlers()
-
-            if self._server:
-                self._server = None
 
     async def _serve(self, coro: Coroutine):
         server_task = asyncio.create_task(coro)
@@ -125,3 +128,11 @@ class MAGGRunner:
 
         finally:
             logger.debug("MAGG HTTP server stopped")
+
+    async def start_stdio(self) -> asyncio.Task:
+        """Start the server in stdio mode in a different task."""
+        return asyncio.create_task(self.run_stdio())
+
+    async def start_http(self, host: str = "localhost", port: int = 8000) -> asyncio.Task:
+        """Start the server in HTTP mode in a different task."""
+        return asyncio.create_task(self.run_http(host, port))

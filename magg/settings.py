@@ -6,23 +6,100 @@ from functools import cached_property
 from pathlib import Path
 from typing import Any, ClassVar
 
-from pydantic import field_validator, Field, model_validator, AnyUrl
+from pydantic import field_validator, Field, model_validator, AnyUrl, BaseModel
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from .util.system import get_project_root
 
-__all__ = "ServerConfig", "MAGGConfig", "ConfigManager"
+__all__ = "ServerConfig", "MAGGConfig", "ConfigManager", "AuthConfig", "BearerAuthConfig", "ClientSettings"
+
+logger = logging.getLogger(__name__)
+
+
+class ClientSettings(BaseSettings):
+    """Client settings loaded from environment."""
+    model_config = SettingsConfigDict(
+        env_prefix="MAGG_",
+        env_file=".env",
+        extra="ignore"
+    )
+
+    jwt: str | None = Field(
+        default=None,
+        description="JWT token for authentication (env: MAGG_JWT)"
+    )
+
+
+class BearerAuthConfig(BaseModel):
+    """Bearer token authentication configuration."""
+    issuer: str = Field(default="https://magg.local", description="Token issuer identifier")
+    audience: str = Field(default="magg", description="Token audience")
+    key_path: Path = Field(
+        default_factory=lambda: Path.home() / ".ssh" / "magg",
+        description="Path for private & public key storage"
+    )
+
+    @property
+    def private_key_env(self) -> str | None:
+        """Get private key from MAGG_PRIVATE_KEY environment variable."""
+        return os.environ.get('MAGG_PRIVATE_KEY')
+
+    @property
+    def private_key_path(self) -> Path:
+        """Get the path to the private key file."""
+        return self.key_path / f"{self.audience}.key"
+
+    @property
+    def public_key_path(self) -> Path:
+        """Get the path to the public SSH key file."""
+        return self.key_path / f"{self.audience}.key.pub"
+
+    @property
+    def private_key_data(self) -> str | None:
+        """Get private key data from env var or file."""
+        # Try env var first
+        if self.private_key_env:
+            # Handle single-line format (literal \n)
+            return self.private_key_env.replace('\\n', '\n')
+
+        # Try file
+        if self.private_key_path.exists():
+            return self.private_key_path.read_text()
+
+        return None
+
+    @property
+    def public_key_data(self) -> str | None:
+        """Get public key data from file."""
+        if self.public_key_path.exists():
+            return self.public_key_path.read_text()
+        return None
+
+    @property
+    def private_key_exists(self) -> bool:
+        """Check if private key exists (either in env var or file)."""
+        return bool(self.private_key_env) or self.private_key_path.exists()
+
+    @property
+    def public_key_exists(self) -> bool:
+        """Check if public key file exists."""
+        return self.public_key_path.exists()
+
+
+class AuthConfig(BaseModel):
+    """Top-level authentication configuration."""
+    bearer: BearerAuthConfig = Field(
+        default_factory=BearerAuthConfig,
+        description="Bearer token authentication config"
+    )
 
 
 class ServerConfig(BaseSettings):
     """Server configuration - defines how to run an MCP server."""
     model_config = SettingsConfigDict(
-        # Allow extra fields
         extra="allow",
-        # Validate on assignment
         validate_assignment=True,
-        # Allow arbitrary types
-        arbitrary_types_allowed=True
+        arbitrary_types_allowed=True,
     )
 
     PREFIX_SEP: ClassVar[str] = "_"
@@ -182,8 +259,10 @@ class ConfigManager:
         else:
             self.config_path = self.settings.config_path
 
-        # Ensure config directory exists
-        self.config_path.parent.mkdir(parents=True, exist_ok=True)
+        # Don't create directory here - only create when saving
+
+        # Set auth config path
+        self.auth_config_path = self.config_path.parent / "auth.json"
 
     @cached_property
     def logger(self) -> logging.Logger:
@@ -242,6 +321,11 @@ class ConfigManager:
                 }
             }
 
+            # Create directory only when actually saving
+            if not self.config_path.parent.exists():
+                self.logger.warning(f"Creating new directory: {self.config_path.parent}")
+                self.config_path.parent.mkdir(parents=True, exist_ok=True)
+
             with open(self.config_path, 'w') as f:
                 json.dump(data, f, indent=2)
 
@@ -249,4 +333,44 @@ class ConfigManager:
 
         except Exception as e:
             self.logger.error(f"Error saving config: {e}")
+            return False
+
+    def load_auth_config(self) -> AuthConfig:
+        """Load authentication configuration from disk or return defaults."""
+        if not self.auth_config_path.exists():
+            # Return default config - caller can check keys_exist
+            self.logger.debug(f"No auth.json found, using default auth config")
+            return AuthConfig()
+
+        try:
+            with self.auth_config_path.open("r") as f:
+                data = json.load(f)
+
+            return AuthConfig.model_validate(data)
+
+        except Exception as e:
+            self.logger.error(f"Error loading auth config: {e}")
+            # Return default config on error
+            return AuthConfig()
+
+    def save_auth_config(self, auth_config: AuthConfig) -> bool:
+        """Save authentication configuration to disk."""
+        try:
+            # Create directory only when actually saving
+            if not self.auth_config_path.parent.exists():
+                self.logger.warning(f"Creating new directory: {self.auth_config_path.parent}")
+                self.auth_config_path.parent.mkdir(parents=True, exist_ok=True)
+
+            data = auth_config.model_dump(
+                mode="json",
+                exclude_none=True
+            )
+
+            with open(self.auth_config_path, 'w') as f:
+                json.dump(data, f, indent=2)
+
+            return True
+
+        except Exception as e:
+            self.logger.error(f"Error saving auth config: {e}")
             return False

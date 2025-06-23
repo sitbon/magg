@@ -59,8 +59,11 @@ def print_warning(text: str):
 
 def print_info(text: str):
     """Print an info message."""
-    print(f"{Colors.OKCYAN}ℹ {text}{Colors.ENDC}", file=sys.stderr)
+    print(f"{Colors.OKCYAN}ⓘ {text}{Colors.ENDC}", file=sys.stderr)
 
+def print_newline():
+    """Print a new line."""
+    print(file=sys.stderr)
 
 def print_server_list(servers: Dict[str, Any]):
     """Print a formatted list of servers."""
@@ -144,6 +147,9 @@ def print_startup_banner():
         else:
             try:
                 console = initterm()
-                console.print(banner, style="bold cyan purple italic", width=60)
+                if console:
+                    console.print(banner, style="bold cyan purple italic", width=60)
+                else:
+                    print(banner, file=sys.stderr)
             except ImportError:
                 print(banner, file=sys.stderr)

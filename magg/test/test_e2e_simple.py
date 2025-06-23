@@ -33,6 +33,17 @@ async def test_e2e_simple():
         with open(config_path, 'w') as f:
             json.dump({'servers': {}}, f, indent=2)
 
+        # Create empty auth.json to prevent using default keys
+        auth_path = config_dir / "auth.json"
+        with open(auth_path, 'w') as f:
+            json.dump({
+                'bearer': {
+                    'issuer': 'https://magg.local',
+                    'audience': 'test',
+                    'key_path': str(tmpdir / 'nonexistent')
+                }
+            }, f)
+
         print(f"Config saved to: {config_path}")
 
         # 3. Start MAGG server as subprocess

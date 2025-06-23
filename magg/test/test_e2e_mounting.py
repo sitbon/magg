@@ -71,6 +71,17 @@ if __name__ == "__main__":
                 'servers': {s.name: s.model_dump(mode="json") for s in config.servers.values()}
             }, f, indent=2)
 
+        # Create empty auth.json to prevent using default keys
+        auth_path = config_dir / "auth.json"
+        with open(auth_path, 'w') as f:
+            json.dump({
+                'bearer': {
+                    'issuer': 'https://magg.local',
+                    'audience': 'test',
+                    'key_path': str(tmpdir / 'nonexistent')
+                }
+            }, f)
+
         print(f"Config saved to: {config_path}")
 
         # 3. Start MAGG server as subprocess

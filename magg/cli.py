@@ -7,12 +7,14 @@ import json
 import os
 import sys
 import logging
+from pathlib import Path
 
 from . import __version__, process
-from .settings import ConfigManager, ServerConfig
+from .settings import ConfigManager, ServerConfig, AuthConfig, BearerAuthConfig
 from .util.terminal import (
     print_success, print_error, print_warning, print_startup_banner,
-    print_info, print_server_list, print_status_summary, confirm_action
+    print_info, print_server_list, print_status_summary, confirm_action,
+    print_newline
 )
 
 
@@ -253,6 +255,162 @@ async def cmd_export(args) -> None:
         print(json.dumps(export_data, indent=2))
 
 
+async def cmd_auth(args) -> None:
+    """Manage authentication."""
+    from .auth import BearerAuthManager
+    from .settings import AuthConfig
+
+    config_manager = ConfigManager(args.config)
+
+    if args.auth_action == 'init':
+        # Initialize authentication
+        # Use BearerAuthConfig defaults if not provided
+        bearer_data = {}
+        if args.issuer:
+            bearer_data['issuer'] = args.issuer
+        if args.audience:
+            bearer_data['audience'] = args.audience
+        if args.key_path:
+            bearer_data['key_path'] = args.key_path
+        bearer_config = BearerAuthConfig.model_validate(bearer_data)
+        auth_config = AuthConfig.model_validate({'bearer': bearer_config})
+
+        # Create bearer auth manager
+        auth_manager = BearerAuthManager(auth_config.bearer)
+
+        # Try to generate keys - this will fail if they exist
+        try:
+            auth_manager.generate_keys()
+            print_success(f"Generated new RSA keypair for audience '{auth_config.bearer.audience}'")
+            print_info(f"Private key: {auth_config.bearer.key_path}/{auth_config.bearer.audience}.key")
+            print_info(f"SSH public key: {auth_config.bearer.key_path}/{auth_config.bearer.audience}.key.pub")
+
+            # Save auth config only if non-default
+            default_config = BearerAuthConfig()
+            if (auth_config.bearer.issuer != default_config.issuer or
+                auth_config.bearer.audience != default_config.audience):
+                if config_manager.save_auth_config(auth_config):
+                    print_info(f"Auth config saved to: {config_manager.auth_config_path}")
+                else:
+                    print_error("Failed to save auth configuration")
+                    sys.exit(1)
+
+            print_success(f"Authentication initialized with audience '{auth_config.bearer.audience}'")
+        except RuntimeError as e:
+            print_error(str(e))
+            sys.exit(1)
+
+    elif args.auth_action == 'status':
+        # Show auth status
+        auth_config = config_manager.load_auth_config()
+        if auth_config.bearer.private_key_exists:
+            print_info("Authentication is ENABLED (Bearer Token)")
+            print_info(f"Issuer: {auth_config.bearer.issuer}")
+            print_info(f"Audience: {auth_config.bearer.audience}")
+            print_info(f"Key path: {auth_config.bearer.key_path}")
+
+            if auth_config.bearer.private_key_path.exists():
+                print_success(f"Private key file: {auth_config.bearer.private_key_path}")
+            if auth_config.bearer.private_key_env:
+                print_info("Private key also available via MAGG_PRIVATE_KEY env var")
+
+            if auth_config.bearer.public_key_exists:
+                print_info(f"SSH public key exists: {auth_config.bearer.public_key_path}")
+
+            if auth_config.bearer.private_key_env:
+                print_info("Private key also available via MAGG_PRIVATE_KEY env var")
+        else:
+            print_info("Authentication is DISABLED")
+            print_info("Run 'magg auth init' to enable authentication")
+
+    elif args.auth_action == 'token':
+        auth_config = config_manager.load_auth_config()
+        if not auth_config.bearer.private_key_exists:
+            print_error("No authentication keys found. Run 'magg auth init' first")
+            sys.exit(1)
+
+        auth_manager = BearerAuthManager(auth_config.bearer)
+        try:
+            auth_manager.load_keys()
+        except RuntimeError as e:
+            print_error(str(e))
+            print_info("Run 'magg auth init' to generate keys")
+            sys.exit(1)
+
+        token = auth_manager.create_token(subject=args.subject, hours=args.hours, scopes=args.scopes)
+        if not token:
+            print_error("Failed to generate token")
+            sys.exit(1)
+
+        if args.quiet:
+            print(token)
+        elif args.export:
+            print(f"export MAGG_JWT={token}")
+        else:
+            print_success(f"Generated token for '{args.subject}' (valid for {args.hours} hours)")
+            print_newline()
+            print(token)
+
+    elif args.auth_action == 'public-key':
+        auth_config = config_manager.load_auth_config()
+        if not auth_config.bearer.private_key_exists:
+            print_error("No authentication keys found. Run 'magg auth init' first")
+            sys.exit(1)
+
+        auth_manager = BearerAuthManager(auth_config.bearer)
+        try:
+            auth_manager.load_keys()
+        except RuntimeError as e:
+            print_error(str(e))
+            sys.exit(1)
+
+        public_key = auth_manager.get_public_key()
+        if public_key:
+            print(public_key)
+        else:
+            print_error("Failed to get public key")
+            sys.exit(1)
+
+    elif args.auth_action == 'private-key':
+        auth_config = config_manager.load_auth_config()
+        if not auth_config.bearer.private_key_exists:
+            print_error("No authentication keys found. Run 'magg auth init' first")
+            sys.exit(1)
+
+        # Create bearer auth manager and load keys
+        auth_manager = BearerAuthManager(auth_config.bearer)
+        try:
+            auth_manager.load_keys()
+        except RuntimeError as e:
+            print_error(str(e))
+            sys.exit(1)
+
+        private_key = auth_manager.get_private_key()
+        if private_key:
+            from cryptography.hazmat.primitives import serialization
+            pem = private_key.private_bytes(
+                encoding=serialization.Encoding.PEM,
+                format=serialization.PrivateFormat.TraditionalOpenSSL,
+                encryption_algorithm=serialization.NoEncryption()
+            ).decode('utf-8')
+
+            if args.export:
+                single_line = pem.replace('\n', '\\n')
+                print(f"export MAGG_PRIVATE_KEY={single_line}")
+            elif args.oneline:
+                single_line = pem.replace('\n', '\\n')
+                print(single_line)
+            else:
+                print(pem)
+        else:
+            print_error("Failed to get private key")
+            sys.exit(1)
+
+    else:
+        print_error("No auth action specified")
+        sys.exit(1)
+
+
 def create_parser() -> argparse.ArgumentParser:
     """Create the command line parser."""
     parser = argparse.ArgumentParser(
@@ -316,6 +474,38 @@ def create_parser() -> argparse.ArgumentParser:
     export_parser = subparsers.add_parser('export', help='Export configuration')
     export_parser.add_argument('--output', '-o', help='Output file (default: stdout)')
 
+    # Auth command
+    auth_parser = subparsers.add_parser('auth', help='Manage authentication')
+    auth_subparsers = auth_parser.add_subparsers(dest='auth_action', help='Auth actions')
+
+    # Initialize auth
+    auth_init = auth_subparsers.add_parser('init', help='Initialize authentication')
+    auth_init.add_argument('--issuer', help='Token issuer identifier (default: https://magg.local)')
+    auth_init.add_argument('--audience', help='Token audience, also used as key name (default: magg)')
+    auth_init.add_argument('--key-path', type=Path, help='Path for authentication keys (default: ~/.ssh/magg)')
+
+    # Show auth status
+    auth_subparsers.add_parser('status', help='Show authentication status')
+
+    # Show public key
+    auth_subparsers.add_parser('public-key', help='Show public key in PEM format')
+
+    # Show private key
+    auth_private = auth_subparsers.add_parser('private-key', help='Show private key')
+    private_output_group = auth_private.add_mutually_exclusive_group()
+    private_output_group.add_argument('--export', '-e', action='store_true', help='Output in single-line format for env vars')
+    private_output_group.add_argument('--oneline', action='store_true', help='Output in single-line format')
+
+    # Generate test token
+    auth_token = auth_subparsers.add_parser('token', help='Generate a test token')
+    auth_token.add_argument('--subject', default='dev-user', help='Token subject (default: dev-user)')
+    auth_token.add_argument('--hours', type=int, default=24, help='Token validity in hours (default: 24)')
+    auth_token.add_argument('--scopes', nargs='*', help='Permission scopes (space-separated)')
+
+    output_group = auth_token.add_mutually_exclusive_group()
+    output_group.add_argument('--quiet', '-q', action='store_true', help='Only output the token')
+    output_group.add_argument('--export', '-e', action='store_true', help='Output as export command for eval')
+
     return parser
 
 
@@ -338,6 +528,7 @@ async def run():
         'disable-server': cmd_disable_server,
         'status': cmd_status,
         'export': cmd_export,
+        'auth': cmd_auth,
     }
 
     cmd_func = commands.get(args.subcommand)

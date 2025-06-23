@@ -9,9 +9,10 @@
 5. [Tools Reference](#tools-reference)
 6. [Resources Reference](#resources-reference)
 7. [Prompts Reference](#prompts-reference)
-8. [Proxy Documentation](#proxy-documentation)
-9. [Example Sessions](#example-sessions)
-10. [Advanced Configuration](#advanced-configuration)
+8. [Authentication](#authentication)
+9. [Proxy Documentation](#proxy-documentation)
+10. [Example Sessions](#example-sessions)
+11. [Advanced Configuration](#advanced-configuration)
 
 ## Overview
 
@@ -366,6 +367,95 @@ Interactive prompt for configuring a server with LLM assistance.
 
 **Usage:** The LLM can use this prompt to help determine optimal configuration for a server based on its URL. The prompt includes metadata collection and guides the LLM to generate a complete JSON configuration.
 
+## Authentication
+
+MAGG supports optional bearer token authentication using RSA keypairs and JWT tokens. When enabled, all clients must provide a valid JWT token to access the server.
+
+For a complete guide, see **[Authentication Guide](authentication.md)**.
+
+### Setting Up Authentication
+
+1. **Initialize authentication** (one-time setup):
+   ```bash
+   magg auth init
+   ```
+   This generates an RSA keypair in `~/.ssh/magg/` (or custom location via `--key-path`).
+
+2. **Check authentication status**:
+   ```bash
+   magg auth status
+   ```
+
+3. **Generate JWT tokens** for clients:
+   ```bash
+   # Display token on screen
+   magg auth token
+   
+   # Export to environment variable
+   export MAGG_JWT=$(magg auth token -q)
+   
+   # Generate with custom parameters
+   magg auth token --subject "my-app" --hours 72 --scopes "read" "write"
+   ```
+
+### Client Connection
+
+#### Using MaggClient (Recommended)
+```python
+from magg.client import MaggClient
+
+# Automatically uses MAGG_JWT environment variable
+async with MaggClient("http://localhost:8000/mcp") as client:
+    tools = await client.list_tools()
+```
+
+#### Using FastMCP Client
+```python
+from fastmcp import Client
+from fastmcp.client import BearerAuth
+
+# With explicit token
+jwt_token = "your-jwt-token"
+auth = BearerAuth(jwt_token)
+async with Client("http://localhost:8000/mcp", auth=auth) as client:
+    tools = await client.list_tools()
+```
+
+### Key Management
+
+- **Default key location**: `~/.ssh/magg/{audience}.key` and `{audience}.key.pub`
+- **Environment variable**: Set `MAGG_PRIVATE_KEY` to use key from environment
+- **Custom location**: Configure in `.magg/auth.json`
+
+### Disabling Authentication
+
+To disable authentication:
+1. Remove the key files, or
+2. Set a non-existent `key_path` in `.magg/auth.json`:
+   ```json
+   {
+     "bearer": {
+       "key_path": "/path/that/does/not/exist"
+     }
+   }
+   ```
+
+### Authentication Commands Reference
+
+- `magg auth init [--audience NAME] [--issuer URL] [--key-path PATH]` - Initialize authentication
+- `magg auth status` - Display current auth configuration
+- `magg auth token [--quiet] [--export] [--subject USER] [--hours N] [--scopes ...]` - Generate JWT
+- `magg auth public-key` - Display public key in PEM format
+- `magg auth private-key [--export] [--oneline]` - Display private key
+
+### Security Notes
+
+- Private keys are saved with permissions 0600 (owner read/write only)
+- Never commit private keys to version control
+- Use environment variables for production deployments
+- Tokens include standard JWT claims: iss, aud, sub, iat, exp
+- Optional scopes can be included but are not enforced by MAGG
+
 ## Proxy Documentation
 
 MAGG includes a powerful tool called `proxy` that provides tool-based access to all MCP capabilities. The proxy enables LLMs to interact with resources and prompts through a tool interface, making all MCP operations accessible even when the client doesn't support direct resource or prompt access.
@@ -497,7 +587,9 @@ Check logs for:
 
 ### Security Considerations
 
-1. **API Keys**: Store in environment variables, never in configuration
-2. **File Access**: Be cautious with filesystem servers
-3. **Network Access**: Review server permissions for network operations
-4. **Process Isolation**: Consider running servers in containers for isolation
+1. **Authentication**: Enable bearer token auth for production deployments
+2. **API Keys**: Store in environment variables, never in configuration
+3. **File Access**: Be cautious with filesystem servers
+4. **Network Access**: Review server permissions for network operations
+5. **Process Isolation**: Consider running servers in containers for isolation
+6. **Token Security**: Never expose JWT tokens in logs or error messages

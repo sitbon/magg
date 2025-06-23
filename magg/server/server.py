@@ -713,6 +713,16 @@ Please provide:
     # region MCP Server Management - Setup and Run Methods
     # ============================================================================
 
+    async def __aenter__(self):
+        """Enter the context manager, setting up the server."""
+        await self.setup()
+        return self
+
+    async def __aexit__(self, exc_type, exc_value, traceback):
+        """Exit the context manager, performing any necessary cleanup."""
+        # No specific cleanup needed for now, but can be extended later
+        pass
+
     async def setup(self):
         """Initialize MAGG and mount existing servers.
 
@@ -721,6 +731,15 @@ Please provide:
 
             server = MAGGServer()
             await server.setup()
+            client = Client(FastMCPTransport(server.mcp))
+
+            OR
+
+            (server task)
+            async with server:
+                await server.run_http()
+
+            (client task, after server start)
             client = Client(FastMCPTransport(server.mcp))
         """
         if not self._is_setup:

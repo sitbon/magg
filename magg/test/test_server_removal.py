@@ -183,7 +183,7 @@ async def test_with_real_stdio_server(tmp_path):
                 "source": "test",
                 "prefix": "echo",
                 "command": "python",
-                "args": ["-c", "import sys; print('Hello from echo server'); sys.exit(0)"]
+                "args": ["-c", "print('Hello from echo server'); exit(0)"]
             }
         }
     }

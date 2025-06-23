@@ -1,9 +1,11 @@
 """MCP client connectivity for mbro.
 """
 import logging
+import os
 from typing import Any
 
 from fastmcp import Client
+from fastmcp.client import BearerAuth
 from mcp.types import TextContent, ImageContent, EmbeddedResource, BlobResourceContents, TextResourceContents, Tool, \
     Resource, ResourceTemplate, Prompt, GetPromptResult
 
@@ -69,15 +71,19 @@ class MCPConnection:
 
     async def connect(self) -> bool:
         """Connect to the MCP server using FastMCP Client."""
+        # Get JWT from environment for authentication
+        jwt = os.getenv("MAGG_JWT", os.getenv("MBRO_JWT", os.getenv("MCP_JWT", None)))
+        auth = BearerAuth(jwt) if jwt else None
+
         if self.connection_string.startswith("http"):
             url = self.connection_string
             # if not url.endswith("/mcp/"):  # Not sure if the constant redirects are just a FastMCP thing?
             #     url = url.rstrip("/") + "/mcp/"
-            client = Client(url)  # type: ignore[call-arg]
+            client = Client(url, auth=auth)  # type: ignore[call-arg]
         else:
             # For command connections, pass the string directly
             # FastMCP Client will handle the parsing
-            client = Client(self.connection_string)  # type: ignore[call-arg]
+            client = Client(self.connection_string, auth=auth)  # type: ignore[call-arg]
 
         try:
             async with client as conn:

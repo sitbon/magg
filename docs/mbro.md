@@ -58,6 +58,21 @@ Start mbro in interactive mode (without a server):
 mbro
 ```
 
+### Authentication
+
+When connecting to HTTP servers that require bearer token authentication, mbro automatically checks for JWT tokens in these environment variables (in order):
+1. `MAGG_JWT`
+2. `MBRO_JWT`
+3. `MCP_JWT`
+
+```bash
+# Set authentication token
+export MAGG_JWT=$(magg auth token -q)
+
+# Connect to authenticated server
+mbro --connect magg http://localhost:8080
+```
+
 ### Command Examples
 
 Once connected to a server, you can use these commands:

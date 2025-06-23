@@ -446,20 +446,18 @@ wheels = [
 
 [[package]]
 name = "magg"
-version = "0.3.7.30"
+version = "0.4.0.30"
 source = { editable = "." }
 dependencies = [
     { name = "aiohttp" },
     { name = "fastmcp" },
+    { name = "prompt-toolkit" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
     { name = "rich" },
 ]
 
 [package.optional-dependencies]
-mbro = [
-    { name = "prompt-toolkit" },
-]
 test = [
     { name = "prompt-toolkit" },
     { name = "pytest" },
@@ -480,15 +478,15 @@ dev = [
 requires-dist = [
     { name = "aiohttp", specifier = "<4" },
     { name = "fastmcp", specifier = "<3" },
-    { name = "prompt-toolkit", marker = "extra == 'mbro'", specifier = ">=3.0.51" },
+    { name = "prompt-toolkit", specifier = "<4" },
     { name = "prompt-toolkit", marker = "extra == 'test'", specifier = ">=3.0.51" },
     { name = "pydantic", specifier = "<3" },
     { name = "pydantic-settings", specifier = "<3" },
     { name = "pytest", marker = "extra == 'test'", specifier = ">=8.4.0" },
     { name = "pytest-asyncio", marker = "extra == 'test'", specifier = ">=1.0.0" },
-    { name = "rich", specifier = ">=14.0.0" },
+    { name = "rich", specifier = "<15" },
 ]
-provides-extras = ["test", "mbro"]
+provides-extras = ["test"]
 
 [package.metadata.requires-dev]
 dev = [

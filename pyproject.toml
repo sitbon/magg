@@ -1,6 +1,6 @@
 [project]
 name = "magg"
-version = "0.3.7.30"
+version = "0.4.0.30"
 requires-python = ">=3.13"
 description = "MCP Aggregator"
 authors = [{ name = "Phillip Sitbon", email = "phillip.sitbon@gmail.com"}]
@@ -46,7 +46,8 @@ dependencies = [
     "aiohttp<4",
     "pydantic<3",
     "pydantic-settings<3",
-    "rich>=14.0.0",
+    "rich<15",
+    "prompt-toolkit<4",
 ]
 
 [project.urls]
@@ -64,9 +65,6 @@ mbro = "magg.mbro.cli:main"
 test = [
     "pytest>=8.4.0",
     "pytest-asyncio>=1.0.0",
-    "prompt-toolkit>=3.0.51",
-]
-mbro = [
     "prompt-toolkit>=3.0.51",
 ]
 

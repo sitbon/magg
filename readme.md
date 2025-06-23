@@ -1,5 +1,6 @@
 # 🧲 MAGG - The MCP (Model Context Protocol) Aggregator
 
+[![Tests](https://img.shields.io/github/actions/workflow/status/sitbon/magg/test.yml?style=flat-square&label=tests)](https://github.com/sitbon/magg/actions/workflows/test.yml)
 [![Python Version](https://img.shields.io/pypi/pyversions/magg?style=flat-square&logo=python&logoColor=white)](https://pypi.org/project/magg/)
 [![PyPI Version](https://img.shields.io/pypi/v/magg?style=flat-square&logo=pypi&logoColor=white)](https://pypi.org/project/magg/)
 [![GitHub Release](https://img.shields.io/github/v/release/sitbon/magg?style=flat-square&logo=github)](https://github.com/sitbon/magg/releases)

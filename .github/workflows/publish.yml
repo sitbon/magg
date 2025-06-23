@@ -1,4 +1,4 @@
-name: Publish to PyPI
+name: Publish new release version
 
 on:
   push:
@@ -80,38 +80,50 @@ jobs:
           uv run poe create-publish-commit
           
           # Export values for the release step
-          echo "VERSION=$(uv run poe -q version)" >> $GITHUB_ENV
-          echo "COMMIT_SHA=$(uv run poe -q git_commit_sha)" >> $GITHUB_ENV
-          echo "BUILD_SHA=$(uv run poe -q build-sha)" >> $GITHUB_ENV
-      
-      - name: Publish to PyPI
-        env:
-          PYPI_TOKEN: ${{ secrets.PYPI_TOKEN }}
-        run: |
-          uv run poe pypi-publish
-      
+          echo "VERSION=$(uv version --short)" >> $GITHUB_ENV
+          
+          # Get changelog since last release
+          echo "CHANGELOG<<EOF" >> $GITHUB_ENV
+          git log magg/latest..${{ github.sha }} >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+          
+          # Update the latest tag to point to the current commit
+          git tag -d magg/latest || true
+          git tag --no-sign magg/latest
+
       - name: Push changes back to main
-        if: success()
         run: |
           git push origin main
           git push origin --tags
+          # Also push the updated latest tag (force in case it exists)
+          git push origin magg/latest --force
       
       - name: Create GitHub Release
-        if: success()
         uses: softprops/action-gh-release@v2
         with:
           tag_name: magg/v${{ env.VERSION }}
-          name: magg v${{ env.VERSION }}
+          name: Magg v${{ env.VERSION }}
           body: |
-            ## Package Info
-            - Version: ${{ env.VERSION }}
-            - Commit: ${{ env.COMMIT_SHA }}
-            - SHA512: ${{ env.BUILD_SHA }}
-            
+            # 🧲 Magg Release v${{ env.VERSION }}
+
+            Automatically generated release triggered by commit `${{ github.sha }}`.
+
+            ## Changes
+            ```
+            ${{ env.CHANGELOG }}
+            ```
+
             ## Installation
             ```bash
-            pip install magg==${{ env.VERSION }}
+            uv add magg==${{ env.VERSION }}
             ```
           files: |
             dist/*.tar.gz
             dist/*.whl
+
+      - name: Publish to PyPI
+        if: success()
+        env:
+          PYPI_TOKEN: ${{ secrets.PYPI_TOKEN }}
+        run: |
+          uv run poe pypi-publish

@@ -1,6 +1,6 @@
 [project]
 name = "magg"
-version = "0.4.0.30"
+version = "0.4.1.30"
 requires-python = ">=3.13"
 description = "MCP Aggregator"
 authors = [{ name = "Phillip Sitbon", email = "phillip.sitbon@gmail.com"}]
@@ -84,39 +84,24 @@ verbosity = -1
 [tool.poe.tasks]
 fix-whitespace.cmd = "python scripts/fix_whitespace.py"
 
-git_commit_num.cmd = "git rev-list --count HEAD"
-git_commit_sha.cmd = "git show --pretty=format:'%H' --no-patch"
-version.cmd = "uv version --short"
-
-commit-info.sequence = [
-    { ref = "version" },
-    { ref = "git_commit_num" },
-    { ref = "git_commit_sha" },
-]
-
-build-sha.shell = "sha512sum dist/magg-$(poe -q version).tar.gz"
-
 build.sequence = [
-    { ref = "commit-info" },
     { cmd = "rm -f dist/*" },
     { cmd = "uv build" },
-    { ref = "build-sha" },
 ]
 
 sync-git-version.shell = """
-VERSION=$(echo -n $(poe -q version) | sed 's/\\(\\.\\)[0-9]*$/\\.'"$(poe -q git_commit_num)"'/')
+VERSION=$(echo -n $(uv version --short) | sed 's/\\(\\.\\)[0-9]*$/\\.'"$(poe -q git rev-list --count HEAD)"'/')
 uv version $VERSION
 git add pyproject.toml uv.lock
 """
 
 publish-commit-message.shell = """
-echo $(poe -q version) $(poe -q git_commit_sha)
-echo $(poe -q build-sha)
+echo '[Automatic] Release Version' v$(uv version --short) from $(git show --pretty=format:'%h' --no-patch)
 """
 
 verified-publish-commit.shell = """
 git commit -s -S -m "$(poe -q publish-commit-message)"
-git tag -s -m "$(poe -q publish-commit-message)" magg/v$(poe -q version)
+git tag -s -m "$(poe -q publish-commit-message)" magg/v$(uv version --short)
 """
 
 create-publish-commit.sequence = [

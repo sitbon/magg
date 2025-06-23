@@ -82,9 +82,11 @@ jobs:
           # Export values for the release step
           echo "VERSION=$(uv version --short)" >> $GITHUB_ENV
           
-          # Get changelog since last release
+          # Get changelog since last release with rich formatting
           echo "CHANGELOG<<EOF" >> $GITHUB_ENV
-          git log magg/latest..${{ github.sha }} >> $GITHUB_ENV
+          
+          git log magg/latest..${{ github.sha }} --pretty=format:'### [%s](%h)%n**Author: %an <%ae>**%n*Date: %ad*%n%n%b%n' | sed -e '/^### /!{/^$/!s/^/> /}' -e 's/^$/>/g' >> $GITHUB_ENV
+          
           echo "EOF" >> $GITHUB_ENV
           
           # Delete remote latest tag FIRST (before creating new one)
@@ -103,11 +105,9 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: magg/v${{ env.VERSION }}
-          name: Magg v${{ env.VERSION }}
+          name: 🧲 Magg Release v${{ env.VERSION }}
           body: |
-            # 🧲 Magg Release v${{ env.VERSION }}
-
-            Automatically generated release triggered by commit `${{ github.sha }}`.
+            Automatically generated release triggered by commit ${{ github.sha }}
 
             ## Changes
             ```

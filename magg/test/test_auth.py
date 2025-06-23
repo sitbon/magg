@@ -128,9 +128,28 @@ class TestBearerAuthManager:
         with pytest.raises(RuntimeError, match="Authentication is not enabled"):
             manager.load_keys()
 
-    def test_enabled_with_config(self):
-        """Test auth is enabled with config."""
-        config = BearerAuthConfig()
+    def test_enabled_with_keys(self, tmp_path):
+        """Test auth is enabled when keys exist."""
+        # Create a temporary key
+        key_dir = tmp_path / "keys"
+        key_dir.mkdir()
+        private_key_path = key_dir / "test.key"
+        
+        # Generate a test key
+        private_key = rsa.generate_private_key(
+            public_exponent=65537,
+            key_size=2048,
+            backend=default_backend()
+        )
+        private_key_path.write_bytes(
+            private_key.private_bytes(
+                encoding=serialization.Encoding.PEM,
+                format=serialization.PrivateFormat.TraditionalOpenSSL,
+                encryption_algorithm=serialization.NoEncryption()
+            )
+        )
+        
+        config = BearerAuthConfig(key_path=key_dir, audience="test")
         manager = BearerAuthManager(config)
         assert manager.enabled
 

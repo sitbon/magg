@@ -129,7 +129,6 @@ class ProxyClient(Client):
         result = await self.proxy(proxy_type=proxy_type, action="list")
 
         if not result:
-            # TODO: Check whether empty results are still encapsulated in an EmbeddedResource
             return []
 
         if len(result) != 1:

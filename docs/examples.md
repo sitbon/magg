@@ -128,67 +128,15 @@ Response:
 
 You can now use the MCP server from your LLM interface or directly from application code. Here's an example with `mbro`:
 
-***Note: The `magg_list_tools` command lists all tools available in the MCP servers - the output from `mbro`'s tools command may not be updated yet.***
+```text
+mbro:magg> tools
+```
+
+This will show all available tools from all mounted servers, including the newly added Playwright server tools with the `playwright_` prefix.
+
+You can now use any of the Playwright tools:
 
 ```text
-mbro:magg> call magg_list_tools
+mbro:magg> call playwright_browser_navigate {"url": "https://example.com"}
+mbro:magg> call playwright_browser_take_screenshot
 ```
-Result:
-```json
-{
-  "errors": null,
-  "output": {
-    "tool_groups": [
-      {
-        "prefix": "magg",
-        "tools": [
-          "magg_add_server",
-          "magg_analyze_servers",
-          "magg_disable_server",
-          "magg_enable_server",
-          "magg_list_servers",
-          "magg_list_tools",
-          "magg_remove_server",
-          "magg_search_servers",
-          "magg_smart_configure"
-        ],
-        "count": 9
-      },
-      {
-        "prefix": "playwright",
-        "tools": [
-          "playwright_browser_click",
-          "playwright_browser_close",
-          "playwright_browser_console_messages",
-          "playwright_browser_drag",
-          "playwright_browser_file_upload",
-          "playwright_browser_generate_playwright_test",
-          "playwright_browser_handle_dialog",
-          "playwright_browser_hover",
-          "playwright_browser_install",
-          "playwright_browser_navigate",
-          "playwright_browser_navigate_back",
-          "playwright_browser_navigate_forward",
-          "playwright_browser_network_requests",
-          "playwright_browser_pdf_save",
-          "playwright_browser_press_key",
-          "playwright_browser_resize",
-          "playwright_browser_select_option",
-          "playwright_browser_snapshot",
-          "playwright_browser_tab_close",
-          "playwright_browser_tab_list",
-          "playwright_browser_tab_new",
-          "playwright_browser_tab_select",
-          "playwright_browser_take_screenshot",
-          "playwright_browser_type",
-          "playwright_browser_wait_for"
-        ],
-        "count": 25
-      }
-    ],
-    "total_tools": 34
-  }
-}
-```
-
-For LLM usage, instruct your LLM to use the `magg_list_tools` command to discover newly added tools and use the playwright server as needed.

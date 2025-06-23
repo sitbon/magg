@@ -50,7 +50,11 @@ dependencies = [
 ]
 
 [project.urls]
-Repository = "https://github.com/sitbon/magg"
+Homepage = "https://github.com/sitbon/magg"
+Repository = "https://github.com/sitbon/magg.git"
+Documentation = "https://github.com/sitbon/magg#readme"
+Issues = "https://github.com/sitbon/magg/issues"
+"Release Notes" = "https://github.com/sitbon/magg/releases"
 
 [project.scripts]
 magg = "magg.cli:main"

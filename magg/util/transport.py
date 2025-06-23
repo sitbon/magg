@@ -171,7 +171,7 @@ NPX servers (command="npx"):
 - `use_package_lock` (boolean): Use package-lock.json if present (default: true)
 
 UVX servers (command="uvx"):
-- `python_version` (string): Python version to use (e.g., "3.11")
+- `python_version` (string): Python version to use (e.g., "3.13")
 - `with_packages` (array): Additional packages to install
 - `from_package` (string): Install tool from specific package
 

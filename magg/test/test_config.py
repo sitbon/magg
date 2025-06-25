@@ -96,7 +96,7 @@ class TestMaggConfig:
         env = os.environ.copy()
         if 'MAGG_LOG_LEVEL' in env:
             del env['MAGG_LOG_LEVEL']
-        
+
         with patch.dict('os.environ', env, clear=True):
             config = MaggConfig()
             assert config.config_path == Path.cwd() / ".magg" / "config.json"

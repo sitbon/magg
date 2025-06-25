@@ -530,6 +530,7 @@ test = [
 dev = [
     { name = "anthropic" },
     { name = "keyring" },
+    { name = "packaging" },
     { name = "poethepoet" },
     { name = "pyjwt" },
     { name = "pytest" },
@@ -555,6 +556,7 @@ provides-extras = ["test"]
 dev = [
     { name = "anthropic", specifier = ">=0.54.0" },
     { name = "keyring", specifier = ">=25.6.0" },
+    { name = "packaging", specifier = ">=25.0" },
     { name = "poethepoet", specifier = ">=0.35.0" },
     { name = "pyjwt", specifier = ">=2.10.1" },
     { name = "pytest", specifier = ">=8.4.0" },

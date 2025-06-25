@@ -8,8 +8,58 @@ on:
     branches: [main]
 
 jobs:
-  publish:
+  check-version:
+    name: Check Version Change
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    outputs:
+      should_publish: ${{ steps.version_check.outputs.changed }}
+      version: ${{ steps.version_check.outputs.version }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.PAT_TOKEN }}
+      
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      
+      - name: Check if version changed
+        id: version_check
+        run: |
+          # Get current version
+          CURRENT_VERSION=$(uv version --short)
+          echo "version=${CURRENT_VERSION}" >> $GITHUB_OUTPUT
+          
+          # Get last published version from latest-publish tag
+          if git show-ref --tags --quiet --verify refs/tags/latest-publish; then
+            # Checkout the last published commit
+            git checkout latest-publish
+            LAST_VERSION=$(uv version --short)
+            git checkout -
+          else
+            LAST_VERSION=""
+          fi
+          
+          echo "Current version: ${CURRENT_VERSION}"
+          echo "Last published version: ${LAST_VERSION:-none}"
+          
+          if [ "${CURRENT_VERSION}" != "${LAST_VERSION}" ]; then
+            echo "Version changed, will publish"
+            echo "changed=true" >> $GITHUB_OUTPUT
+          else
+            echo "Version unchanged, skipping publish"
+            echo "changed=false" >> $GITHUB_OUTPUT
+          fi
+
+  publish:
+    name: Publish PyPI Package and GitHub Release
+    needs: check-version
+    if: ${{ needs.check-version.outputs.should_publish == 'true' }}
     runs-on: ubuntu-latest
     environment: publish
     permissions:
@@ -53,44 +103,49 @@ jobs:
       
       - name: Build and tag release
         run: |
-          # Get commit count
-          C=$(git rev-list --count HEAD)
-          
-          # Get current version
-          V=$(uv version --short)
-          
-          # Create version string and export
-          VERSION="${V}.${C}"
-          echo "VERSION=${VERSION}" >> $GITHUB_ENV
-          
-          # Update version in pyproject.toml
-          UV_FROZEN=true uv version "${VERSION}"
+          # Get current version (3-part)
+          V=${{ needs.check-version.outputs.version }}
+          echo "VERSION=${V}" >> $GITHUB_ENV
           
           # Build the package
           UV_FROZEN=true uv build
           
-          # Create a new version tag and export name
-          TAG="magg/v${VERSION}"
+          # Create a 3-part version tag
+          TAG="v${V}"
           echo "TAG=${TAG}" >> $GITHUB_ENV
-          TAG_MESSAGE="[Automatic] Release Version v${VERSION} from $(git rev-parse --short HEAD)"
+          TAG_MESSAGE="[Automatic] Release Version ${V} from $(git rev-parse --short HEAD)"
           git tag -s -m "${TAG_MESSAGE}" "${TAG}"
           
-          # Update latest tag after getting changelog
-          LATEST_TAG="magg/latest"
+          # Create or update 2-digit version tag (simple, unsigned)
+          MAJOR_MINOR=$(echo ${V} | cut -d. -f1-2)
+          TAG_2DIGIT="v${MAJOR_MINOR}"
+          # Delete existing 2-digit tag if it exists
+          git tag -d "${TAG_2DIGIT}" 2>/dev/null || true
+          git push origin :refs/tags/"${TAG_2DIGIT}" 2>/dev/null || true
+          # Create new simple unsigned tag
+          git tag --no-sign "${TAG_2DIGIT}"
+          
+          # Update latest-publish tag after getting changelog
+          LATEST_TAG="latest-publish"
           
           # Get changelog since last release with rich formatting
           echo "CHANGELOG<<EOFEOF" >> $GITHUB_ENV
-          git log ${LATEST_TAG}..${{ github.sha }} --pretty=format:'### [%s](https://github.com/${{ github.repository }}/commit/%H)%nDate: %ad*%n%n%b%n' | sed -e '/^Signed-off-by:/d' -e '/^### /!{/^$/!s/^/> /}' -e 's/^$/>/g' >> $GITHUB_ENV
+          if git show-ref --tags --quiet --verify refs/tags/${LATEST_TAG}; then
+            git log ${LATEST_TAG}..${{ github.sha }} --pretty=format:'### [%s](https://github.com/${{ github.repository }}/commit/%H)%nDate: %ad*%n%n%b%n' | sed -e '/^Signed-off-by:/d' -e '/^### /!{/^$/!s/^/> /}' -e 's/^$/>/g' >> $GITHUB_ENV
+          else
+            # No previous release, show last 2 commits
+            git log -2 --pretty=format:'### [%s](https://github.com/${{ github.repository }}/commit/%H)%nDate: %ad*%n%n%b%n' | sed -e '/^Signed-off-by:/d' -e '/^### /!{/^$/!s/^/> /}' -e 's/^$/>/g' >> $GITHUB_ENV
+          fi
           echo "EOFEOF" >> $GITHUB_ENV
           
-          # Delete remote latest tag FIRST (before creating new one)
+          # Delete remote latest-publish tag FIRST (before creating new one)
           git push origin :refs/tags/${LATEST_TAG} || true
           
-          # Now create the new latest tag locally
+          # Now create the new latest-publish tag locally
           git tag -d ${LATEST_TAG} || true
           git tag --no-sign ${LATEST_TAG}
           
-          # Push the new latest tag to remote
+          # Push all tags to remote
           git push origin --tags
 
       - name: Create GitHub Release
@@ -99,8 +154,6 @@ jobs:
           tag_name: ${{ env.TAG }}
           name: 🧲 Magg Release v${{ env.VERSION }}
           body: |
-            Automatically generated release triggered by commit ${{ github.sha }}
-
             ## Changes
             ${{ env.CHANGELOG }}
 

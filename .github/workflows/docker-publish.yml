@@ -46,9 +46,8 @@ jobs:
           tags: |
             type=ref,event=branch,suffix=-dev-py${{ matrix.python-version }}
             type=ref,event=pr,suffix=-dev-py${{ matrix.python-version }}
-            type=semver,pattern={{version}},suffix=-dev-py${{ matrix.python-version }}
-            type=semver,pattern={{major}}.{{minor}},suffix=-dev-py${{ matrix.python-version }}
-            type=raw,value=${{ github.ref == 'refs/heads/main' && 'dev' || format('{0}-dev', github.ref_name) }},enable=${{ matrix.python-version == '3.13' }}
+            type=semver,pattern=v{{major}}.{{minor}}.{{patch}}.{{build}},prefix=,suffix=-dev-py${{ matrix.python-version }}
+            type=raw,value=${{ github.ref_name == 'main' && 'dev' || format('{0}-dev', github.ref_name) }},enable=${{ matrix.python-version == '3.13' && startsWith(github.ref, 'refs/heads/') }}
       
       - name: Build dev image
         uses: docker/build-push-action@v6
@@ -130,8 +129,7 @@ jobs:
           tags: |
             type=ref,event=branch,suffix=${{ matrix.suffix }}
             type=ref,event=pr,suffix=${{ matrix.suffix }}
-            type=semver,pattern={{version}},suffix=${{ matrix.suffix }}
-            type=semver,pattern={{major}}.{{minor}},suffix=${{ matrix.suffix }}
+            type=semver,pattern=v{{major}}.{{minor}}.{{patch}}.{{build}},prefix=,suffix=${{ matrix.suffix }}
             type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' && matrix.target == 'pro' }}
       
       - name: Build and push Docker image

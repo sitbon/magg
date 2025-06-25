@@ -1,34 +1,15 @@
 name: Publish
 
 on:
-  push:
+  workflow_run:
+    workflows: ["Tests"]
+    types:
+      - completed
     branches: [main]
 
 jobs:
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      
-      - name: Install uv
-        uses: astral-sh/setup-uv@v6
-        with:
-          enable-cache: true
-      
-      - name: Set up Python
-        run: uv python install
-      
-      - name: Install dependencies
-        run: |
-          uv sync --all-groups --locked
-      
-      - name: Run tests
-        run: |
-          uv run pytest -v
-
   publish:
-    needs: test
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     environment: publish
     permissions:

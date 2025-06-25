@@ -3,7 +3,7 @@
 import pytest
 from fastmcp import Client
 
-from magg.server.server import MAGGServer
+from magg.server.server import MaggServer
 
 
 class TestStatusAndCheckTools:
@@ -13,7 +13,7 @@ class TestStatusAndCheckTools:
     async def test_status_tool(self, tmp_path):
         """Test the magg_status tool returns proper statistics."""
         config_path = tmp_path / "config.json"
-        server = MAGGServer(config_path)
+        server = MaggServer(config_path)
         await server.setup()
 
         async with Client(server.mcp) as client:
@@ -24,7 +24,7 @@ class TestStatusAndCheckTools:
             import json
             response = json.loads(result[0].text)
 
-            # Extract the output from MAGGResponse
+            # Extract the output from MaggResponse
             assert "output" in response
             data = response["output"]
 
@@ -49,7 +49,7 @@ class TestStatusAndCheckTools:
     async def test_check_tool_report_mode(self, tmp_path):
         """Test the magg_check tool in report mode."""
         config_path = tmp_path / "config.json"
-        server = MAGGServer(config_path)
+        server = MaggServer(config_path)
         await server.setup()
 
         async with Client(server.mcp) as client:
@@ -61,7 +61,7 @@ class TestStatusAndCheckTools:
             import json
             response = json.loads(result[0].text)
 
-            # Extract the output from MAGGResponse
+            # Extract the output from MaggResponse
             assert "output" in response
             data = response["output"]
 
@@ -80,7 +80,7 @@ class TestStatusAndCheckTools:
     async def test_check_tool_with_timeout(self, tmp_path):
         """Test the magg_check tool with custom timeout."""
         config_path = tmp_path / "config.json"
-        server = MAGGServer(config_path)
+        server = MaggServer(config_path)
         await server.setup()
 
         async with Client(server.mcp) as client:

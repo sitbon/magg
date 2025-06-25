@@ -1,11 +1,11 @@
-"""Small CLI to run the MAGG server directly, e.g. `python -m magg.server`
+"""Small CLI to run the Magg server directly, e.g. `python -m magg.server`
 """
 import argparse
 import asyncio
 
 
 def main():
-    """Run the MAGG server."""
+    """Run the Magg server."""
     parser = create_parser()
     args = parser.parse_args()
 
@@ -16,13 +16,13 @@ def main():
 
 def create_parser():
     """Create the command line argument parser."""
-    parser = argparse.ArgumentParser(description="Run the MAGG server.")
+    parser = argparse.ArgumentParser(description="Run the Magg server.")
     from ..cli import __version__, cmd_serve_args
     parser.add_argument(
         "-V", "--version",
         action="version",
         version=f"%(prog)s {__version__}",
-        help="Show the version of the MAGG server."
+        help="Show the version of the Magg server."
     )
     parser.add_argument(
         '--config',

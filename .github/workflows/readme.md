@@ -1,6 +1,6 @@
-# GitHub Actions Workflows for MAGG
+# GitHub Actions Workflows for Magg
 
-This directory contains GitHub Actions workflows for automated testing, publishing, and Docker image management for the MAGG package.
+This directory contains GitHub Actions workflows for automated testing, publishing, and Docker image management for the Magg package.
 
 ## Workflows
 

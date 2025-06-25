@@ -69,9 +69,11 @@ jobs:
       
       - name: Run tests in container
         run: |
+          # Use the first tag only (multiple tags break the docker run command)
+          FIRST_TAG=$(echo "${{ steps.meta.outputs.tags }}" | head -n1)
           docker run --rm \
             -e MAGG_LOG_LEVEL= \
-            ${{ steps.meta.outputs.tags }} \
+            ${FIRST_TAG} \
             pytest -v
       
       - name: Push dev image

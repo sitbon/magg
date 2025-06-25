@@ -1,4 +1,4 @@
-"""Tests for MAGG configuration management."""
+"""Tests for Magg configuration management."""
 
 import os
 import pytest
@@ -7,7 +7,7 @@ import json
 from pathlib import Path
 from unittest.mock import patch
 
-from magg.settings import ConfigManager, ServerConfig, MAGGConfig
+from magg.settings import ConfigManager, ServerConfig, MaggConfig
 
 
 class TestServerConfig:
@@ -87,8 +87,8 @@ class TestServerConfig:
         assert ServerConfig.generate_prefix_from_name("!!!") == "server"
 
 
-class TestMAGGConfig:
-    """Test MAGGConfig functionality."""
+class TestMaggConfig:
+    """Test MaggConfig functionality."""
 
     def test_config_defaults(self):
         """Test default configuration values."""
@@ -98,14 +98,14 @@ class TestMAGGConfig:
             del env['MAGG_LOG_LEVEL']
         
         with patch.dict('os.environ', env, clear=True):
-            config = MAGGConfig()
+            config = MaggConfig()
             assert config.config_path == Path.cwd() / ".magg" / "config.json"
             assert config.log_level is None, "Default log level should be None"
             assert config.servers == {}
 
     def test_add_remove_server(self):
         """Test adding and removing servers."""
-        config = MAGGConfig()
+        config = MaggConfig()
 
         server = ServerConfig(name="test", source="https://example.com")  # prefix auto-generated
         config.add_server(server)
@@ -122,7 +122,7 @@ class TestMAGGConfig:
 
     def test_get_enabled_servers(self):
         """Test getting only enabled servers."""
-        config = MAGGConfig()
+        config = MaggConfig()
 
         server1 = ServerConfig(name="enabled1", source="test", enabled=True)  # prefix auto-generated
         server2 = ServerConfig(name="disabled", source="test", enabled=False)  # prefix auto-generated
@@ -158,7 +158,7 @@ class TestConfigManager:
             manager = ConfigManager(str(config_path))
 
             # Create config with servers
-            config = MAGGConfig()
+            config = MaggConfig()
             server1 = ServerConfig(
                 name="server1",
                 source="https://example.com/1",

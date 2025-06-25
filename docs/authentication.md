@@ -1,10 +1,10 @@
-# MAGG Authentication Guide
+# Magg Authentication Guide
 
-This guide covers how to set up and use bearer token authentication in MAGG.
+This guide covers how to set up and use bearer token authentication in Magg.
 
 ## Overview
 
-MAGG uses RSA keypair-based bearer token authentication with JWT tokens. When enabled, all clients must provide a valid JWT token to access the server. Authentication is optional - if no keys exist, the server runs without authentication.
+Magg uses RSA keypair-based bearer token authentication with JWT tokens. When enabled, all clients must provide a valid JWT token to access the server. Authentication is optional - if no keys exist, the server runs without authentication.
 
 ## Quick Start
 
@@ -160,7 +160,7 @@ curl -H "Authorization: Bearer $JWT" http://localhost:8000/mcp/
 
 ## Disabling Authentication
 
-To run MAGG without authentication:
+To run Magg without authentication:
 
 ### Option 1: Don't Generate Keys
 Simply don't run `magg auth init`. No keys = no auth.
@@ -233,7 +233,7 @@ Output shows:
 
 ### Custom Token Claims
 
-While MAGG doesn't enforce scopes, you can include them for client-side logic:
+While Magg doesn't enforce scopes, you can include them for client-side logic:
 ```bash
 magg auth token --scopes "projects:read" "servers:write"
 ```

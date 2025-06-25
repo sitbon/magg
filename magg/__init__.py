@@ -1,4 +1,4 @@
-"""MAGG - MCP Aggregator
+"""Magg - MCP Aggregator
 
 A self-aware MCP server that manages and aggregates other MCP tools and servers.
 """

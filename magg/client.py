@@ -1,4 +1,4 @@
-"""MAGG FastMCP client wrapper with authentication and proxy support."""
+"""Magg FastMCP client wrapper with authentication and proxy support."""
 from typing import Any
 
 from fastmcp.client import BearerAuth
@@ -9,9 +9,9 @@ from .settings import ClientSettings
 
 
 class MaggClient(ProxyClient):
-    """MAGG-specific client with authentication and proxy support.
+    """Magg-specific client with authentication and proxy support.
 
-    This client is designed for external code that needs to talk to MAGG servers.
+    This client is designed for external code that needs to talk to Magg servers.
     It automatically handles JWT authentication from environment variables and
     provides proxy-aware methods for accessing aggregated MCP capabilities.
     """
@@ -25,14 +25,14 @@ class MaggClient(ProxyClient):
         transparent: bool = True,
         **kwds,
     ):
-        """Initialize MAGG client with JWT authentication and proxy support.
+        """Initialize Magg client with JWT authentication and proxy support.
 
         Args:
             transport: Same as FastMCP Client transport argument
             *args: Additional positional arguments for ProxyClient
             settings: Client settings (defaults to loading from env)
             auth: Override auth (if not provided, uses JWT from settings)
-            transparent: Enable transparent proxy mode (default: True for MAGG)
+            transparent: Enable transparent proxy mode (default: True for Magg)
             **kwds: Additional keyword arguments for ProxyClient/FastMCP Client
         """
         self.settings = settings or ClientSettings()

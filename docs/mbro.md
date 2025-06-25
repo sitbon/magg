@@ -12,7 +12,7 @@
 
 ## Installation
 
-`mbro` is included as part of the MAGG package:
+`mbro` is included as part of the Magg package:
 
 ### Recommended: Install with uv tool
 ```bash
@@ -230,19 +230,19 @@ This is particularly useful for:
 - Exploring the raw MCP protocol responses
 - Building custom scripts and automation
 
-## Integration with MAGG
+## Integration with Magg
 
-When used with MAGG, mbro can browse the aggregated server:
+When used with Magg, mbro can browse the aggregated server:
 
 ```bash
-# Start MAGG server
+# Start Magg server
 magg serve --http --port 8000
 
-# In another terminal, connect mbro to MAGG
+# In another terminal, connect mbro to Magg
 mbro --connect magg http://localhost:8000
 ```
 
-This allows you to use mbro to explore all tools from all servers managed by MAGG through a single interface.
+This allows you to use mbro to explore all tools from all servers managed by Magg through a single interface.
 
 ## Examples
 
@@ -282,13 +282,13 @@ mbro:fs> read file:///etc/hosts
 ...
 ```
 
-### Example 3: Working with MAGG
+### Example 3: Working with Magg
 
 ```bash
-# Terminal 1: Start MAGG with multiple servers configured
+# Terminal 1: Start Magg with multiple servers configured
 $ magg serve --http
 
-# Terminal 2: Connect mbro to MAGG
+# Terminal 2: Connect mbro to Magg
 $ mbro --connect magg http://localhost:8000
 
 mbro:magg> tools
@@ -390,6 +390,6 @@ echo $result | jq '.'
 
 ## See Also
 
-- [MAGG Documentation](index.md) - MCP Aggregator
+- [Magg Documentation](index.md) - MCP Aggregator
 - [MCP Specification](https://modelcontextprotocol.io) - Model Context Protocol details
-- [Examples](examples.md) - More usage examples with MAGG
+- [Examples](examples.md) - More usage examples with Magg

@@ -15,7 +15,7 @@ An MCP server that manages and aggregates other MCP servers, enabling LLMs to dy
 
 ## What is Magg?
 
-MAGG is a meta-MCP server that acts as a central hub for managing multiple MCP servers. It provides tools that allow LLMs to:
+Magg is a meta-MCP server that acts as a central hub for managing multiple MCP servers. It provides tools that allow LLMs to:
 
 - Search for new MCP servers and discover setup instructions
 - Add and configure MCP servers dynamically
@@ -23,7 +23,7 @@ MAGG is a meta-MCP server that acts as a central hub for managing multiple MCP s
 - Aggregate tools from multiple servers under unified prefixes
 - Persist configurations across sessions
 
-Think of MAGG as a "package manager for LLM tools" - it lets AI assistants install and manage their own capabilities at runtime.
+Think of Magg as a "package manager for LLM tools" - it lets AI assistants install and manage their own capabilities at runtime.
 
 ## Features
 
@@ -43,10 +43,10 @@ Think of MAGG as a "package manager for LLM tools" - it lets AI assistants insta
 
 ### Quick Install (Recommended)
 
-The easiest way to install MAGG is as a tool using `uv`:
+The easiest way to install Magg is as a tool using `uv`:
 
 ```bash
-# Install MAGG as a tool
+# Install Magg as a tool
 uv tool install magg
 
 # Run with stdio transport (for Claude Desktop, Cline, etc.)
@@ -58,7 +58,7 @@ magg serve --http
 
 ### Alternative: Run Directly from GitHub
 
-You can also run MAGG directly from GitHub without installing:
+You can also run Magg directly from GitHub without installing:
 
 ```bash
 # Run with stdio transport
@@ -89,7 +89,7 @@ magg --help
 
 ### Docker
 
-MAGG is available as pre-built Docker images from GitHub Container Registry:
+Magg is available as pre-built Docker images from GitHub Container Registry:
 
 ```bash
 # Run production image (WARNING log level)
@@ -116,7 +116,7 @@ docker run -p 8000:8000 \
 
 #### Docker Image Strategy
 
-MAGG uses a multi-stage Docker build with three target stages:
+Magg uses a multi-stage Docker build with three target stages:
 
 - **`pro` (Production)**: Minimal image with WARNING log level, suitable for production deployments
 - **`pre` (Pre-production)**: Same as production but with INFO log level for staging/testing
@@ -156,9 +156,9 @@ See `compose.yaml` and `.env.example` for configuration options.
 
 ## Usage
 
-### Running MAGG
+### Running Magg
 
-MAGG can run in two modes:
+Magg can run in two modes:
 
 1. **Stdio Mode** (default) - For integration with Claude Desktop, Cline, Cursor, etc.:
    ```bash
@@ -172,7 +172,7 @@ MAGG can run in two modes:
 
 ### Available Tools
 
-Once MAGG is running, it exposes the following tools to LLMs:
+Once Magg is running, it exposes the following tools to LLMs:
 
 - `magg_list_servers` - List all configured MCP servers
 - `magg_add_server` - Add a new MCP server
@@ -185,7 +185,7 @@ Once MAGG is running, it exposes the following tools to LLMs:
 
 ### Authentication
 
-MAGG supports optional bearer token authentication to secure access:
+Magg supports optional bearer token authentication to secure access:
 
 #### Quick Start
 
@@ -240,7 +240,7 @@ See [examples/authentication.py](examples/authentication.py) for more usage patt
 
 ### Configuration
 
-MAGG stores its configuration in `.magg/config.json` in your current working directory. This allows for project-specific tool configurations.
+Magg stores its configuration in `.magg/config.json` in your current working directory. This allows for project-specific tool configurations.
 
 Example configuration:
 ```json

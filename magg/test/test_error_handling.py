@@ -7,8 +7,8 @@ import json
 from pathlib import Path
 from unittest.mock import patch, MagicMock, AsyncMock
 
-from magg.settings import ConfigManager, ServerConfig, MAGGConfig
-from magg.server import MAGGServer
+from magg.settings import ConfigManager, ServerConfig, MaggConfig
+from magg.server import MaggServer
 
 
 class TestErrorHandling:
@@ -64,7 +64,7 @@ class TestErrorHandling:
         """Test handling of duplicate server names."""
         with tempfile.TemporaryDirectory() as tmpdir:
             config_path = Path(tmpdir) / "config.json"
-            server = MAGGServer(str(config_path))
+            server = MaggServer(str(config_path))
 
             # Add first server
             result1 = await server.add_server(
@@ -117,7 +117,7 @@ class TestConfigValidation:
 
     def test_empty_config_creation(self):
         """Test creating empty configuration."""
-        config = MAGGConfig()
+        config = MaggConfig()
         assert config.servers == {}
         assert len(config.get_enabled_servers()) == 0
 
@@ -146,7 +146,7 @@ class TestMountingErrors:
     @pytest.mark.asyncio
     async def test_mount_nonexistent_command(self):
         """Test mounting server with non-existent command."""
-        server = MAGGServer()
+        server = MaggServer()
 
         with patch.object(server.server_manager, 'mount_server', new_callable=AsyncMock) as mock_mount:
             mock_mount.return_value = False  # Simulate mount failure
@@ -163,7 +163,7 @@ class TestMountingErrors:
     @pytest.mark.asyncio
     async def test_mount_with_invalid_working_dir(self):
         """Test mounting server with invalid working directory."""
-        server = MAGGServer()
+        server = MaggServer()
 
         with patch('magg.server.server.validate_working_directory') as mock_validate:
             mock_validate.return_value = (None, "Invalid working directory")

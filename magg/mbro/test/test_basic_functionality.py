@@ -13,13 +13,13 @@ class TestMBROBasic:
 
     @pytest.fixture
     def magg_server_port(self):
-        """Port for test MAGG server."""
+        """Port for test Magg server."""
         return 8081
 
     @pytest.fixture(scope="function")
     async def magg_server(self, magg_server_port):
-        """Start a MAGG HTTP server for testing."""
-        # Start MAGG HTTP server in background
+        """Start a Magg HTTP server for testing."""
+        # Start Magg HTTP server in background
         process = subprocess.Popen(
             ["uv", "run", "magg", "--http", "--port", str(magg_server_port)],
             stdout=subprocess.PIPE,
@@ -42,7 +42,7 @@ class TestMBROBasic:
     @pytest.mark.skip(reason="Integration test requires complex async server setup")
     @pytest.mark.asyncio
     async def test_mbro_connection(self, magg_server, magg_server_port):
-        """Test that mbro can connect to MAGG server."""
+        """Test that mbro can connect to Magg server."""
         # Test mbro connection
         mbro_process = subprocess.Popen(
             ["uv", "run", "python", "-m", "mbro.cli", f"http://localhost:{magg_server_port}", "list"],
@@ -60,7 +60,7 @@ class TestMBROBasic:
     @pytest.mark.skip(reason="Integration test requires complex async server setup")
     @pytest.mark.asyncio
     async def test_mbro_tool_listing(self, magg_server, magg_server_port):
-        """Test that mbro can list tools from MAGG."""
+        """Test that mbro can list tools from Magg."""
         # Test tool listing
         mbro_process = subprocess.Popen(
             ["uv", "run", "python", "-m", "mbro.cli", f"http://localhost:{magg_server_port}", "list"],
@@ -72,19 +72,19 @@ class TestMBROBasic:
         stdout, stderr = mbro_process.communicate(timeout=10)
 
         assert mbro_process.returncode == 0
-        # Should see MAGG's own tools at minimum
+        # Should see Magg's own tools at minimum
         assert "magg" in stdout.lower()
 
 
 @pytest.mark.integration
 class TestMBROIntegration:
-    """Integration tests for MBRO with MAGG."""
+    """Integration tests for MBRO with Magg."""
 
     @pytest.mark.asyncio
     async def test_mbro_search_functionality(self):
         """Test mbro search functionality."""
         # This would test the search capabilities
-        # Implementation depends on MAGG search being available
+        # Implementation depends on Magg search being available
         pass
 
     @pytest.mark.asyncio

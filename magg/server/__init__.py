@@ -1,3 +1,3 @@
-"""MAGG Server Management
+"""Magg Server Management
 """
-from .server import MAGGServer
+from .server import MaggServer

@@ -1,4 +1,4 @@
-"""Test tool delegation functionality for MAGG."""
+"""Test tool delegation functionality for Magg."""
 
 import pytest
 from fastmcp import FastMCP, Client
@@ -91,9 +91,9 @@ class TestToolDiscovery:
     @pytest.mark.asyncio
     async def test_server_tool_listing(self):
         """Test listing tools from a server via Client."""
-        from magg.server import MAGGServer
+        from magg.server import MaggServer
 
-        server = MAGGServer()
+        server = MaggServer()
         await server.setup()
 
         # List tools through the FastMCP client
@@ -101,7 +101,7 @@ class TestToolDiscovery:
             tools = await client.list_tools()
             tool_names = [tool.name for tool in tools]
 
-            # Should at least have MAGG's own tools
+            # Should at least have Magg's own tools
             assert "magg_list_servers" in tool_names
             assert "magg_add_server" in tool_names
             assert len(tool_names) > 0
@@ -109,9 +109,9 @@ class TestToolDiscovery:
     @pytest.mark.asyncio
     async def test_mounted_server_tools(self):
         """Test that mounted server tools appear in listings."""
-        from magg.server import MAGGServer
+        from magg.server import MaggServer
 
-        server = MAGGServer()
+        server = MaggServer()
         await server.setup()
 
         # Create a test MCP server
@@ -135,7 +135,7 @@ class TestToolDiscovery:
             tools = await client.list_tools()
             tool_names = [tool.name for tool in tools]
 
-            # Should have MAGG's own tools
+            # Should have Magg's own tools
             assert "magg_list_servers" in tool_names
             assert "magg_add_server" in tool_names
 

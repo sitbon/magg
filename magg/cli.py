@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Main CLI interface for MAGG - Simplified implementation."""
+"""Main CLI interface for Magg - Simplified implementation."""
 
 import argparse
 import asyncio
@@ -24,15 +24,15 @@ logger: logging.Logger | None = logging.getLogger(__name__)
 
 
 async def cmd_serve(args) -> None:
-    """Start MAGG server."""
-    from magg.server.runner import MAGGRunner
+    """Start Magg server."""
+    from magg.server.runner import MaggRunner
 
-    logger.info("Starting MAGG server (mode: %s)", 'http' if args.http else 'stdio')
+    logger.info("Starting Magg server (mode: %s)", 'http' if args.http else 'stdio')
 
     if args.http:
         print_startup_banner()
 
-    runner = MAGGRunner(args.config)
+    runner = MaggRunner(args.config)
 
     if args.http:
         logger.info("Starting HTTP server on %s:%s", args.host, args.port)
@@ -206,14 +206,14 @@ async def cmd_disable_server(args) -> None:
 
     if config_manager.save_config(config):
         print_success(f"Disabled server '{args.name}'")
-        print_warning("The server will remain mounted until MAGG is restarted")
+        print_warning("The server will remain mounted until Magg is restarted")
     else:
         print_error("Failed to save configuration")
         sys.exit(1)
 
 
 async def cmd_status(args) -> None:
-    """Show MAGG status."""
+    """Show Magg status."""
     config_manager = ConfigManager(args.config)
     config = config_manager.load_config()
 
@@ -415,7 +415,7 @@ def create_parser() -> argparse.ArgumentParser:
     """Create the command line parser."""
     parser = argparse.ArgumentParser(
         prog='magg',
-        description='MAGG - MCP Aggregator: Manage and aggregate MCP servers',
+        description='Magg - MCP Aggregator: Manage and aggregate MCP servers',
         epilog='Use "magg <command> --help" for more information about a command.'
     )
 
@@ -436,8 +436,8 @@ def create_parser() -> argparse.ArgumentParser:
     # Serve command
     serve_parser = subparsers.add_parser(
         'serve',
-        help='Start MAGG server',
-        description='Start the MAGG server in either stdio mode (default) or HTTP mode'
+        help='Start Magg server',
+        description='Start the Magg server in either stdio mode (default) or HTTP mode'
     )
     cmd_serve_args(serve_parser)
 
@@ -468,7 +468,7 @@ def create_parser() -> argparse.ArgumentParser:
     disable_parser.add_argument('name', help='Server name')
 
     # Status command
-    subparsers.add_parser('status', help='Show MAGG status')
+    subparsers.add_parser('status', help='Show Magg status')
 
     # Export command
     export_parser = subparsers.add_parser('export', help='Export configuration')

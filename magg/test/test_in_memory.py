@@ -1,22 +1,22 @@
-"""Test in-memory MAGG server functionality via FastMCPTransport."""
+"""Test in-memory Magg server functionality via FastMCPTransport."""
 import json
 import sys
 import pytest
 from fastmcp import Client
 from fastmcp.client import FastMCPTransport
 
-from magg.server import MAGGServer
+from magg.server import MaggServer
 
 
 @pytest.mark.asyncio
 async def test_in_memory_basic_tools(tmp_path):
-    """Test basic MAGG tools work via in-memory transport."""
+    """Test basic Magg tools work via in-memory transport."""
     # Create config in temp directory
     config_path = tmp_path / ".magg" / "config.json"
     config_path.parent.mkdir()
 
     # Create server
-    server = MAGGServer(str(config_path))
+    server = MaggServer(str(config_path))
     await server.setup()
 
     # Create in-memory client
@@ -27,7 +27,7 @@ async def test_in_memory_basic_tools(tmp_path):
         tools = await client.list_tools()
         tool_names = {tool.name for tool in tools}
 
-        # Should have MAGG management tools
+        # Should have Magg management tools
         assert "magg_add_server" in tool_names
         assert "magg_list_servers" in tool_names
         assert "magg_remove_server" in tool_names
@@ -46,7 +46,7 @@ async def test_in_memory_server_management(tmp_path):
     config_path = tmp_path / ".magg" / "config.json"
     config_path.parent.mkdir()
 
-    server = MAGGServer(str(config_path))
+    server = MaggServer(str(config_path))
     await server.setup()
 
     client = Client(FastMCPTransport(server.mcp))
@@ -86,7 +86,7 @@ async def test_in_memory_proxy_tool(tmp_path):
     config_path = tmp_path / ".magg" / "config.json"
     config_path.parent.mkdir()
 
-    server = MAGGServer(str(config_path))
+    server = MaggServer(str(config_path))
     await server.setup()
 
     client = Client(FastMCPTransport(server.mcp))
@@ -147,7 +147,7 @@ if __name__ == "__main__":
     config_path.write_text(json.dumps(config_data))
 
     # Create server WITHOUT calling setup()
-    server = MAGGServer(str(config_path))
+    server = MaggServer(str(config_path))
     client = Client(FastMCPTransport(server.mcp))
 
     async with client:

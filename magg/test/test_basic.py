@@ -1,23 +1,23 @@
-"""Basic functionality tests for MAGG using pytest."""
+"""Basic functionality tests for Magg using pytest."""
 
 import pytest
 from fastmcp import Client
-from magg.server import MAGGServer
+from magg.server import MaggServer
 import tempfile
 from pathlib import Path
 
 
-class TestMAGGBasicFunctionality:
-    """Test basic MAGG functionality."""
+class TestMaggBasicFunctionality:
+    """Test basic Magg functionality."""
 
     @pytest.mark.asyncio
     async def test_basic_setup_and_tools(self, tmp_path):
-        """Test MAGG setup and tool availability."""
+        """Test Magg setup and tool availability."""
         config_path = tmp_path / "config.json"
-        server = MAGGServer(config_path)
+        server = MaggServer(config_path)
         await server.setup()
 
-        # Check for core MAGG tools
+        # Check for core Magg tools
         expected_tools = ["magg_list_servers", "magg_add_server", "magg_status", "magg_check"]
 
         async with Client(server.mcp) as client:
@@ -30,8 +30,8 @@ class TestMAGGBasicFunctionality:
     # list_tools was removed from the server
     # @pytest.mark.asyncio
     # async def test_magg_list_tools(self):
-    #     """Test MAGG list tools functionality."""
-    #     server = MAGGServer()
+    #     """Test Magg list tools functionality."""
+    #     server = MaggServer()
     #     await server.setup()
     #
     #     async with Client(server.mcp) as client:
@@ -44,7 +44,7 @@ class TestMAGGBasicFunctionality:
     async def test_list_servers(self, tmp_path):
         """Test listing servers."""
         config_path = tmp_path / "config.json"
-        server = MAGGServer(config_path)
+        server = MaggServer(config_path)
         await server.setup()
 
         async with Client(server.mcp) as client:
@@ -54,14 +54,14 @@ class TestMAGGBasicFunctionality:
             assert isinstance(result[0].text, str)
 
 
-class TestMAGGServerManagement:
+class TestMaggServerManagement:
     """Test server management functionality."""
 
     @pytest.mark.asyncio
     async def test_add_server(self, tmp_path):
         """Test adding a server."""
         config_path = tmp_path / "config.json"
-        server = MAGGServer(config_path)
+        server = MaggServer(config_path)
         await server.setup()
 
         import time
@@ -85,7 +85,7 @@ class TestMAGGServerManagement:
             assert server_name in result[0].text
 
 
-class TestMAGGServerSearch:
+class TestMaggServerSearch:
     """Test server search functionality."""
 
     @pytest.mark.integration
@@ -93,7 +93,7 @@ class TestMAGGServerSearch:
     async def test_search_servers(self, tmp_path):
         """Test server search (requires internet)."""
         config_path = tmp_path / "config.json"
-        server = MAGGServer(config_path)
+        server = MaggServer(config_path)
         await server.setup()
 
         async with Client(server.mcp) as client:

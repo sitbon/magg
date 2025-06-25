@@ -1,4 +1,4 @@
-# MAGG Documentation
+# Magg Documentation
 
 ## Table of Contents
 
@@ -16,7 +16,7 @@
 
 ## Overview
 
-MAGG (MCP Aggregator) is a meta-MCP server that acts as a central hub for managing multiple MCP servers. It enables LLMs to dynamically discover, add, configure, and use tools from various MCP servers through a unified interface.
+Magg (MCP Aggregator) is a meta-MCP server that acts as a central hub for managing multiple MCP servers. It enables LLMs to dynamically discover, add, configure, and use tools from various MCP servers through a unified interface.
 
 ### Core Concepts
 
@@ -29,7 +29,7 @@ MAGG (MCP Aggregator) is a meta-MCP server that acts as a central hub for managi
 
 This project consists of three main components:
 
-### 1. MAGG (MCP Aggregator)
+### 1. Magg (MCP Aggregator)
 The main server-of-servers that manages multiple MCP servers, providing:
 - Dynamic server discovery and configuration
 - Tool namespace management with prefixes
@@ -84,7 +84,7 @@ uvx --from git+https://github.com/sitbon/magg.git magg serve
 
 ### Quick Start with Claude Desktop
 
-Add MAGG to your Claude Desktop configuration (no installation required):
+Add Magg to your Claude Desktop configuration (no installation required):
 
 ```json
 {
@@ -102,7 +102,7 @@ Then restart Claude Desktop and ask Claude to list available servers or search f
 ### Quick Start with Command Line
 
 ```bash
-# Run MAGG server in stdio mode (after installation)
+# Run Magg server in stdio mode (after installation)
 magg serve
 
 # Or for HTTP mode
@@ -143,7 +143,7 @@ graph TD
    - Optional: specify prefix, working directory, notes
 
 4. **Server is automatically mounted**:
-   - MAGG connects to the server
+   - Magg connects to the server
    - Tools are discovered and registered
 
 5. **Tools become available** with configured prefix
@@ -179,7 +179,7 @@ Tool aggregation and delegation flow:
 
 ```mermaid
 graph LR
-    A[LLM Request] --> B[MAGG]
+    A[LLM Request] --> B[Magg]
     B --> C{Which Server?}
     C -->|calc_add| D[Calculator Server]
     C -->|pw_navigate| E[Playwright Server]
@@ -340,7 +340,7 @@ Call a tool with arguments:
 
 ## Resources Reference
 
-MAGG exposes MCP resources for introspection:
+Magg exposes MCP resources for introspection:
 
 ### `magg://server/{name}`
 Get metadata for a specific server.
@@ -369,7 +369,7 @@ Interactive prompt for configuring a server with LLM assistance.
 
 ## Authentication
 
-MAGG supports optional bearer token authentication using RSA keypairs and JWT tokens. When enabled, all clients must provide a valid JWT token to access the server.
+Magg supports optional bearer token authentication using RSA keypairs and JWT tokens. When enabled, all clients must provide a valid JWT token to access the server.
 
 For a complete guide, see **[Authentication Guide](authentication.md)**.
 
@@ -454,11 +454,11 @@ To disable authentication:
 - Never commit private keys to version control
 - Use environment variables for production deployments
 - Tokens include standard JWT claims: iss, aud, sub, iat, exp
-- Optional scopes can be included but are not enforced by MAGG
+- Optional scopes can be included but are not enforced by Magg
 
 ## Proxy Documentation
 
-MAGG includes a powerful tool called `proxy` that provides tool-based access to all MCP capabilities. The proxy enables LLMs to interact with resources and prompts through a tool interface, making all MCP operations accessible even when the client doesn't support direct resource or prompt access.
+Magg includes a powerful tool called `proxy` that provides tool-based access to all MCP capabilities. The proxy enables LLMs to interact with resources and prompts through a tool interface, making all MCP operations accessible even when the client doesn't support direct resource or prompt access.
 
 ### Key Features
 - **Unified Interface**: Access tools, resources, and prompts through a single `proxy` tool
@@ -501,13 +501,13 @@ The `proxy` tool accepts a JSON object as its arguments. Here are some examples:
 }
 ```
 
-When using MAGG through an LLM interface (like Claude), you would call it like:
+When using Magg through an LLM interface (like Claude), you would call it like:
 - Tool name: `proxy`
 - Arguments: One of the JSON objects shown above
 
 ## Example Sessions
 
-See [examples.md](examples.md) for detailed example sessions demonstrating MAGG's capabilities.
+See [examples.md](examples.md) for detailed example sessions demonstrating Magg's capabilities.
 
 ## Advanced Configuration
 

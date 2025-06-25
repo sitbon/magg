@@ -5,7 +5,7 @@ import tempfile
 import json
 from pathlib import Path
 
-from magg.settings import ConfigManager, ServerConfig, MAGGConfig
+from magg.settings import ConfigManager, ServerConfig, MaggConfig
 
 
 class TestConfigStructure:
@@ -62,7 +62,7 @@ class TestConfigStructure:
     def test_config_serialization_format(self, temp_config_file):
         """Test the actual JSON format of saved config."""
         config_manager = ConfigManager(str(temp_config_file))
-        config = MAGGConfig()
+        config = MaggConfig()
 
         # Add a server with all fields
         server = ServerConfig(
@@ -102,7 +102,7 @@ class TestConfigStructure:
     def test_minimal_server_config(self, temp_config_file):
         """Test minimal server configuration."""
         config_manager = ConfigManager(str(temp_config_file))
-        config = MAGGConfig()
+        config = MaggConfig()
 
         # Minimal server - just name and source
         server = ServerConfig(
@@ -136,7 +136,7 @@ class TestConfigStructure:
         os.environ["MAGG_LOG_LEVEL"] = "DEBUG"
 
         try:
-            config = MAGGConfig()
+            config = MaggConfig()
             assert config.log_level == "DEBUG"
         finally:
             # Clean up

@@ -1,4 +1,4 @@
-"""Server runner utilities for MAGG with proper signal handling.
+"""Server runner utilities for Magg with proper signal handling.
 """
 import asyncio
 import logging
@@ -10,14 +10,14 @@ from typing import Callable, Coroutine
 from fastmcp import Client
 from fastmcp.client import FastMCPTransport
 
-from .server import MAGGServer
+from .server import MaggServer
 
 logger = logging.getLogger(__name__)
 
 
-class MAGGRunner:
-    """Manages MAGG server lifecycle with proper signal handling."""
-    _server: MAGGServer
+class MaggRunner:
+    """Manages Magg server lifecycle with proper signal handling."""
+    _server: MaggServer
     _shutdown_event: asyncio.Event
     _original_sigint: Callable | None
     _original_sigterm: Callable | None
@@ -25,7 +25,7 @@ class MAGGRunner:
     _hooked_signals: bool = False
 
     def __init__(self, config_path: str | None = None, *, hook_signals: bool = True):
-        self._server = MAGGServer(config_path)
+        self._server = MaggServer(config_path)
         self._shutdown_event = asyncio.Event()
         self._original_sigint = None
         self._original_sigterm = None
@@ -33,12 +33,12 @@ class MAGGRunner:
 
     @cached_property
     def client(self) -> Client:
-        """Create an in-memory client connected to the MAGG server. [cached]"""
+        """Create an in-memory client connected to the Magg server. [cached]"""
         return Client(FastMCPTransport(self._server.mcp))
 
     @property
-    def server(self) -> MAGGServer:
-        """Get the current MAGG server instance."""
+    def server(self) -> MaggServer:
+        """Get the current Magg server instance."""
         return self._server
 
     async def __aenter__(self):
@@ -113,21 +113,21 @@ class MAGGRunner:
         """Run server in stdio mode with proper signal handling."""
         try:
             async with self._server_context() as server:
-                logger.debug("Starting MAGG server in stdio mode")
+                logger.debug("Starting Magg server in stdio mode")
                 await self._serve(server.run_stdio())
 
         finally:
-            logger.debug("MAGG server stopped")
+            logger.debug("Magg server stopped")
 
     async def run_http(self, host: str = "localhost", port: int = 8000):
         """Run server in HTTP mode with proper signal handling."""
         try:
             async with self._server_context() as server:
-                logger.debug("Starting MAGG HTTP server on %s:%s", host, port)
+                logger.debug("Starting Magg HTTP server on %s:%s", host, port)
                 await self._serve(server.run_http(host, port))
 
         finally:
-            logger.debug("MAGG HTTP server stopped")
+            logger.debug("Magg HTTP server stopped")
 
     async def start_stdio(self) -> asyncio.Task:
         """Start the server in stdio mode in a different task."""

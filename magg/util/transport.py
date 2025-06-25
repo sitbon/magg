@@ -1,4 +1,4 @@
-"""Transport utilities for MAGG - handles FastMCP transport selection and configuration.
+"""Transport utilities for Magg - handles FastMCP transport selection and configuration.
 """
 import sys
 from pathlib import Path

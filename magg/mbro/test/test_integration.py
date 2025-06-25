@@ -16,8 +16,8 @@ class TestMbroIntegration:
     @pytest.mark.integration
     @pytest.mark.asyncio
     async def test_http_connection_to_magg(self):
-        """Test connecting to a real MAGG HTTP server."""
-        # Start MAGG server
+        """Test connecting to a real Magg HTTP server."""
+        # Start Magg server
         magg_process = subprocess.Popen(
             ["uv", "run", "magg", "--http", "--port", "8090"],
             stdout=subprocess.PIPE,
@@ -55,7 +55,7 @@ class TestMbroIntegration:
     @pytest.mark.asyncio
     async def test_tool_calling(self):
         """Test calling tools through mbro."""
-        # Start MAGG server
+        # Start Magg server
         magg_process = subprocess.Popen(
             ["uv", "run", "magg", "--http", "--port", "8091"],
             stdout=subprocess.PIPE,
@@ -77,7 +77,7 @@ class TestMbroIntegration:
             # Should successfully call tool
             assert result.returncode == 0
             assert "Connected to 'magg_test'" in result.stdout
-            assert "MAGG Status" in result.stdout
+            assert "Magg Status" in result.stdout
             assert "Configuration:" in result.stdout
 
         finally:

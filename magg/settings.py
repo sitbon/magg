@@ -1,4 +1,4 @@
-"""Configuration management for MAGG - Using pydantic-settings."""
+"""Configuration management for Magg - Using pydantic-settings."""
 import json
 import logging
 import os
@@ -11,7 +11,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from .util.system import get_project_root
 
-__all__ = "ServerConfig", "MAGGConfig", "ConfigManager", "AuthConfig", "BearerAuthConfig", "ClientSettings"
+__all__ = "ServerConfig", "MaggConfig", "ConfigManager", "AuthConfig", "BearerAuthConfig", "ClientSettings"
 
 logger = logging.getLogger(__name__)
 
@@ -189,8 +189,8 @@ class ServerConfig(BaseSettings):
         return prefix.lower()[:30]
 
 
-class MAGGConfig(BaseSettings):
-    """Main MAGG configuration."""
+class MaggConfig(BaseSettings):
+    """Main Magg configuration."""
     model_config = SettingsConfigDict(
         env_prefix="MAGG_",
         env_file=".env",
@@ -206,16 +206,16 @@ class MAGGConfig(BaseSettings):
     )
     read_only: bool = Field(default=False, description="Run in read-only mode (env: MAGG_READ_ONLY)")
     quiet: bool = Field(default=False, description="Suppress output unless errors occur (env: MAGG_QUIET)")
-    debug: bool = Field(default=False, description="Enable debug mode for MAGG (env: MAGG_DEBUG)")
-    log_level: str | None = Field(default=None, description="Logging level for MAGG (default: INFO) (env: MAGG_LOG_LEVEL)")
+    debug: bool = Field(default=False, description="Enable debug mode for Magg (env: MAGG_DEBUG)")
+    log_level: str | None = Field(default=None, description="Logging level for Magg (default: INFO) (env: MAGG_LOG_LEVEL)")
     self_prefix: str = Field(
         default="magg",
-        description="Prefix for MAGG tools and commands - must be a valid Python identifier without underscores (env: MAGG_SELF_PREFIX)"
+        description="Prefix for Magg tools and commands - must be a valid Python identifier without underscores (env: MAGG_SELF_PREFIX)"
     )
     servers: dict[str, ServerConfig] = Field(default_factory=dict, description="Servers configuration (loaded from config_path)")
 
     @model_validator(mode='after')
-    def export_environment_variables(self) -> 'MAGGConfig':
+    def export_environment_variables(self) -> 'MaggConfig':
         """Export log_level and config_path as environment variables, in case they were not set that way.
         """
         if self.quiet and self.log_level is None:
@@ -253,7 +253,7 @@ class MAGGConfig(BaseSettings):
 
 
 class ConfigManager:
-    """Manages MAGG configuration persistence."""
+    """Manages Magg configuration persistence."""
     config_path: Path
     auth_config_path: Path
     auth_config: AuthConfig | None = None
@@ -261,7 +261,7 @@ class ConfigManager:
 
     def __init__(self, config_path: Path | str | None = None):
         """Initialize config manager."""
-        config = MAGGConfig()
+        config = MaggConfig()
         self.read_only = config.read_only
 
         if config_path:
@@ -276,12 +276,12 @@ class ConfigManager:
         """Get logger for this manager."""
         return logging.getLogger(__name__)
 
-    def load_config(self) -> MAGGConfig:
+    def load_config(self) -> MaggConfig:
         """Load configuration from disk.
 
         Note: The only dynamic part of the config is the servers.
         """
-        config = MAGGConfig()
+        config = MaggConfig()
 
         if not self.config_path.exists():
             return config
@@ -313,7 +313,7 @@ class ConfigManager:
             self.logger.error(f"Error loading config: {e}")
             return config
 
-    def save_config(self, config: MAGGConfig) -> bool:
+    def save_config(self, config: MaggConfig) -> bool:
         """Save configuration to disk."""
         if config.read_only:
             self.logger.warning("Config is read-only, not saving.")

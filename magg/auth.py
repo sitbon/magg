@@ -1,4 +1,4 @@
-"""Authentication support for MAGG."""
+"""Authentication support for Magg."""
 import logging
 import time
 from functools import cached_property

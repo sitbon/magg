@@ -108,7 +108,7 @@ def format_command(command: str, args: Optional[List[str]] = None) -> str:
 
 def print_status_summary(config_path: str, total: int, enabled: int, disabled: int):
     """Print a status summary."""
-    print_header("MAGG Status")
+    print_header("Magg Status")
     print(f"  Config: {config_path}")
     print(f"  Total servers: {Colors.BOLD}{total}{Colors.ENDC}")
     print(f"    {Colors.OKGREEN}● Enabled: {enabled}{Colors.ENDC}")

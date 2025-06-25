@@ -1,4 +1,4 @@
-"""Simple E2E test for MAGG server without mounting."""
+"""Simple E2E test for Magg server without mounting."""
 
 import asyncio
 import tempfile
@@ -10,25 +10,25 @@ import sys
 
 import pytest
 from fastmcp import Client
-from magg.settings import ConfigManager, ServerConfig, MAGGConfig
+from magg.settings import ConfigManager, ServerConfig, MaggConfig
 
 
 @pytest.mark.asyncio
 @pytest.mark.integration
 async def test_e2e_simple():
-    """Test MAGG server basic functionality without mounting other servers."""
+    """Test Magg server basic functionality without mounting other servers."""
 
     with tempfile.TemporaryDirectory() as tmpdir:
         tmpdir = Path(tmpdir)
 
-        # 1. Create MAGG config directory
+        # 1. Create Magg config directory
         magg_dir = tmpdir / "magg_test"
         magg_dir.mkdir()
         config_dir = magg_dir / ".magg"
         config_dir.mkdir()
 
         # 2. Create empty config
-        config = MAGGConfig()
+        config = MaggConfig()
         config_path = config_dir / "config.json"
         with open(config_path, 'w') as f:
             json.dump({'servers': {}}, f, indent=2)
@@ -46,7 +46,7 @@ async def test_e2e_simple():
 
         print(f"Config saved to: {config_path}")
 
-        # 3. Start MAGG server as subprocess
+        # 3. Start Magg server as subprocess
         magg_script = magg_dir / "run_magg.py"
         magg_script.write_text(f'''
 import sys
@@ -54,20 +54,20 @@ import os
 sys.path.insert(0, "{Path.cwd()}")
 os.chdir("{magg_dir}")
 
-from magg.server import MAGGServer
+from magg.server import MaggServer
 import asyncio
 
 async def main():
-    server = MAGGServer("{config_path}")
+    server = MaggServer("{config_path}")
     await server.setup()
-    print("MAGG server started", flush=True)
+    print("Magg server started", flush=True)
     await server.mcp.run_http_async(host="localhost", port=54322)
 
 asyncio.run(main())
 ''')
 
-        # Start MAGG
-        print("Starting MAGG server...")
+        # Start Magg
+        print("Starting Magg server...")
         magg_proc = subprocess.Popen(
             [sys.executable, str(magg_script)],
             stdout=subprocess.PIPE,
@@ -81,10 +81,10 @@ asyncio.run(main())
             if magg_proc.poll() is not None:
                 # Process ended
                 stdout, stderr = magg_proc.communicate()
-                print(f"MAGG process ended with code {magg_proc.returncode}")
+                print(f"Magg process ended with code {magg_proc.returncode}")
                 print(f"STDOUT:\n{stdout}")
                 print(f"STDERR:\n{stderr}")
-                pytest.fail(f"MAGG server failed to start: {stderr}")
+                pytest.fail(f"Magg server failed to start: {stderr}")
 
             # Check if server is listening on the port
             import socket
@@ -100,11 +100,11 @@ asyncio.run(main())
             time.sleep(1)
 
         if not started:
-            pytest.fail("MAGG server didn't start listening on port 54322")
+            pytest.fail("Magg server didn't start listening on port 54322")
 
         try:
-            # 4. Connect to MAGG as client
-            print("\nConnecting to MAGG...")
+            # 4. Connect to Magg as client
+            print("\nConnecting to Magg...")
             client = Client("http://localhost:54322/mcp/")
 
             # Use the client in async context
@@ -113,7 +113,7 @@ asyncio.run(main())
                 tool_names = [tool.name for tool in tools]
                 print(f"\nAvailable tools: {tool_names}")
 
-                # Verify MAGG's own tools are available
+                # Verify Magg's own tools are available
                 assert "magg_list_servers" in tool_names
                 assert "magg_add_server" in tool_names
 

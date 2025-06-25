@@ -1,4 +1,4 @@
-"""MAGG server ProxyMCP mixin.
+"""Magg server ProxyMCP mixin.
 """
 from functools import cached_property
 

@@ -80,7 +80,7 @@ CMD ["magg", "serve", "--http", "--host", "0.0.0.0", "--port", "8000"]
 FROM venv AS pre
 
 LABEL org.opencontainers.image.source=https://github.com/sitbon/magg \
-      org.opencontainers.image.description="MAGG - The Model Context Protocol (MCP) Aggregator (Staging)" \
+      org.opencontainers.image.description="Magg - The Model Context Protocol (MCP) Aggregator (Staging)" \
       org.opencontainers.image.licenses=AGPLv3 \
       org.opencontainers.image.authors="Phillip Sitbon <phillip.sitbon@gmail.com>"
 
@@ -108,7 +108,7 @@ USER ${USER}
 FROM pre AS pro
 
 LABEL org.opencontainers.image.source=https://github.com/sitbon/magg \
-      org.opencontainers.image.description="MAGG - The Model Context Protocol (MCP) Aggregator" \
+      org.opencontainers.image.description="Magg - The Model Context Protocol (MCP) Aggregator" \
       org.opencontainers.image.licenses=AGPLv3 \
       org.opencontainers.image.authors="Phillip Sitbon <phillip.sitbon@gmail.com>"
 
@@ -120,7 +120,7 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
 FROM venv AS dev
 
 LABEL org.opencontainers.image.source=https://github.com/sitbon/magg \
-      org.opencontainers.image.description="MAGG - The Model Context Protocol (MCP) Aggregator (Development)" \
+      org.opencontainers.image.description="Magg - The Model Context Protocol (MCP) Aggregator (Development)" \
       org.opencontainers.image.licenses=AGPLv3 \
       org.opencontainers.image.authors="Phillip Sitbon <phillip.sitbon@gmail.com>"
 

@@ -1,5 +1,5 @@
 MAGG_INSTRUCTIONS = """
-MAGG (MCP Aggregator) manages and aggregates other MCP servers.
+Magg (MCP Aggregator) manages and aggregates other MCP servers.
 
 Key capabilities:
 - Add and manage MCP servers with intelligent configuration

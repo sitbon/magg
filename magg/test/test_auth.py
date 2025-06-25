@@ -1,4 +1,4 @@
-"""Tests for MAGG authentication."""
+"""Tests for Magg authentication."""
 import json
 import tempfile
 from pathlib import Path

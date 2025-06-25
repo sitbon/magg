@@ -1,4 +1,4 @@
-"""Test mbro search functionality with MAGG."""
+"""Test mbro search functionality with Magg."""
 
 import pytest
 import asyncio
@@ -9,17 +9,17 @@ import sys
 
 
 class TestMBROSearchFunctionality:
-    """Test search functionality through mbro connected to MAGG."""
+    """Test search functionality through mbro connected to Magg."""
 
     @pytest.fixture
     def magg_server_port(self):
-        """Port for test MAGG server."""
+        """Port for test Magg server."""
         return 8084
 
     @pytest.fixture
     async def magg_server(self, magg_server_port):
-        """Start a MAGG HTTP server for testing."""
-        # Start MAGG HTTP server in background
+        """Start a Magg HTTP server for testing."""
+        # Start Magg HTTP server in background
         process = subprocess.Popen(
             ["uv", "run", "magg", "--http", "--port", str(magg_server_port)],
             stdout=subprocess.PIPE,

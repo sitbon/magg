@@ -1,7 +1,7 @@
 #!/usr/bin/env python
-"""Demo of embedding MAGG server in applications.
+"""Demo of embedding Magg server in applications.
 
-This example shows how to run MAGG server programmatically and
+This example shows how to run Magg server programmatically and
 connect to it using the in-memory client.
 """
 import asyncio
@@ -9,7 +9,7 @@ import logging
 import os
 import sys
 
-from magg.server.runner import MAGGRunner
+from magg.server.runner import MaggRunner
 
 # Suppress noisy logs for cleaner demo output
 logging.getLogger("uvicorn.error").setLevel(logging.CRITICAL)
@@ -18,18 +18,18 @@ logging.getLogger("mcp.client.streamable_http").setLevel(logging.CRITICAL)
 
 
 async def in_memory_client_example():
-    """Example using in-memory client to connect to MAGG."""
+    """Example using in-memory client to connect to Magg."""
     print("=== In-Memory Client Example ===")
 
     # Create runner (uses config from ./.magg/config.json if available)
-    async with MAGGRunner() as runner:
-        # The `async with` simply ensures that the MAGGServer is properly set up even when not running as a server.
+    async with MaggRunner() as runner:
+        # The `async with` simply ensures that the MaggServer is properly set up even when not running as a server.
 
         # Access the in-memory client
         client = runner.client
         print(f"Client created: {client}")
 
-        # Use the client to interact with MAGG
+        # Use the client to interact with Magg
         async with client:
             tools = await client.list_tools()
             print(f"\nFound {len(tools)} tools:")
@@ -49,12 +49,12 @@ async def in_memory_client_example():
 
 
 async def run_http_server():
-    """Example of running MAGG as an HTTP server."""
+    """Example of running Magg as an HTTP server."""
     print("=== HTTP Server Example ===")
-    print("Starting MAGG HTTP server on http://localhost:8080")
+    print("Starting Magg HTTP server on http://localhost:8080")
     print("Press Ctrl+C to stop\n")
 
-    runner = MAGGRunner()
+    runner = MaggRunner()
 
     # This will run until interrupted
     try:
@@ -67,7 +67,7 @@ async def concurrent_server_and_client():
     """Example of running server and using client concurrently."""
     print("=== Concurrent Server & Client Example ===")
 
-    runner = MAGGRunner()
+    runner = MaggRunner()
 
     stderr_prev = sys.stderr
 
@@ -84,7 +84,7 @@ async def concurrent_server_and_client():
 
             # Use the in-memory client
             async with runner.client as session:
-                print("Connected to MAGG server")
+                print("Connected to Magg server")
 
                 # List and call tools
                 tools = await session.list_tools()
@@ -124,5 +124,5 @@ async def main():
 
 
 if __name__ == "__main__":
-    print("MAGG Server Embedding Examples\n")
+    print("Magg Server Embedding Examples\n")
     asyncio.run(main())

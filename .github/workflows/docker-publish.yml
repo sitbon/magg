@@ -1,4 +1,4 @@
-name: Build and Publish Docker Images
+name: Build, Test, and Publish Docker Images
 
 on:
   push:
@@ -13,21 +13,7 @@ env:
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
-  get-python-version:
-    runs-on: ubuntu-latest
-    outputs:
-      version: ${{ steps.python-version.outputs.version }}
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      
-      - name: Read Python version
-        id: python-version
-        run: |
-          echo "version=$(cat .python-version)" >> $GITHUB_OUTPUT
-
-  test-dev:
-    needs: get-python-version
+  test-dev-container:
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -35,7 +21,7 @@ jobs:
     
     strategy:
       matrix:
-        python-version: ['3.12', '3.13', '${{ needs.get-python-version.outputs.version }}']
+        python-version: ['3.12', '3.13']
       fail-fast: false
     
     steps:
@@ -101,7 +87,7 @@ jobs:
           cache-from: type=gha
 
   build-and-push:
-    needs: test-dev
+    needs: test-dev-container
     runs-on: ubuntu-latest
     permissions:
       contents: read

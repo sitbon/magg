@@ -53,6 +53,13 @@ RUN --mount=type=cache,uid=${UID},gid=${UID},target=${HOME}/.cache/uv \
     --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
     uv sync --locked --no-install-project --no-dev
 
+# Fix for Python 3.12 extension suffix mismatch on Alpine
+# Python 3.12 expects linux-gnu but we have linux-musl wheels
+RUN if [ "${PYTHON_VERSION}" = "3.12" ]; then \
+        find .venv/lib -name "*.cpython-*-x86_64-linux-musl.so" -exec sh -c \
+            'ln -sf "$(basename "$1")" "$(dirname "$1")/$(echo "$(basename "$1")" | sed "s/-musl\.so$/-gnu.so/")"' _ {} \; ; \
+    fi
+
 # Then, add the rest of the project source code and install it
 # Installing separately from its dependencies allows optimal layer caching
 ADD --chown=${USER}:${USER} pyproject.toml uv.lock readme.md license.md ./
@@ -98,7 +105,7 @@ RUN chown -R root:${USER} ${HOME}/.venv ${HOME}/${PACKAGE} && \
 
 USER ${USER}
 
-FROM beta AS pro
+FROM pre AS pro
 
 LABEL org.opencontainers.image.source=https://github.com/sitbon/magg \
       org.opencontainers.image.description="MAGG - The Model Context Protocol (MCP) Aggregator" \

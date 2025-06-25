@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from magg.server.server import MAGGServer
+from magg.server.server import MaggServer
 from magg.server.manager import ServerManager
 from magg.settings import ConfigManager
 
@@ -46,8 +46,8 @@ class TestServerRemoval:
 
     @pytest.fixture
     def magg_server(self, temp_config):
-        """Create a MAGG server instance."""
-        server = MAGGServer(str(temp_config))
+        """Create a Magg server instance."""
+        server = MaggServer(str(temp_config))
         # Don't mount servers during init for testing
         return server
 
@@ -183,7 +183,7 @@ async def test_with_real_stdio_server(tmp_path):
                 "source": "test",
                 "prefix": "echo",
                 "command": "python",
-                "args": ["-c", "import sys; print('Hello from echo server'); sys.exit(0)"]
+                "args": ["-c", "print('Hello from echo server'); exit(0)"]
             }
         }
     }
@@ -192,7 +192,7 @@ async def test_with_real_stdio_server(tmp_path):
         json.dump(config_data, f)
 
     # Create server with this config
-    server = MAGGServer(str(config_path))
+    server = MaggServer(str(config_path))
 
     # Mount servers
     await server.server_manager.mount_all_enabled()

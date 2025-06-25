@@ -59,8 +59,11 @@ def print_warning(text: str):
 
 def print_info(text: str):
     """Print an info message."""
-    print(f"{Colors.OKCYAN}ℹ {text}{Colors.ENDC}", file=sys.stderr)
+    print(f"{Colors.OKCYAN}ⓘ {text}{Colors.ENDC}", file=sys.stderr)
 
+def print_newline():
+    """Print a new line."""
+    print(file=sys.stderr)
 
 def print_server_list(servers: Dict[str, Any]):
     """Print a formatted list of servers."""
@@ -105,7 +108,7 @@ def format_command(command: str, args: Optional[List[str]] = None) -> str:
 
 def print_status_summary(config_path: str, total: int, enabled: int, disabled: int):
     """Print a status summary."""
-    print_header("MAGG Status")
+    print_header("Magg Status")
     print(f"  Config: {config_path}")
     print(f"  Total servers: {Colors.BOLD}{total}{Colors.ENDC}")
     print(f"    {Colors.OKGREEN}● Enabled: {enabled}{Colors.ENDC}")
@@ -144,6 +147,9 @@ def print_startup_banner():
         else:
             try:
                 console = initterm()
-                console.print(banner, style="bold cyan purple italic", width=60)
+                if console:
+                    console.print(banner, style="bold cyan purple italic", width=60)
+                else:
+                    print(banner, file=sys.stderr)
             except ImportError:
                 print(banner, file=sys.stderr)

@@ -1,7 +1,7 @@
 """Proxy-aware FastMCP client wrapper.
 
 This module provides a FastMCP client wrapper that simplifies interaction with
-MAGG's proxy tool, making it easier to work with proxied MCP capabilities.
+Magg's proxy tool, making it easier to work with proxied MCP capabilities.
 """
 import datetime
 from typing import Any

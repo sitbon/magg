@@ -1,0 +1,61 @@
+name: magg
+
+services:
+  base:
+    profiles: ["_"]  # Hidden from normal operations
+    build:
+      dockerfile: dockerfile
+      args:
+        MAGG_READ_ONLY: ${MAGG_READ_ONLY:-false}
+    environment:
+      MAGG_PRIVATE_KEY: ${MAGG_PRIVATE_KEY:-}
+      MAGG_LOG_LEVEL: ${MAGG_LOG_LEVEL:-}
+      MAGG_CONFIG_PATH: ${MAGG_CONFIG_PATH:-}
+      MAGG_QUIET: ${MAGG_QUIET:-}
+      MAGG_DEBUG: ${MAGG_DEBUG:-}
+      MAGG_SELF_PREFIX: ${MAGG_SELF_PREFIX:-}
+    volumes:
+      - ${MAGG_CONFIG_VOLUME:-magg-config}:/home/magg/.magg
+    networks:
+      - magg-network
+    restart: unless-stopped
+
+  magg:
+    extends:
+      service: base
+    build:
+      target: pro
+    image: ${REGISTRY:-}${REGISTRY:+/}magg:${SOURCE:-${USER}}-pro
+    container_name: magg-server
+    ports:
+      - "8000:8000"
+
+  magg-beta:
+    extends:
+      service: base
+    build:
+      target: pre
+    image: ${REGISTRY:-}${REGISTRY:+/}magg:${SOURCE:-${USER}}-pre
+    container_name: magg-server-pre
+    ports:
+      - "8001:8000"
+
+  magg-dev:
+    extends:
+      service: base
+    build:
+      target: dev
+    image: ${REGISTRY:-}${REGISTRY:+/}magg:${SOURCE:-${USER}}-dev
+    container_name: magg-server-dev
+    ports:
+      - "8008:8000"
+    volumes:
+      - ${MAGG_CONFIG_VOLUME:-magg-config}:/home/magg/.magg
+      - ./.magg:/home/magg/.magg:ro
+
+volumes:
+  magg-config:
+
+networks:
+  magg-network:
+    driver: bridge

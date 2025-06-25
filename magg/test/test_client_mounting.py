@@ -67,7 +67,7 @@ if __name__ == "__main__":
         # Define a local tool
         @magg.tool()
         def local_tool() -> str:
-            """A local tool in MAGG."""
+            """A local tool in Magg."""
             return "Local response"
 
         # Mount the proxy

@@ -1,13 +1,13 @@
 .*
 !.gitignore
 !.gitkeep
-
 !.github/
-
 !.python-version
+!.env.example
+
 *.py[co]
 __pycache__/
 
 play/
 local/
-CLAUDE.local.md
+CLAUDE.local*

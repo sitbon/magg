@@ -1,5 +1,6 @@
 import os
 import shutil
+import sys
 from pathlib import Path
 from typing import Optional
 
@@ -11,25 +12,7 @@ try:
 except (ImportError, ModuleNotFoundError):
     pass
 
-__all__ = "chown", "initterm", "is_subdirectory", "get_project_root"
-
-
-def chown(path: Path, uid: int | str | None = None, gid: int | str | None = None, *, recursive: bool = False) -> None:
-    if os.getuid() != 0:
-        return
-
-    if not path.exists():
-        raise FileNotFoundError(f"File not found: {path}")
-
-    gid = gid if gid is not None else uid
-    shutil.chown(path, uid, gid if gid is not None else uid)
-
-    if recursive and path.is_dir():
-        for root, dirs, files in path.walk():
-            for d in dirs:
-                shutil.chown(root / d, uid, gid if gid is not None else uid)
-            for f in files:
-                shutil.chown(root / f, uid, gid if gid is not None else uid)
+__all__ = "initterm", "is_subdirectory", "get_project_root"
 
 
 def initterm(**kwds) -> Optional["console.Console"]:
@@ -45,6 +28,7 @@ def initterm(**kwds) -> Optional["console.Console"]:
 
         if _rc is None:
             kwds.setdefault("color_system", "truecolor")
+            kwds.setdefault("file", sys.stderr)
             _rc = console.Console(**kwds)
             pretty.install(console=_rc)
             traceback.install(console=_rc, show_locals=True)

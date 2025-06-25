@@ -1,4 +1,4 @@
-"""End-to-end test for MAGG server mounting."""
+"""End-to-end test for Magg server mounting."""
 
 import asyncio
 import tempfile
@@ -10,13 +10,13 @@ import sys
 
 import pytest
 from fastmcp import Client
-from magg.settings import ConfigManager, ServerConfig, MAGGConfig
+from magg.settings import ConfigManager, ServerConfig, MaggConfig
 
 
 @pytest.mark.asyncio
 @pytest.mark.integration
 async def test_e2e_mounting():
-    """Test MAGG with real server mounting end-to-end."""
+    """Test Magg with real server mounting end-to-end."""
 
     with tempfile.TemporaryDirectory() as tmpdir:
         tmpdir = Path(tmpdir)
@@ -45,13 +45,13 @@ if __name__ == "__main__":
     mcp.run()
 ''')
 
-        # 2. Create MAGG config
+        # 2. Create Magg config
         magg_dir = tmpdir / "magg_test"
         magg_dir.mkdir()
         config_dir = magg_dir / ".magg"
         config_dir.mkdir()
 
-        config = MAGGConfig()
+        config = MaggConfig()
 
         # Add calculator server (no sources anymore)
         server = ServerConfig(
@@ -71,9 +71,20 @@ if __name__ == "__main__":
                 'servers': {s.name: s.model_dump(mode="json") for s in config.servers.values()}
             }, f, indent=2)
 
+        # Create empty auth.json to prevent using default keys
+        auth_path = config_dir / "auth.json"
+        with open(auth_path, 'w') as f:
+            json.dump({
+                'bearer': {
+                    'issuer': 'https://magg.local',
+                    'audience': 'test',
+                    'key_path': str(tmpdir / 'nonexistent')
+                }
+            }, f)
+
         print(f"Config saved to: {config_path}")
 
-        # 3. Start MAGG server as subprocess
+        # 3. Start Magg server as subprocess
         magg_script = magg_dir / "run_magg.py"
         magg_script.write_text(f'''
 import sys
@@ -81,20 +92,20 @@ import os
 sys.path.insert(0, "{Path.cwd()}")
 os.chdir("{magg_dir}")
 
-from magg.server import MAGGServer
+from magg.server import MaggServer
 import asyncio
 
 async def main():
-    server = MAGGServer("{config_path}")
+    server = MaggServer("{config_path}")
     await server.setup()
-    print("MAGG server started", flush=True)
+    print("Magg server started", flush=True)
     await server.mcp.run_http_async(host="localhost", port=54321)
 
 asyncio.run(main())
 ''')
 
-        # Start MAGG
-        print("Starting MAGG server...")
+        # Start Magg
+        print("Starting Magg server...")
         magg_proc = subprocess.Popen(
             [sys.executable, str(magg_script)],
             stdout=subprocess.PIPE,
@@ -108,10 +119,10 @@ asyncio.run(main())
             if magg_proc.poll() is not None:
                 # Process ended
                 stdout, stderr = magg_proc.communicate()
-                print(f"MAGG process ended with code {magg_proc.returncode}")
+                print(f"Magg process ended with code {magg_proc.returncode}")
                 print(f"STDOUT:\n{stdout}")
                 print(f"STDERR:\n{stderr}")
-                pytest.fail(f"MAGG server failed to start: {stderr}")
+                pytest.fail(f"Magg server failed to start: {stderr}")
 
             # Check if server is listening on the port
             import socket
@@ -131,11 +142,11 @@ asyncio.run(main())
             stdout, stderr = magg_proc.communicate(timeout=1)
             print(f"Server didn't start in time. STDOUT:\n{stdout}")
             print(f"STDERR:\n{stderr}")
-            pytest.fail("MAGG server didn't start listening on port 54321")
+            pytest.fail("Magg server didn't start listening on port 54321")
 
         try:
-            # 4. Connect to MAGG as client
-            print("\nConnecting to MAGG...")
+            # 4. Connect to Magg as client
+            print("\nConnecting to Magg...")
             client = Client("http://localhost:54321/mcp/")
 
             # Use the client in async context
@@ -166,7 +177,7 @@ asyncio.run(main())
                 else:
                     assert False, f"Unexpected result format: {result}"
 
-                # Test MAGG's own tools
+                # Test Magg's own tools
                 assert "magg_list_servers" in tool_names
                 servers_result = await client.call_tool("magg_list_servers", {})
                 print(f"\nServers: {servers_result}")

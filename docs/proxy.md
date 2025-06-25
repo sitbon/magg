@@ -133,7 +133,7 @@ All call results include annotations with:
 
 ## Client Implementation
 
-MAGG provides a `ProxyClient` class that simplifies interaction with proxy-enabled servers:
+Magg provides a `ProxyClient` class that simplifies interaction with proxy-enabled servers:
 
 ```python
 from magg.proxy.client import ProxyClient
@@ -205,7 +205,7 @@ All transparent methods handle result transformation automatically using the tra
 
 ## Server Implementation
 
-MAGG's proxy server implementation provides:
+Magg's proxy server implementation provides:
 
 1. **Self-introspection**: Server can list its own capabilities via FastMCPTransport
 2. **Result transformation**: Automatic conversion between MCP types
@@ -283,7 +283,7 @@ The proxy tool preserves type information through annotations:
 
 ### Transform Utilities
 
-MAGG provides transform utilities for working with proxy results:
+Magg provides transform utilities for working with proxy results:
 
 ```python
 from magg.util.transform import (

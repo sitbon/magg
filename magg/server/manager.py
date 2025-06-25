@@ -1,13 +1,14 @@
-"""Server management for MAGG - mounting, unmounting, and tracking MCP servers.
+"""Server management for Magg - mounting, unmounting, and tracking MCP servers.
 """
-from functools import cached_property
 import logging
+from functools import cached_property
 
 from fastmcp import FastMCP, Client
 
 from .defaults import MAGG_INSTRUCTIONS
-from ..settings import ConfigManager, MAGGConfig, ServerConfig
+from ..auth import BearerAuthManager
 from ..proxy.server import ProxyFastMCP
+from ..settings import ConfigManager, MaggConfig, ServerConfig
 from ..util.transport import get_transport_for_command, get_transport_for_uri
 
 logger = logging.getLogger(__name__)
@@ -21,29 +22,43 @@ class ServerManager:
 
     def __init__(self, config_manager: ConfigManager):
         self.config_manager = config_manager
+
+        auth_config = config_manager.load_auth_config()
+        auth_provider = None
+
+        if auth_config.bearer.private_key_exists:
+            auth_manager = BearerAuthManager(auth_config.bearer)
+            try:
+                auth_provider = auth_manager.provider
+                logger.info("Authentication enabled (bearer)")
+            except RuntimeError as e:
+                logger.warning(f"Authentication disabled: {e}")
+
+        # Create FastMCP instance with optional auth
         self.mcp = ProxyFastMCP(
             name=self.self_prefix,
             instructions=MAGG_INSTRUCTIONS.format(self_prefix=self.self_prefix),
+            auth=auth_provider
         )
         self.mounted_servers = {}
 
     @property
-    def config(self) -> MAGGConfig:
-        """Get the current MAGG configuration."""
+    def config(self) -> MaggConfig:
+        """Get the current Magg configuration."""
         return self.config_manager.load_config()
 
-    def save_config(self, config: MAGGConfig):
+    def save_config(self, config: MaggConfig):
         """Save the current configuration to disk."""
         return self.config_manager.save_config(config)
 
     @cached_property
     def prefix_separator(self) -> str:
-        """Get the prefix separator for this MAGG server - cannot be changed during process lifetime."""
+        """Get the prefix separator for this Magg server - cannot be changed during process lifetime."""
         return ServerConfig.PREFIX_SEP
 
     @cached_property
     def self_prefix(self) -> str:
-        """Get the self prefix for this MAGG server - cannot be changed during process lifetime."""
+        """Get the self prefix for this Magg server - cannot be changed during process lifetime."""
         return self.config.self_prefix
 
     async def mount_server(self, server: ServerConfig) -> bool:
@@ -158,14 +173,14 @@ class ManagedServer:
         return self.server_manager.mcp
 
     @property
-    def config(self) -> MAGGConfig:
-        """Get the current MAGG configuration.
+    def config(self) -> MaggConfig:
+        """Get the current Magg configuration.
         """
         return self.server_manager.config
 
     @cached_property
     def self_prefix(self) -> str:
-        """Get the self prefix for this MAGG server.
+        """Get the self prefix for this Magg server.
 
         Cannot be changed during process lifetime.
         """
@@ -177,6 +192,6 @@ class ManagedServer:
         """
         return f"{self.self_prefix}{self.server_manager.prefix_separator}"
 
-    def save_config(self, config: MAGGConfig):
+    def save_config(self, config: MaggConfig):
         """Save the current configuration to disk."""
         return self.server_manager.save_config(config)

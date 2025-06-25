@@ -1,4 +1,4 @@
-"""URI utilities for MAGG - handles URI parsing and directory extraction."""
+"""URI utilities for Magg - handles URI parsing and directory extraction."""
 
 from pathlib import Path
 from urllib.parse import urlparse, unquote

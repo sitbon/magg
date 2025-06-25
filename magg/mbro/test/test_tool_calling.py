@@ -1,4 +1,4 @@
-"""Test mbro tool calling functionality with MAGG."""
+"""Test mbro tool calling functionality with Magg."""
 
 import pytest
 import asyncio
@@ -10,17 +10,17 @@ from unittest.mock import patch, MagicMock
 
 
 class TestMBROToolCalling:
-    """Test calling tools through mbro connected to MAGG."""
+    """Test calling tools through mbro connected to Magg."""
 
     @pytest.fixture
     def magg_server_port(self):
-        """Port for test MAGG server."""
+        """Port for test Magg server."""
         return 8082
 
     @pytest.fixture
     async def magg_server(self, magg_server_port):
-        """Start a MAGG HTTP server for testing."""
-        # Start MAGG HTTP server in background
+        """Start a Magg HTTP server for testing."""
+        # Start Magg HTTP server in background
         process = subprocess.Popen(
             ["uv", "run", "magg", "--http", "--port", str(magg_server_port)],
             stdout=subprocess.PIPE,
@@ -43,8 +43,8 @@ class TestMBROToolCalling:
     @pytest.mark.skip(reason="Complex integration test - needs external server")
     @pytest.mark.asyncio
     async def test_magg_list_tools_call(self, magg_server, magg_server_port):
-        """Test calling MAGG list tools through mbro."""
-        # Test calling MAGG list tools
+        """Test calling Magg list tools through mbro."""
+        # Test calling Magg list tools
         result = subprocess.run([
             "uv", "run", "mbro",
             "--connect", "magg", f"http://localhost:{magg_server_port}",
@@ -111,13 +111,13 @@ class TestMBROToolCalling:
 
 @pytest.mark.integration
 class TestMBROToolIntegration:
-    """Integration tests for mbro tool calling with actual MAGG tools."""
+    """Integration tests for mbro tool calling with actual Magg tools."""
 
     @pytest.mark.asyncio
     async def test_tool_discovery_workflow(self):
         """Test complete workflow of discovering and calling tools."""
         # This would test the full workflow:
-        # 1. Connect to MAGG
+        # 1. Connect to Magg
         # 2. List available tools
         # 3. Search for specific tools
         # 4. Call discovered tools

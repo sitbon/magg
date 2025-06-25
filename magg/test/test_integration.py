@@ -1,4 +1,4 @@
-"""Integration tests for MAGG server functionality."""
+"""Integration tests for Magg server functionality."""
 
 import pytest
 import tempfile
@@ -6,8 +6,8 @@ import os
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from magg.server import MAGGServer
-from magg.settings import MAGGConfig, ConfigManager, ServerConfig
+from magg.server import MaggServer
+from magg.settings import MaggConfig, ConfigManager, ServerConfig
 
 
 class TestIntegration:
@@ -32,9 +32,9 @@ if __name__ == "__main__":
     mcp.run()
 ''')
 
-            # Create MAGG server
+            # Create Magg server
             config_path = Path(tmpdir) / "config.json"
-            server = MAGGServer(str(config_path))
+            server = MaggServer(str(config_path))
 
             # Add the server
             result = await server.add_server(
@@ -56,9 +56,9 @@ if __name__ == "__main__":
     async def test_add_server_with_python_module(self):
         """Test adding a Python server using -m module syntax."""
         with tempfile.TemporaryDirectory() as tmpdir:
-            # Create MAGG server
+            # Create Magg server
             config_path = Path(tmpdir) / "config.json"
-            server = MAGGServer(str(config_path))
+            server = MaggServer(str(config_path))
 
             # Add server with -m syntax
             result = await server.add_server(
@@ -76,7 +76,7 @@ if __name__ == "__main__":
         """Test that correct transport is selected based on command."""
         with tempfile.TemporaryDirectory() as tmpdir:
             config_path = Path(tmpdir) / "config.json"
-            server = MAGGServer(str(config_path))
+            server = MaggServer(str(config_path))
 
             # Test Python transport
             result = await server.add_server(
@@ -131,7 +131,7 @@ class TestServerLifecycle:
         """Test enabling and disabling servers."""
         with tempfile.TemporaryDirectory() as tmpdir:
             config_path = Path(tmpdir) / "config.json"
-            server = MAGGServer(str(config_path))
+            server = MaggServer(str(config_path))
 
             # Add a disabled server
             result = await server.add_server(
@@ -164,7 +164,7 @@ class TestServerLifecycle:
         """Test removing servers."""
         with tempfile.TemporaryDirectory() as tmpdir:
             config_path = Path(tmpdir) / "config.json"
-            server = MAGGServer(str(config_path))
+            server = MaggServer(str(config_path))
 
             # Add a server
             await server.add_server(

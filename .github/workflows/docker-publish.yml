@@ -1,0 +1,165 @@
+name: Docker
+
+on:
+  push:
+    branches: [ beta ]
+    tags: [ 'magg/v*' ]
+  pull_request:
+    branches: [ main, beta ]
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  test-dev-container:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    
+    strategy:
+      matrix:
+        python-version: ['3.12', '3.13']
+      fail-fast: false
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch,suffix=-dev-py${{ matrix.python-version }}
+            type=ref,event=pr,suffix=-dev-py${{ matrix.python-version }}
+            type=semver,pattern={{version}},suffix=-dev-py${{ matrix.python-version }}
+            type=semver,pattern={{major}}.{{minor}},suffix=-dev-py${{ matrix.python-version }}
+            type=raw,value=${{ github.ref == 'refs/heads/main' && 'dev' || format('{0}-dev', github.ref_name) }},enable=${{ matrix.python-version == '3.13' }}
+      
+      - name: Build dev image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./dockerfile
+          target: dev
+          push: false
+          tags: ${{ steps.meta.outputs.tags }}
+          # labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            PYTHON_VERSION=${{ matrix.python-version }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          load: true
+          provenance: false
+          sbom: false
+      
+      - name: Run tests in container
+        run: |
+          # Use the first tag only (multiple tags break the docker run command)
+          FIRST_TAG=$(echo "${{ steps.meta.outputs.tags }}" | head -n1)
+          docker run --rm \
+            -e MAGG_LOG_LEVEL= \
+            ${FIRST_TAG} \
+            pytest -v
+      
+      - name: Push dev image
+        if: github.event_name != 'pull_request'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./dockerfile
+          target: dev
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          # labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            PYTHON_VERSION=${{ matrix.python-version }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          provenance: false
+          sbom: false
+
+  build-and-push:
+    needs: test-dev-container
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    
+    strategy:
+      matrix:
+        include:
+          - target: pre
+            suffix: "-pre"
+          - target: pro
+            suffix: ""
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch,suffix=${{ matrix.suffix }}
+            type=ref,event=pr,suffix=${{ matrix.suffix }}
+            type=semver,pattern={{version}},suffix=${{ matrix.suffix }}
+            type=semver,pattern={{major}}.{{minor}},suffix=${{ matrix.suffix }}
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' && matrix.target == 'pro' }}
+      
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./dockerfile
+          target: ${{ matrix.target }}
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          # labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          provenance: false
+          sbom: false
+
+  cleanup-untagged:
+    needs: [test-dev-container, build-and-push]
+    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request'
+    permissions:
+      packages: write
+    steps:
+      - name: Delete untagged images
+        uses: actions/delete-package-versions@v5
+        with:
+          package-name: 'magg'
+          package-type: 'container'
+          delete-only-untagged-versions: 'true'
+          min-versions-to-keep: 0
+          token: ${{ secrets.GITHUB_TOKEN }}

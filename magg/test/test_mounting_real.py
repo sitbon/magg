@@ -33,7 +33,7 @@ if __name__ == "__main__":
             server_file = Path(tmpdir) / "server.py"
             server_file.write_text(server_code)
 
-            # Create the main MAGG server
+            # Create the main Magg server
             main_server = FastMCP("test-magg")
 
             # Try different approaches to mount the server

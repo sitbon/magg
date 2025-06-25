@@ -1,4 +1,4 @@
-"""Response model for MAGG tools.
+"""Response model for Magg tools.
 """
 import json
 from typing import Any, Union
@@ -7,8 +7,8 @@ from mcp.types import TextContent, EmbeddedResource, Annotations, TextResourceCo
 from pydantic import BaseModel, ConfigDict, AnyUrl
 
 
-class MAGGResponse(BaseModel):
-    """Standardized response format for MAGG tools.
+class MaggResponse(BaseModel):
+    """Standardized response format for Magg tools.
 
     Provides a consistent structure for both success and error cases,
     optimized for LLM consumption with automatic JSON serialization.
@@ -18,7 +18,7 @@ class MAGGResponse(BaseModel):
         arbitrary_types_allowed=True,
         extra="allow",
         json_schema_extra={
-            "description": "Standardized response format for MAGG tools.",
+            "description": "Standardized response format for Magg tools.",
             "examples": [
                 {
                     "output": {"message": "Success"},
@@ -36,12 +36,12 @@ class MAGGResponse(BaseModel):
     output: Any | None = None
 
     @classmethod
-    def success(cls, output: Any) -> "MAGGResponse":
+    def success(cls, output: Any) -> "MaggResponse":
         """Create a success response with output data."""
         return cls(output=output)
 
     @classmethod
-    def error(cls, error: str | dict | list) -> "MAGGResponse":
+    def error(cls, error: str | dict | list) -> "MaggResponse":
         """Create an error response."""
         return cls(errors=[error] if not isinstance(error, (list, tuple)) else error)
 

@@ -5,8 +5,8 @@ from pathlib import Path
 from unittest.mock import AsyncMock, patch
 import tempfile
 
-from magg.server import MAGGServer
-from magg.settings import MAGGConfig
+from magg.server import MaggServer
+from magg.settings import MaggConfig
 
 
 class TestAddServer:
@@ -15,7 +15,7 @@ class TestAddServer:
     @pytest.fixture
     def mock_config_manager(self):
         """Create a mock config manager with test data."""
-        config = MAGGConfig()
+        config = MaggConfig()
         return config
 
     @pytest.fixture
@@ -41,10 +41,10 @@ class TestAddServer:
 
     @pytest.fixture
     def magg_server(self, temp_dirs):
-        """Create a MAGG server instance for testing."""
+        """Create a Magg server instance for testing."""
         with tempfile.TemporaryDirectory() as config_dir:
             config_path = Path(config_dir) / "config.json"
-            server = MAGGServer(str(config_path))
+            server = MaggServer(str(config_path))
             yield server
 
     @pytest.mark.asyncio

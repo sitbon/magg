@@ -1,6 +1,6 @@
-# MAGG Example Sessions
+# Magg Example Sessions
 
-This document provides detailed examples of using MAGG in various scenarios. Each example shows the complete flow from discovering servers to using their tools.
+This document provides detailed examples of using Magg in various scenarios. Each example shows the complete flow from discovering servers to using their tools.
 
 Tool call and output formatting is in the style of `mbro` - this package's MCP browsing and management tool.
 

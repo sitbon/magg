@@ -1,4 +1,4 @@
-# MAGG Documentation
+# Magg Documentation
 
 ## Table of Contents
 
@@ -9,13 +9,14 @@
 5. [Tools Reference](#tools-reference)
 6. [Resources Reference](#resources-reference)
 7. [Prompts Reference](#prompts-reference)
-8. [Proxy Documentation](#proxy-documentation)
-9. [Example Sessions](#example-sessions)
-10. [Advanced Configuration](#advanced-configuration)
+8. [Authentication](#authentication)
+9. [Proxy Documentation](#proxy-documentation)
+10. [Example Sessions](#example-sessions)
+11. [Advanced Configuration](#advanced-configuration)
 
 ## Overview
 
-MAGG (MCP Aggregator) is a meta-MCP server that acts as a central hub for managing multiple MCP servers. It enables LLMs to dynamically discover, add, configure, and use tools from various MCP servers through a unified interface.
+Magg (MCP Aggregator) is a meta-MCP server that acts as a central hub for managing multiple MCP servers. It enables LLMs to dynamically discover, add, configure, and use tools from various MCP servers through a unified interface.
 
 ### Core Concepts
 
@@ -28,7 +29,7 @@ MAGG (MCP Aggregator) is a meta-MCP server that acts as a central hub for managi
 
 This project consists of three main components:
 
-### 1. MAGG (MCP Aggregator)
+### 1. Magg (MCP Aggregator)
 The main server-of-servers that manages multiple MCP servers, providing:
 - Dynamic server discovery and configuration
 - Tool namespace management with prefixes
@@ -83,7 +84,7 @@ uvx --from git+https://github.com/sitbon/magg.git magg serve
 
 ### Quick Start with Claude Desktop
 
-Add MAGG to your Claude Desktop configuration (no installation required):
+Add Magg to your Claude Desktop configuration (no installation required):
 
 ```json
 {
@@ -101,7 +102,7 @@ Then restart Claude Desktop and ask Claude to list available servers or search f
 ### Quick Start with Command Line
 
 ```bash
-# Run MAGG server in stdio mode (after installation)
+# Run Magg server in stdio mode (after installation)
 magg serve
 
 # Or for HTTP mode
@@ -142,7 +143,7 @@ graph TD
    - Optional: specify prefix, working directory, notes
 
 4. **Server is automatically mounted**:
-   - MAGG connects to the server
+   - Magg connects to the server
    - Tools are discovered and registered
 
 5. **Tools become available** with configured prefix
@@ -178,7 +179,7 @@ Tool aggregation and delegation flow:
 
 ```mermaid
 graph LR
-    A[LLM Request] --> B[MAGG]
+    A[LLM Request] --> B[Magg]
     B --> C{Which Server?}
     C -->|calc_add| D[Calculator Server]
     C -->|pw_navigate| E[Playwright Server]
@@ -339,7 +340,7 @@ Call a tool with arguments:
 
 ## Resources Reference
 
-MAGG exposes MCP resources for introspection:
+Magg exposes MCP resources for introspection:
 
 ### `magg://server/{name}`
 Get metadata for a specific server.
@@ -366,9 +367,98 @@ Interactive prompt for configuring a server with LLM assistance.
 
 **Usage:** The LLM can use this prompt to help determine optimal configuration for a server based on its URL. The prompt includes metadata collection and guides the LLM to generate a complete JSON configuration.
 
+## Authentication
+
+Magg supports optional bearer token authentication using RSA keypairs and JWT tokens. When enabled, all clients must provide a valid JWT token to access the server.
+
+For a complete guide, see **[Authentication Guide](authentication.md)**.
+
+### Setting Up Authentication
+
+1. **Initialize authentication** (one-time setup):
+   ```bash
+   magg auth init
+   ```
+   This generates an RSA keypair in `~/.ssh/magg/` (or custom location via `--key-path`).
+
+2. **Check authentication status**:
+   ```bash
+   magg auth status
+   ```
+
+3. **Generate JWT tokens** for clients:
+   ```bash
+   # Display token on screen
+   magg auth token
+   
+   # Export to environment variable
+   export MAGG_JWT=$(magg auth token -q)
+   
+   # Generate with custom parameters
+   magg auth token --subject "my-app" --hours 72 --scopes "read" "write"
+   ```
+
+### Client Connection
+
+#### Using MaggClient (Recommended)
+```python
+from magg.client import MaggClient
+
+# Automatically uses MAGG_JWT environment variable
+async with MaggClient("http://localhost:8000/mcp") as client:
+    tools = await client.list_tools()
+```
+
+#### Using FastMCP Client
+```python
+from fastmcp import Client
+from fastmcp.client import BearerAuth
+
+# With explicit token
+jwt_token = "your-jwt-token"
+auth = BearerAuth(jwt_token)
+async with Client("http://localhost:8000/mcp", auth=auth) as client:
+    tools = await client.list_tools()
+```
+
+### Key Management
+
+- **Default key location**: `~/.ssh/magg/{audience}.key` and `{audience}.key.pub`
+- **Environment variable**: Set `MAGG_PRIVATE_KEY` to use key from environment
+- **Custom location**: Configure in `.magg/auth.json`
+
+### Disabling Authentication
+
+To disable authentication:
+1. Remove the key files, or
+2. Set a non-existent `key_path` in `.magg/auth.json`:
+   ```json
+   {
+     "bearer": {
+       "key_path": "/path/that/does/not/exist"
+     }
+   }
+   ```
+
+### Authentication Commands Reference
+
+- `magg auth init [--audience NAME] [--issuer URL] [--key-path PATH]` - Initialize authentication
+- `magg auth status` - Display current auth configuration
+- `magg auth token [--quiet] [--export] [--subject USER] [--hours N] [--scopes ...]` - Generate JWT
+- `magg auth public-key` - Display public key in PEM format
+- `magg auth private-key [--export] [--oneline]` - Display private key
+
+### Security Notes
+
+- Private keys are saved with permissions 0600 (owner read/write only)
+- Never commit private keys to version control
+- Use environment variables for production deployments
+- Tokens include standard JWT claims: iss, aud, sub, iat, exp
+- Optional scopes can be included but are not enforced by Magg
+
 ## Proxy Documentation
 
-MAGG includes a powerful tool called `proxy` that provides tool-based access to all MCP capabilities. The proxy enables LLMs to interact with resources and prompts through a tool interface, making all MCP operations accessible even when the client doesn't support direct resource or prompt access.
+Magg includes a powerful tool called `proxy` that provides tool-based access to all MCP capabilities. The proxy enables LLMs to interact with resources and prompts through a tool interface, making all MCP operations accessible even when the client doesn't support direct resource or prompt access.
 
 ### Key Features
 - **Unified Interface**: Access tools, resources, and prompts through a single `proxy` tool
@@ -411,13 +501,13 @@ The `proxy` tool accepts a JSON object as its arguments. Here are some examples:
 }
 ```
 
-When using MAGG through an LLM interface (like Claude), you would call it like:
+When using Magg through an LLM interface (like Claude), you would call it like:
 - Tool name: `proxy`
 - Arguments: One of the JSON objects shown above
 
 ## Example Sessions
 
-See [examples.md](examples.md) for detailed example sessions demonstrating MAGG's capabilities.
+See [examples.md](examples.md) for detailed example sessions demonstrating Magg's capabilities.
 
 ## Advanced Configuration
 
@@ -497,7 +587,9 @@ Check logs for:
 
 ### Security Considerations
 
-1. **API Keys**: Store in environment variables, never in configuration
-2. **File Access**: Be cautious with filesystem servers
-3. **Network Access**: Review server permissions for network operations
-4. **Process Isolation**: Consider running servers in containers for isolation
+1. **Authentication**: Enable bearer token auth for production deployments
+2. **API Keys**: Store in environment variables, never in configuration
+3. **File Access**: Be cautious with filesystem servers
+4. **Network Access**: Review server permissions for network operations
+5. **Process Isolation**: Consider running servers in containers for isolation
+6. **Token Security**: Never expose JWT tokens in logs or error messages

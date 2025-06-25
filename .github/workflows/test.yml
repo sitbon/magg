@@ -1,4 +1,4 @@
-name: Test
+name: Tests
 
 on:
   push:
@@ -7,27 +7,11 @@ on:
     branches: ['*']
 
 jobs:
-  get-python-version:
-    runs-on: ubuntu-latest
-    outputs:
-      version: ${{ steps.python-version.outputs.version }}
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      
-      - name: Read Python version
-        id: python-version
-        run: |
-          echo "version=$(cat .python-version)" >> $GITHUB_OUTPUT
-
   test:
-    needs: get-python-version
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ['${{ needs.get-python-version.outputs.version }}']
-        # To test multiple versions, change to:
-        # python-version: ['3.12', '${{ needs.get-python-version.outputs.version }}', '3.14']
+        python-version: ['3.12', '3.13']
       fail-fast: false  # Continue testing other versions if one fails
     
     steps:

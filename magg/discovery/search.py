@@ -1,4 +1,4 @@
-"""Tool search and discovery capabilities for MAGG.
+"""Tool search and discovery capabilities for Magg.
 
 TODO: Add support for mcpservers.org.
 """

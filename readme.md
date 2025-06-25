@@ -1,4 +1,4 @@
-# 🧲 **Magg** - *The MCP (Model Context Protocol) Aggregator*
+# 🧲 **Magg** - *The MCP Aggregator*
 
 [//]: # ([![Tests]&#40;https://img.shields.io/github/actions/workflow/status/sitbon/magg/test.yml?style=flat-square&label=tests&#41;]&#40;https://github.com/sitbon/magg/actions/workflows/test.yml&#41;)
 [![Python Version](https://img.shields.io/pypi/pyversions/magg?style=flat-square&logo=python&logoColor=white)](https://pypi.org/project/magg/)
@@ -11,7 +11,7 @@
 [![Tests](https://github.com/sitbon/magg/actions/workflows/test.yml/badge.svg)](https://github.com/sitbon/magg/actions/workflows/test.yml)
 [![Docker](https://github.com/sitbon/magg/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/sitbon/magg/actions/workflows/docker-publish.yml)
 
-An MCP server that manages and aggregates other MCP servers, enabling LLMs to dynamically extend their own capabilities.
+A *[Model Context Protocol](https://modelcontextprotocol.io/)* server that manages, aggregates, and proxies other MCP servers, enabling LLMs to dynamically extend their own capabilities.
 
 ## What is Magg?
 
@@ -33,6 +33,10 @@ Think of Magg as a "package manager for LLM tools" - it lets AI assistants insta
 - **Smart Configuration**: Uses MCP sampling to intelligently configure servers from just a URL.
 - **Persistent Configuration**: Maintains server configurations in `.magg/config.json`.
 - **Multiple Transport Support**: Works with stdio, HTTP, and in-memory transports.
+- **Bearer Token Authentication**: Optional RSA-based JWT authentication for secure HTTP access.
+- **Docker Support**: Pre-built images for production, staging, and development workflows.
+- **Health Monitoring**: Built-in `magg_status` and `magg_check` tools for server health checks.
+- **Python 3.12+ Support**: Fully compatible with Python 3.12 and 3.13.
 
 ## Installation
 
@@ -182,6 +186,8 @@ Once Magg is running, it exposes the following tools to LLMs:
 - `magg_list_tools` - List all available tools from all servers
 - `magg_smart_configure` - Intelligently configure a server from a URL
 - `magg_analyze_servers` - Analyze configured servers and suggest improvements
+- `magg_status` - Get server and tool statistics
+- `magg_check` - Health check servers with repair actions (report/remount/unmount/disable)
 
 ### Authentication
 

@@ -307,9 +307,10 @@ Documentation for proxy tool:
                 if not mount_success:
                     return MAGGResponse.error(f"Failed to mount server '{name}'")
 
-            # Save to config
             config.add_server(server)
-            self.save_config(config)
+
+            if not self.save_config(config):
+                return MAGGResponse.error(f"Failed to save configuration for added server '{name}'")
 
             return MAGGResponse.success({
                 "action": "server_added",
@@ -341,9 +342,12 @@ Documentation for proxy tool:
             config = self.config
 
             if name in config.servers:
-                await self.server_manager.unmount_server(name)
                 config.remove_server(name)
-                self.save_config(config)
+
+                if not self.save_config(config):
+                    return MAGGResponse.error(f"Failed to save configuration after removing server '{name}'")
+
+                await self.server_manager.unmount_server(name)
                 return MAGGResponse.success({
                     "action": "server_removed",
                     "server": {"name": name}
@@ -407,9 +411,10 @@ Documentation for proxy tool:
 
             server.enabled = True
 
-            success = await self.server_manager.mount_server(server)
+            if not self.save_config(config):
+                return MAGGResponse.error(f"Failed to save configuration for server '{name}'")
 
-            self.save_config(config)
+            success = await self.server_manager.mount_server(server)
 
             return MAGGResponse.success({
                 "action": "server_enabled",
@@ -437,10 +442,14 @@ Documentation for proxy tool:
                 return MAGGResponse.error(f"Server '{name}' is already disabled")
 
             server.enabled = False
-            # TODO: Consider calling unmount regardless of suggested state
+
+            if not self.save_config(config):
+                return MAGGResponse.error(f"Failed to save configuration for server '{name}'")
+
+            # TODO: Consider calling unmount regardless of suggested state?
+            #       See about race conditions for any case of actions related to config changes when dynamic.
             await self.server_manager.unmount_server(name)
 
-            self.save_config(config)
             return MAGGResponse.success({
                 "action": "server_disabled",
                 "server": {"name": name}

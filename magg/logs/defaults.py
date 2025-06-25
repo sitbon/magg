@@ -49,12 +49,12 @@ LOGGING_CONFIG = {
         },
         "magg": {
             "handlers": ["default"],
-            "level": os.getenv("MAGG_LOG_LEVEL", "INFO").upper(),
+            "level": (os.getenv("MAGG_LOG_LEVEL") or "INFO").upper(),
             "propagate": False,
         },
         "FastMCP": {
             "handlers": ["default"],
-            "level": os.getenv("FASTMCP_LOG_LEVEL", "WARNING").upper(),
+            "level": (os.getenv("FASTMCP_LOG_LEVEL") or "WARNING").upper(),
             "propagate": False,
         },
         "uvicorn": {

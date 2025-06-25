@@ -6,7 +6,7 @@ from functools import cached_property
 from pathlib import Path
 from typing import Any, ClassVar
 
-from pydantic import field_validator, Field, model_validator, AnyUrl, BaseModel
+from pydantic import field_validator, Field, model_validator, AnyUrl
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from .util.system import get_project_root
@@ -21,7 +21,8 @@ class ClientSettings(BaseSettings):
     model_config = SettingsConfigDict(
         env_prefix="MAGG_",
         env_file=".env",
-        extra="ignore"
+        extra="ignore",
+        validate_assignment=True,
     )
 
     jwt: str | None = Field(
@@ -30,8 +31,12 @@ class ClientSettings(BaseSettings):
     )
 
 
-class BearerAuthConfig(BaseModel):
+class BearerAuthConfig(BaseSettings):
     """Bearer token authentication configuration."""
+    model_config = SettingsConfigDict(
+        extra="allow",
+        validate_assignment=True,
+    )
     issuer: str = Field(default="https://magg.local", description="Token issuer identifier")
     audience: str = Field(default="magg", description="Token audience")
     key_path: Path = Field(
@@ -86,8 +91,12 @@ class BearerAuthConfig(BaseModel):
         return self.public_key_path.exists()
 
 
-class AuthConfig(BaseModel):
+class AuthConfig(BaseSettings):
     """Top-level authentication configuration."""
+    model_config = SettingsConfigDict(
+        extra="allow",
+        validate_assignment=True,
+    )
     bearer: BearerAuthConfig = Field(
         default_factory=BearerAuthConfig,
         description="Bearer token authentication config"
@@ -186,15 +195,16 @@ class MAGGConfig(BaseSettings):
         env_prefix="MAGG_",
         env_file=".env",
         extra="allow",
-        env_nested_delimiter="__",
         validate_assignment=True,
-        arbitrary_types_allowed=True
+        arbitrary_types_allowed=True,
+        env_ignore_empty=True,
     )
 
     config_path: Path = Field(
         default_factory=lambda: get_project_root() / ".magg" / "config.json",
         description="Configuration file path (can be overridden by MAGG_CONFIG_PATH)"
     )
+    read_only: bool = Field(default=False, description="Run in read-only mode (env: MAGG_READ_ONLY)")
     quiet: bool = Field(default=False, description="Suppress output unless errors occur (env: MAGG_QUIET)")
     debug: bool = Field(default=False, description="Enable debug mode for MAGG (env: MAGG_DEBUG)")
     log_level: str | None = Field(default=None, description="Logging level for MAGG (default: INFO) (env: MAGG_LOG_LEVEL)")
@@ -213,9 +223,6 @@ class MAGGConfig(BaseSettings):
 
         if 'MAGG_LOG_LEVEL' not in os.environ and self.log_level is not None:
             os.environ['MAGG_LOG_LEVEL'] = self.log_level
-
-        if 'MAGG_CONFIG_PATH' not in os.environ:
-            os.environ['MAGG_CONFIG_PATH'] = str(self.config_path)
 
         return self
 
@@ -247,21 +254,21 @@ class MAGGConfig(BaseSettings):
 
 class ConfigManager:
     """Manages MAGG configuration persistence."""
+    config_path: Path
+    auth_config_path: Path
+    auth_config: AuthConfig | None = None
+    read_only: bool
 
     def __init__(self, config_path: Path | str | None = None):
         """Initialize config manager."""
-        # Load base settings (gets env vars)
-        self.settings = MAGGConfig()
+        config = MAGGConfig()
+        self.read_only = config.read_only
 
-        # Override config path if provided
         if config_path:
             self.config_path = Path(config_path)
         else:
-            self.config_path = self.settings.config_path
+            self.config_path = config.config_path
 
-        # Don't create directory here - only create when saving
-
-        # Set auth config path
         self.auth_config_path = self.config_path.parent / "auth.json"
 
     @cached_property
@@ -270,27 +277,27 @@ class ConfigManager:
         return logging.getLogger(__name__)
 
     def load_config(self) -> MAGGConfig:
-        """Load configuration from disk."""
-        # Create a fresh config instance with settings from environment
+        """Load configuration from disk.
+
+        Note: The only dynamic part of the config is the servers.
+        """
         config = MAGGConfig()
 
         if not self.config_path.exists():
-            self.logger.warning(f"Config file {self.config_path} does not exist. Using default settings.")
             return config
 
         try:
-            with open(self.config_path, 'r') as f:
+            with self.config_path.open("r") as f:
                 data = json.load(f)
 
             servers = {}
 
             for name, server_data in data.pop('servers', {}).items():
                 try:
-                    server_data['name'] = name  # Ensure name is set and same as key
+                    server_data['name'] = name
                     servers[name] = ServerConfig(**server_data)
                 except Exception as e:
                     self.logger.error(f"Error loading server '{name}': {e}")
-                    # Skip invalid servers
                     continue
 
             config.servers = servers
@@ -308,6 +315,13 @@ class ConfigManager:
 
     def save_config(self, config: MAGGConfig) -> bool:
         """Save configuration to disk."""
+        if config.read_only:
+            self.logger.warning("Config is read-only, not saving.")
+            return False
+
+        if self.read_only:
+            raise RuntimeError("Config read_only value cannot be changed after initialization.")
+
         try:
             # Only save servers to JSON, other settings come from env
             data = {
@@ -321,12 +335,11 @@ class ConfigManager:
                 }
             }
 
-            # Create directory only when actually saving
             if not self.config_path.parent.exists():
                 self.logger.warning(f"Creating new directory: {self.config_path.parent}")
                 self.config_path.parent.mkdir(parents=True, exist_ok=True)
 
-            with open(self.config_path, 'w') as f:
+            with self.config_path.open("w") as f:
                 json.dump(data, f, indent=2)
 
             return True
@@ -337,8 +350,10 @@ class ConfigManager:
 
     def load_auth_config(self) -> AuthConfig:
         """Load authentication configuration from disk or return defaults."""
+        if self.auth_config is not None:
+            return self.auth_config
+
         if not self.auth_config_path.exists():
-            # Return default config - caller can check keys_exist
             self.logger.debug(f"No auth.json found, using default auth config")
             return AuthConfig()
 
@@ -346,17 +361,20 @@ class ConfigManager:
             with self.auth_config_path.open("r") as f:
                 data = json.load(f)
 
-            return AuthConfig.model_validate(data)
+            self.auth_config = AuthConfig.model_validate(data)
+            return self.auth_config
 
         except Exception as e:
             self.logger.error(f"Error loading auth config: {e}")
-            # Return default config on error
             return AuthConfig()
 
     def save_auth_config(self, auth_config: AuthConfig) -> bool:
         """Save authentication configuration to disk."""
+        if self.read_only:
+            self.logger.warning("Auth config is read-only, not saving.")
+            return False
+
         try:
-            # Create directory only when actually saving
             if not self.auth_config_path.parent.exists():
                 self.logger.warning(f"Creating new directory: {self.auth_config_path.parent}")
                 self.auth_config_path.parent.mkdir(parents=True, exist_ok=True)
@@ -366,9 +384,10 @@ class ConfigManager:
                 exclude_none=True
             )
 
-            with open(self.auth_config_path, 'w') as f:
+            with self.auth_config_path.open("w") as f:
                 json.dump(data, f, indent=2)
 
+            self.auth_config = auth_config
             return True
 
         except Exception as e:

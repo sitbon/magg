@@ -1,9 +1,11 @@
 """Tests for MAGG configuration management."""
 
+import os
 import pytest
 import tempfile
 import json
 from pathlib import Path
+from unittest.mock import patch
 
 from magg.settings import ConfigManager, ServerConfig, MAGGConfig
 
@@ -90,10 +92,16 @@ class TestMAGGConfig:
 
     def test_config_defaults(self):
         """Test default configuration values."""
-        config = MAGGConfig()
-        assert config.config_path == Path.cwd() / ".magg" / "config.json"
-        assert config.log_level is None, "Default log level should be None"
-        assert config.servers == {}
+        # Remove MAGG_LOG_LEVEL env var that might be set in container
+        env = os.environ.copy()
+        if 'MAGG_LOG_LEVEL' in env:
+            del env['MAGG_LOG_LEVEL']
+        
+        with patch.dict('os.environ', env, clear=True):
+            config = MAGGConfig()
+            assert config.config_path == Path.cwd() / ".magg" / "config.json"
+            assert config.log_level is None, "Default log level should be None"
+            assert config.servers == {}
 
     def test_add_remove_server(self):
         """Test adding and removing servers."""

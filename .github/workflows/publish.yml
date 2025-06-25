@@ -70,41 +70,52 @@ jobs:
           git config commit.gpgsign true
           git config tag.gpgsign true
       
-      - name: Create publish commit and build
+      - name: Build and tag release
         run: |
-          # This command does everything:
-          # - Updates version in pyproject.toml
-          # - Builds the package
-          # - Creates signed commit with version/hash info
-          # - Creates signed tag
-          uv run poe create-publish-commit
+          # Get commit count
+          C=$(git rev-list --count HEAD)
           
-          # Export values for the release step
-          echo "VERSION=$(uv version --short)" >> $GITHUB_ENV
+          # Get current version
+          V=$(uv version --short)
+          
+          # Create version string and export
+          VERSION="${V}.${C}"
+          echo "VERSION=${VERSION}" >> $GITHUB_ENV
+          
+          # Update version in pyproject.toml
+          UV_FROZEN=true uv version "${VERSION}"
+          
+          # Build the package
+          UV_FROZEN=true uv build
+          
+          # Create a new version tag and export name
+          TAG="magg/v${VERSION}"
+          echo "TAG=${TAG}" >> $GITHUB_ENV
+          TAG_MESSAGE="[Automatic] Release Version v${VERSION} from $(git rev-parse --short HEAD)"
+          git tag -s -m "${TAG_MESSAGE}" "${TAG}"
+          
+          # Update latest tag after getting changelog
+          LATEST_TAG="magg/latest"
           
           # Get changelog since last release with rich formatting
           echo "CHANGELOG<<EOF" >> $GITHUB_ENV
-          
-          git log magg/latest..${{ github.sha }} --pretty=format:'### [%s](%h)%n**Author: %an <%ae>**%n*Date: %ad*%n%n%b%n' | sed -e '/^### /!{/^$/!s/^/> /}' -e 's/^$/>/g' >> $GITHUB_ENV
-          
+          git log ${LATEST_TAG}..${{ github.sha }} --pretty=format:'### [%s](%h)%n**Author: %an <%ae>**%n*Date: %ad*%n%n%b%n' | sed -e '/^### /!{/^$/!s/^/> /}' -e 's/^$/>/g' >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
           
           # Delete remote latest tag FIRST (before creating new one)
-          git push origin :refs/tags/magg/latest || true
+          git push origin :refs/tags/${LATEST_TAG} || true
           
           # Now create the new latest tag locally
-          git tag -d magg/latest || true
-          git tag --no-sign magg/latest
-
-      - name: Push changes back to main
-        run: |
-          git push origin main
+          git tag -d ${LATEST_TAG} || true
+          git tag --no-sign ${LATEST_TAG}
+          
+          # Push the new latest tag to remote
           git push origin --tags
-      
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: magg/v${{ env.VERSION }}
+          tag_name: ${{ env.TAG }}
           name: 🧲 Magg Release v${{ env.VERSION }}
           body: |
             Automatically generated release triggered by commit ${{ github.sha }}
@@ -127,4 +138,4 @@ jobs:
         env:
           PYPI_TOKEN: ${{ secrets.PYPI_TOKEN }}
         run: |
-          uv run poe pypi-publish
+          uv publish --token $PYPI_TOKEN

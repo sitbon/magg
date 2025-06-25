@@ -15,7 +15,11 @@ from prompt_toolkit import PromptSession, HTML
 from prompt_toolkit.completion import WordCompleter
 from prompt_toolkit.history import FileHistory
 
-from . import arepl
+try:
+    from . import arepl
+except ImportError:
+    arepl = None
+
 from .client import MCPBrowser, MCPConnection
 from .formatter import OutputFormatter
 from .. import process
@@ -72,6 +76,9 @@ class MCPBrowserCLI:
     async def start(self, repl: bool = False):
         """Start the interactive CLI."""
         if repl:
+            if arepl is None:
+                self.formatter.print("REPL mode is only available with Python 3.13+")
+
             self.formatter.print("Entering REPL mode. `await self.handle_command(command)` to execute commands.", file=sys.stderr)
 
             local = dict(

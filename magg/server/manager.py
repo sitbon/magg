@@ -1,12 +1,15 @@
 """Server management for Magg - mounting, unmounting, and tracking MCP servers.
 """
+import asyncio
 import logging
 from functools import cached_property
+from typing import TYPE_CHECKING
 
 from fastmcp import FastMCP, Client
 
 from .defaults import MAGG_INSTRUCTIONS
 from ..auth import BearerAuthManager
+from ..reload import ConfigChange, ServerChange
 from ..proxy.server import ProxyFastMCP
 from ..settings import ConfigManager, MaggConfig, ServerConfig
 from ..util.transport import get_transport_for_command, get_transport_for_uri
@@ -19,7 +22,6 @@ class ServerManager:
     config_manager: ConfigManager
     mcp: ProxyFastMCP
     mounted_servers: dict
-
     def __init__(self, config_manager: ConfigManager):
         self.config_manager = config_manager
 
@@ -63,6 +65,8 @@ class ServerManager:
 
     async def mount_server(self, server: ServerConfig) -> bool:
         """Mount a server using FastMCP."""
+        logger.debug("Attempting to mount server %s (enabled=%s)", server.name, server.enabled)
+
         if not server.enabled:
             logger.info("Server %s is disabled, skipping mount", server.name)
             return False
@@ -78,7 +82,7 @@ class ServerManager:
                     command=server.command,
                     args=server.args or [],
                     env=server.env,
-                    working_dir=server.working_dir,
+                    cwd=server.cwd,
                     transport_config=server.transport
                 )
                 client = Client(transport)
@@ -123,6 +127,16 @@ class ServerManager:
                 self.mcp.unmount(server.prefix)
                 logger.debug("Called unmount for prefix %s", server.prefix)
 
+            # Close the client to clean up background tasks
+            server_info = self.mounted_servers.get(name, {})
+            client: Client = server_info.get('client')
+            if client:
+                try:
+                    await client.close()
+                    logger.debug("Closed client for server %s", name)
+                except Exception as e:
+                    logger.warning("Error closing client for server %s: %s", name, e)
+
             # Remove from our tracking
             del self.mounted_servers[name]
             logger.info("Unmounted server %s", name)
@@ -160,6 +174,96 @@ class ServerManager:
             logger.info("Successfully mounted: %s", ', '.join(successful))
         if failed:
             logger.warning("Failed to mount: %s", ', '.join(failed))
+
+    async def handle_config_reload(self, config_change: ConfigChange) -> None:
+        """Handle configuration changes by applying server updates.
+
+        Args:
+            config_change: The configuration change object with old/new configs and changes
+        """
+        logger.info("Applying configuration changes...")
+
+        # Process changes in order: remove, disable, update, enable, add
+        # This ensures clean transitions
+
+        # First, remove servers that were deleted
+        for change in config_change.server_changes:
+            if change.action == 'remove':
+                await self._handle_server_remove(change)
+
+        # Disable servers that were disabled
+        for change in config_change.server_changes:
+            if change.action == 'disable':
+                await self._handle_server_disable(change)
+
+        # Update servers that changed (requires unmount/remount)
+        for change in config_change.server_changes:
+            if change.action == 'update':
+                await self._handle_server_update(change)
+
+        # Enable servers that were enabled
+        for change in config_change.server_changes:
+            if change.action == 'enable':
+                await self._handle_server_enable(change)
+
+        # Finally, add new servers
+        for change in config_change.server_changes:
+            if change.action == 'add':
+                await self._handle_server_add(change)
+
+        logger.info("Configuration reload complete")
+
+    async def _handle_server_add(self, change: ServerChange) -> None:
+        """Handle adding a new server."""
+        if change.new_config:
+            logger.info("Adding new server: %s", change.name)
+            success = await self.mount_server(change.new_config)
+            if not success:
+                logger.error("Failed to add server: %s", change.name)
+
+    async def _handle_server_remove(self, change: ServerChange) -> None:
+        """Handle removing a server."""
+        logger.info("Removing server: %s", change.name)
+        success = await self.unmount_server(change.name)
+        if not success:
+            logger.warning("Failed to remove server: %s", change.name)
+
+    async def _handle_server_update(self, change: ServerChange) -> None:
+        """Handle updating a server (requires unmount and remount)."""
+        logger.info("Updating server: %s", change.name)
+
+        # First unmount the old version
+        await self.unmount_server(change.name)
+
+        # Give transports time to clean up
+        await asyncio.sleep(0.1)
+
+        # Mount the new version
+        if change.new_config:
+            success = await self.mount_server(change.new_config)
+            if not success:
+                logger.error("Failed to remount updated server: %s", change.name)
+
+    async def _handle_server_enable(self, change: ServerChange) -> None:
+        """Handle enabling a server."""
+        if change.new_config:
+            logger.info("Enabling server: %s", change.name)
+            success = await self.mount_server(change.new_config)
+            if not success:
+                logger.error("Failed to enable server: %s", change.name)
+            else:
+                logger.info("Successfully enabled server: %s", change.name)
+
+    async def _handle_server_disable(self, change: ServerChange) -> None:
+        """Handle disabling a server."""
+        logger.info("Disabling server: %s", change.name)
+        # If server is not mounted, that's fine - it's already in the desired state
+        if change.name not in self.mounted_servers:
+            logger.info("Server %s is already unmounted", change.name)
+        else:
+            success = await self.unmount_server(change.name)
+            if not success:
+                logger.warning("Failed to disable server: %s", change.name)
 
 
 class ManagedServer:

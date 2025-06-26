@@ -33,9 +33,9 @@ Parameters:
           Arguments will be split automatically.
   uri (string | null) (optional)
     URI for HTTP servers
-  env_vars (object | null) (optional)
+  env (object | null) (optional)
     Environment variables
-  working_dir (string | null) (optional)
+  cwd (string | null) (optional)
     Working directory (for commands)
   notes (string | null) (optional)
     Setup notes

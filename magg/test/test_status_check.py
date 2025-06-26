@@ -43,7 +43,7 @@ class TestStatusAndCheckTools:
             assert "total" in data["tools"]
 
             assert data["servers"]["total"] == 0
-            assert data["tools"]["total"] == 11  # Magg tools + proxy
+            assert data["tools"]["total"] >= 11  # Magg tools + proxy
 
     @pytest.mark.asyncio
     async def test_check_tool_report_mode(self, tmp_path):

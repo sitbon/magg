@@ -172,7 +172,7 @@ class TestMountingErrors:
                 name="badworkdir",
                 source="https://example.com",
                 command="python test.py",
-                working_dir="/nonexistent/directory"
+                cwd="/nonexistent/directory"
             )
 
             assert result.is_error

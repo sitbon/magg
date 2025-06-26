@@ -1,5 +1,5 @@
-"""Magg - MCP Aggregator Server - Clean Class-Based Implementation"""
-
+"""Magg - MCP Aggregator Server - Main Implementation
+"""
 import asyncio
 import json
 import logging
@@ -14,10 +14,10 @@ from mcp.types import PromptMessage, TextContent
 from pydantic import Field, AnyUrl
 
 from .defaults import MAGG_ADD_SERVER_DOC, PROXY_TOOL_DOC
-from .manager import ServerManager, ManagedServer
+from .manager import ManagedServer, ServerManager
 from .response import MaggResponse
 from ..discovery.metadata import CatalogManager, SourceMetadataCollector
-from ..settings import ConfigManager, ServerConfig
+from ..settings import ServerConfig, ConfigManager
 from ..util.transport import TRANSPORT_DOCS
 from ..util.uri import validate_working_directory
 
@@ -26,21 +26,13 @@ logger = logging.getLogger(__name__)
 
 class MaggServer(ManagedServer):
     """Main Magg server with tools for managing other MCP servers."""
-    _is_setup = False
 
     def __init__(self, config_path: Path | str | None = None, *, enable_config_reload: bool | None = None):
         # Keep track of whether config reload should be enabled
         config_manager = ConfigManager(config_path)
         config = config_manager.load_config()
-        self._enable_config_reload = enable_config_reload if enable_config_reload is not None else config.auto_reload
-
-        super().__init__(ServerManager(config_manager))
-        self._register_tools()
-
-    @property
-    def is_setup(self) -> bool:
-        """Check if the server is fully set up with tools and resources."""
-        return self._is_setup
+        enable_config_reload = enable_config_reload if enable_config_reload is not None else config.auto_reload
+        super().__init__(ServerManager(config_manager), enable_config_reload=enable_config_reload)
 
     def _register_tools(self):
         """Register all Magg management tools programmatically."""
@@ -79,8 +71,7 @@ class MaggServer(ManagedServer):
         self._register_prompts()
 
     def _register_resources(self):
-        """Register MCP resources for server metadata.
-        """
+        """Register MCP resources for server metadata."""
         resources = [
             (self.get_server_metadata, f"{self.self_prefix}://server/{{name}}"),
             (self.get_all_servers_metadata, f"{self.self_prefix}://servers/all"),
@@ -93,8 +84,7 @@ class MaggServer(ManagedServer):
             )(method)
 
     def _register_prompts(self):
-        """Register MCP prompts for intelligent configuration.
-        """
+        """Register MCP prompts for intelligent configuration."""
         prompts = [
             (self.configure_server_prompt, f"{self.self_prefix_}configure_server"),
         ]
@@ -886,79 +876,6 @@ Please provide:
 
         except Exception as e:
             return MaggResponse.error(f"Failed to check servers: {str(e)}")
-
-    # ============================================================================
-    # endregion
-    # region MCP Server Management - Setup and Run Methods
-    # ============================================================================
-
-    async def __aenter__(self):
-        """Enter the context manager, setting up the server."""
-        await self.setup()
-        return self
-
-    async def __aexit__(self, exc_type, exc_value, traceback):
-        """Exit the context manager, performing any necessary cleanup."""
-        # Stop config reloader if running
-        await self.server_manager.config_manager.stop_config_reload()
-
-        # Unmount all servers to clean up clients
-        mounted_servers = list(self.server_manager.mounted_servers.keys())
-        for server_name in mounted_servers:
-            await self.server_manager.unmount_server(server_name)
-
-    async def setup(self):
-        """Initialize Magg and mount existing servers.
-
-        This is called automatically by run_stdio() and run_http().
-        For in-memory usage via FastMCPTransport, call this manually:
-
-            server = MaggServer()
-            await server.setup()
-            client = Client(FastMCPTransport(server.mcp))
-
-            OR
-
-            (server task)
-            async with server:
-                await server.run_http()
-
-            (client task, after server start)
-            client = Client(FastMCPTransport(server.mcp))
-        """
-        if not self._is_setup:
-            self._is_setup = True
-            await self.server_manager.mount_all_enabled()
-
-            # Start config file watcher if enabled
-            if self._enable_config_reload:
-                await self.server_manager.config_manager.setup_config_reload(
-                    self.server_manager.handle_config_reload
-                )
-
-    async def run_stdio(self):
-        """Run Magg in stdio mode."""
-        await self.setup()
-        await self.mcp.run_stdio_async()
-
-    async def run_http(self, host: str = "localhost", port: int = 8000):
-        """Run Magg in HTTP mode."""
-        await self.setup()
-        await self.mcp.run_http_async(host=host, port=port, log_level="WARNING")
-
-    async def reload_config(self) -> bool:
-        """Manually trigger a configuration reload.
-
-        Returns:
-            True if reload was successful, False otherwise
-        """
-        # First ensure reload is setup
-        if not self._enable_config_reload:
-            await self.server_manager.config_manager.setup_config_reload(
-                self.server_manager.handle_config_reload
-            )
-
-        return await self.server_manager.config_manager.reload_config()
 
     # ============================================================================
     # endregion

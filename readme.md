@@ -129,7 +129,7 @@ Magg uses a multi-stage Docker build with three target stages:
 
 Images are automatically published to GitHub Container Registry with the following tags:
 
-- **Version tags** (from main branch): `latest`, `1.2.3.4`, `1.2`
+- **Version tags** (from main branch): `latest`, `1.2.3`, `1.2`, `dev`, `1.2-dev`, `1.2-dev-py3.12`, etc.
 - **Branch tags** (from beta branch): `beta`, `beta-pre`, `beta-dev`
 - **Python-specific dev tags**: `beta-dev-py3.12`, `beta-dev-py3.13`, etc.
 

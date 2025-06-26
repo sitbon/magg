@@ -148,6 +148,93 @@ mbro:memory> prompt summarize {"topic": "recent_memories"}
 
 ## Advanced Features
 
+### Enhanced Mode Features (New!)
+
+mbro includes advanced features that make it easier and more intuitive to use:
+
+#### 🗣️ Natural Language Commands
+Instead of memorizing exact syntax, use natural language:
+```bash
+# Traditional commands
+mbro> tools
+mbro> call add {"a": 5, "b": 3}
+
+# Natural language alternatives
+mbro> show me all tools
+mbro> call add with a=5 and b=3
+mbro> what tools are available?
+```
+
+#### 📝 Smart Argument Parsing
+Multiple ways to specify arguments:
+```bash
+# JSON format (traditional)
+mbro> call weather {"location": "London", "units": "celsius"}
+
+# Key=value format
+mbro> call weather location=London units=celsius
+
+# Natural language
+mbro> call weather with location as London and units as celsius
+```
+
+#### 📄 Multiline JSON Editor
+Press `Ctrl+M` to open a multiline JSON editor with:
+- Syntax highlighting
+- Real-time validation
+- Auto-indentation
+- Template generation from tool schemas
+
+Example workflow:
+```bash
+mbro> call complex_tool
+This tool requires arguments. Press Ctrl+M to enter them.
+mbro> <Ctrl+M>
+Enter JSON arguments for 'complex_tool':
+Expected properties:
+  data: object (required) - Complex data structure
+  options: array - Configuration options
+
+{
+  "data": {
+    "key": "value"
+  },
+  "options": ["opt1", "opt2"]
+}
+<Ctrl+D to submit>
+```
+
+#### 🔍 Context-Aware Completions
+Tab completion now includes:
+- Tool names with descriptions
+- Connection names with status (active/inactive)
+- Parameter suggestions based on tool schemas
+- Smart filtering as you type
+
+#### 💡 Intelligent Error Suggestions
+When errors occur, get helpful suggestions:
+```bash
+mbro> call wether {"city": "London"}
+Error: Tool 'wether' not found.
+Did you mean: weather, whether_tool?
+```
+
+#### ⚡ Enhanced Search
+- Multi-word search support: `search file manager`
+- Searches across names, descriptions, and URIs
+- More flexible matching algorithms
+
+### Keyboard Shortcuts
+
+| Shortcut | Action | Context |
+|----------|--------|---------|
+| `Ctrl+M` | Open multiline JSON editor | Any prompt |
+| `Ctrl+R` | Repeat last command | Empty prompt |
+| `Ctrl+L` | Clear screen | Any time |
+| `Tab` | Autocomplete with descriptions | While typing |
+| `↑/↓` | Navigate command history | Any prompt |
+| `Ctrl+D` | Exit mbro or submit in multiline | Depends on context |
+
 ### Tool Argument Formatting
 
 mbro supports multiple ways to provide tool arguments:
@@ -309,6 +396,37 @@ mbro:magg> call weather_current {"location": "London"}
 }
 ```
 
+### Example 4: Using Natural Language (Enhanced Mode)
+
+```bash
+$ mbro
+MBRO - MCP Browser
+Type 'help' for available commands or 'quit' to exit.
+Enhanced mode: Ctrl+M for multiline JSON, natural language supported
+
+mbro> connect to calculator at npx -y @modelcontextprotocol/server-calculator
+Connected to 'calculator' (Tools: 4, Resources: 0, Prompts: 0)
+
+mbro:calculator> what tools are available?
+Available tools:
+  - add: Add two numbers
+  - subtract: Subtract two numbers
+  - multiply: Multiply two numbers
+  - divide: Divide two numbers
+
+mbro:calculator> call add with a=25 and b=17
+42
+
+mbro:calculator> search for mult
+Search results for 'mult':
+
+Tools (1):
+  - multiply: Multiply two numbers
+
+mbro:calculator> call multiply a=6 b=7
+42
+```
+
 ## Output Modes
 
 mbro supports different output modes for various use cases:
@@ -364,8 +482,9 @@ echo $result | jq '.'
 
 ### Command Line Options 
    - `--connect NAME CONNECTION` - Connect to a server on startup
-   - `--json` - Output only JSON (machine-readable)
+   - `--json` - Output only JSON (machine-readable, disables enhanced features)
    - `--no-rich` - Disable Rich formatting
+   - `--no-enhanced` - Disable enhanced features (natural language, multiline, etc.)
    - `--indent N` - Set JSON indent level (0 for compact)
    - `--repl` - Start in async Python REPL mode instead of command shell
    - `--list-connections` - List all available connections

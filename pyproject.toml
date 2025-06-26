@@ -1,6 +1,6 @@
 [project]
 name = "magg"
-version = "0.6.0"
+version = "0.6.1"
 requires-python = ">=3.12"
 description = "MCP Aggregator"
 authors = [{ name = "Phillip Sitbon", email = "phillip.sitbon@gmail.com"}]

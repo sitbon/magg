@@ -32,15 +32,15 @@ jobs:
       - name: Check if version changed
         id: version_check
         run: |
-          # Get current version
-          CURRENT_VERSION=$(uv version --short)
+          # Get current version from pyproject.toml
+          CURRENT_VERSION=$(uv run python -c "import tomllib; print(tomllib.load(open('pyproject.toml', 'rb'))['project']['version'])")
           echo "version=${CURRENT_VERSION}" >> $GITHUB_OUTPUT
           
           # Get last published version from latest-publish tag
           if git show-ref --tags --quiet --verify refs/tags/latest-publish; then
             # Checkout the last published commit
             git checkout latest-publish
-            LAST_VERSION=$(uv version --short)
+            LAST_VERSION=$(uv run python -c "import tomllib; print(tomllib.load(open('pyproject.toml', 'rb'))['project']['version'])")
             git checkout -
           else
             LAST_VERSION=""
@@ -131,12 +131,7 @@ jobs:
           
           # Get changelog since last release with rich formatting
           echo "CHANGELOG<<EOFEOF" >> $GITHUB_ENV
-          if git show-ref --tags --quiet --verify refs/tags/${LATEST_TAG}; then
-            git log ${LATEST_TAG}..${{ github.sha }} --pretty=format:'### [%s](https://github.com/${{ github.repository }}/commit/%H)%nDate: %ad*%n%n%b%n' | sed -e '/^Signed-off-by:/d' -e '/^### /!{/^$/!s/^/> /}' -e 's/^$/>/g' >> $GITHUB_ENV
-          else
-            # No previous release, show last 2 commits
-            git log -2 --pretty=format:'### [%s](https://github.com/${{ github.repository }}/commit/%H)%nDate: %ad*%n%n%b%n' | sed -e '/^Signed-off-by:/d' -e '/^### /!{/^$/!s/^/> /}' -e 's/^$/>/g' >> $GITHUB_ENV
-          fi
+          git log ${LATEST_TAG}..${{ github.sha }} --pretty=format:'### [%s](https://github.com/${{ github.repository }}/commit/%H)%nDate: %ad*%n%n%b%n' | sed '/^Signed-off-by:/d' | sed 's/^$/>/g' >> $GITHUB_ENV
           echo "EOFEOF" >> $GITHUB_ENV
           
           # Delete remote latest-publish tag FIRST (before creating new one)

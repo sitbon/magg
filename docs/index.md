@@ -10,9 +10,10 @@
 6. [Resources Reference](#resources-reference)
 7. [Prompts Reference](#prompts-reference)
 8. [Authentication](#authentication)
-9. [Proxy Documentation](#proxy-documentation)
-10. [Example Sessions](#example-sessions)
-11. [Advanced Configuration](#advanced-configuration)
+9. [Configuration Reload](#configuration-reload)
+10. [Proxy Documentation](#proxy-documentation)
+11. [Example Sessions](#example-sessions)
+12. [Advanced Configuration](#advanced-configuration)
 
 ## Overview
 
@@ -205,7 +206,7 @@ Add a new MCP server to the configuration.
 - `prefix` (str, optional): Tool prefix (defaults to server name)
 - `uri` (str, optional): URI for HTTP servers
 - `env_vars` (dict, optional): Environment variables
-- `working_dir` (str, optional): Working directory
+- `cwd` (str, optional): Working directory
 - `notes` (str, optional): Setup notes
 - `enable` (bool, optional): Whether to enable immediately (default: true)
 - `transport` (dict, optional): Transport-specific configuration
@@ -231,7 +232,7 @@ Add a new MCP server to the configuration.
         "prefix": "pw",
         "command": "npx @playwright/mcp@latest",
         "uri": null,
-        "working_dir": null,
+        "cwd": null,
         "notes": "Browser automation tools",
         "enabled": true,
         "mounted": true
@@ -265,6 +266,20 @@ Enable or disable a server without removing it.
 
 **Parameters:**
 - `name` (str, required): Server name to enable/disable
+
+#### `magg_reload_config`
+Reload configuration from disk and apply changes dynamically.
+
+**Note:** This operation may briefly interrupt service for affected servers. Config reload can also be triggered via SIGHUP signal on Unix systems or happens automatically when the config file is modified (if auto-reload is enabled).
+
+**Returns:**
+```json
+{
+    "message": "Configuration reloaded successfully",
+    "config_path": "/path/to/.magg/config.json",
+    "read_only": false
+}
+```
 
 ### Discovery Tools
 
@@ -456,6 +471,74 @@ To disable authentication:
 - Tokens include standard JWT claims: iss, aud, sub, iat, exp
 - Optional scopes can be included but are not enforced by Magg
 
+## Configuration Reload
+
+Magg supports dynamic configuration reloading without requiring a restart. This allows you to update server configurations while Magg is running, with minimal disruption to active services.
+
+### Features
+
+- **Automatic File Watching**: Detects changes to `config.json` and reloads automatically
+- **Signal Support**: Send SIGHUP to trigger immediate reload (Unix-like systems)
+- **MCP Tool**: Use `magg_reload_config` tool from any MCP client
+- **Smart Transitions**: Only affected servers are restarted during reload
+- **Graceful Handling**: Invalid configurations are rejected without affecting running servers
+
+### How It Works
+
+When configuration changes are detected, Magg:
+1. Loads and validates the new configuration
+2. Compares it with the current configuration
+3. Identifies changes (added, removed, modified, enabled/disabled servers)
+4. Applies changes in order: remove → disable → update → enable → add
+5. Only restarts servers that actually changed
+
+### Configuration Options
+
+- `MAGG_AUTO_RELOAD` (default: `true`) - Enable/disable automatic configuration reloading
+- `MAGG_RELOAD_POLL_INTERVAL` (default: `1.0`) - Polling interval in seconds when watchdog unavailable
+- `MAGG_RELOAD_USE_WATCHDOG` (default: auto-detect) - Force watchdog on/off or let it auto-detect
+
+### Usage Examples
+
+**Automatic reload (default):**
+```bash
+# Start Magg with auto-reload enabled
+magg serve --http
+
+# Edit config in another terminal
+vim .magg/config.json
+# Changes are applied automatically!
+```
+
+**Manual reload via signal:**
+```bash
+# Find Magg process
+ps aux | grep magg
+
+# Send SIGHUP to reload
+kill -HUP <pid>
+```
+
+**Manual reload via tool:**
+```python
+# From an MCP client
+result = await client.call_tool("magg_reload_config")
+```
+
+### What Can Be Reloaded
+
+✅ **Supported changes:**
+- Adding/removing servers
+- Enabling/disabling servers
+- Modifying server configurations (command, args, environment, etc.)
+- Changing server prefixes (requires remove + add)
+
+❌ **Requires restart:**
+- Magg's own settings (log level, port, authentication)
+- Changes to auto_reload settings themselves
+
+For complete documentation, see **[Configuration Reload Guide](config-reload.md)**.
+
 ## Proxy Documentation
 
 Magg includes a powerful tool called `proxy` that provides tool-based access to all MCP capabilities. The proxy enables LLMs to interact with resources and prompts through a tool interface, making all MCP operations accessible even when the client doesn't support direct resource or prompt access.
@@ -530,7 +613,7 @@ Servers are stored in the current directory under `.magg/config.json`:
       ],
       "uri": null,
       "env": null,
-      "working_dir": null,
+      "cwd": null,
       "transport": null,
       "enabled": true
     }
@@ -549,7 +632,7 @@ For servers requiring special setup:
      "source": "file:///path/to/server", 
      "prefix": "custom",
      "command": "uv run python server.py",
-     "working_dir": "/path/to/server"
+     "cwd": "/path/to/server"
    }
    ```
 

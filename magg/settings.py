@@ -4,7 +4,10 @@ import logging
 import os
 from functools import cached_property
 from pathlib import Path
-from typing import Any, ClassVar
+from typing import Any, ClassVar, Callable, Coroutine, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .reload import ConfigReloader, ConfigChange
 
 from pydantic import field_validator, Field, model_validator, AnyUrl
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -126,7 +129,7 @@ class ServerConfig(BaseSettings):
     args: list[str] | None = Field(None, description="Command arguments")
     uri: str | None = Field(None, description="URI for HTTP servers")
     env: dict[str, str] | None = Field(None, description="Environment variables")
-    working_dir: Path | None = Field(None, description="Working directory")
+    cwd: Path | None = Field(None, description="Working directory")
     transport: dict[str, Any] | None = Field(None, description="Transport-specific configuration")
     enabled: bool = Field(True, description="Whether server is enabled")
 
@@ -212,6 +215,9 @@ class MaggConfig(BaseSettings):
         default="magg",
         description="Prefix for Magg tools and commands - must be a valid Python identifier without underscores (env: MAGG_SELF_PREFIX)"
     )
+    auto_reload: bool = Field(default=True, description="Enable automatic config reloading on file changes (env: MAGG_AUTO_RELOAD)")
+    reload_poll_interval: float = Field(default=1.0, description="Config file poll interval in seconds (env: MAGG_RELOAD_POLL_INTERVAL)")
+    reload_use_watchdog: bool | None = Field(default=None, description="Use file system notifications if available, None=auto-detect (env: MAGG_RELOAD_USE_WATCHDOG)")
     servers: dict[str, ServerConfig] = Field(default_factory=dict, description="Servers configuration (loaded from config_path)")
 
     @model_validator(mode='after')
@@ -258,6 +264,7 @@ class ConfigManager:
     auth_config_path: Path
     auth_config: AuthConfig | None = None
     read_only: bool
+    _reload_manager: Any = None  # ReloadManager instance
 
     def __init__(self, config_path: Path | str | None = None):
         """Initialize config manager."""
@@ -323,6 +330,10 @@ class ConfigManager:
             raise RuntimeError("Config read_only value cannot be changed after initialization.")
 
         try:
+            # Notify the reloader to ignore the next file change since we're making it
+            if self._reload_manager:
+                self._reload_manager.ignore_next_change()
+
             # Only save servers to JSON, other settings come from env
             data = {
                 'servers': {
@@ -342,11 +353,47 @@ class ConfigManager:
             with self.config_path.open("w") as f:
                 json.dump(data, f, indent=2)
 
+            # Update the reload manager's cached config to stay in sync
+            if self._reload_manager:
+                self._reload_manager.update_cached_config(config)
+
             return True
 
         except Exception as e:
             self.logger.error(f"Error saving config: {e}")
             return False
+
+    async def setup_config_reload(self, reload_callback: Callable[['ConfigChange'], Coroutine[None, None, None]]) -> None:
+        """Setup config file watching with a callback.
+
+        Args:
+            reload_callback: Async callback to handle config changes
+        """
+        # Import here to avoid circular dependency
+        from .reload import ReloadManager
+
+        if not self._reload_manager:
+            self._reload_manager = ReloadManager(self)
+
+        await self._reload_manager.setup(reload_callback)
+
+    async def stop_config_reload(self) -> None:
+        """Stop config file watching."""
+        if self._reload_manager:
+            await self._reload_manager.stop()
+            self._reload_manager = None
+
+    async def reload_config(self) -> bool:
+        """Manually trigger a configuration reload.
+
+        Returns:
+            True if reload was successful, False otherwise
+        """
+        if not self._reload_manager:
+            self.logger.error("Config reload not setup")
+            return False
+
+        return await self._reload_manager.reload()
 
     def load_auth_config(self) -> AuthConfig:
         """Load authentication configuration from disk or return defaults."""

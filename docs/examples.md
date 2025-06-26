@@ -68,7 +68,7 @@ Please determine:
 2. prefix: A valid Python identifier (no underscores)
 3. command: The full command to run (e.g., \"python server.py\", \"npx @playwright/mcp@latest\", or null for HTTP)
 4. uri: For HTTP servers (if applicable)
-5. working_dir: If needed
+5. cwd: If needed
 6. env: Environment variables as an object (if needed)
 7. notes: Helpful setup instructions
 8. transport: Any transport-specific configuration (optional dict)
@@ -115,7 +115,7 @@ Response:
       "prefix": "playwright",
       "command": "npx @playwright/mcp@latest",
       "uri": null,
-      "working_dir": null,
+      "cwd": null,
       "notes": "Browser automation MCP server using Playwright.",
       "enabled": true,
       "mounted": true

@@ -14,6 +14,9 @@ services:
       MAGG_QUIET: ${MAGG_QUIET:-}
       MAGG_DEBUG: ${MAGG_DEBUG:-}
       MAGG_SELF_PREFIX: ${MAGG_SELF_PREFIX:-}
+      MAGG_AUTO_RELOAD: ${MAGG_AUTO_RELOAD:-false}
+      MAGG_RELOAD_POLL_INTERVAL: ${MAGG_RELOAD_POLL_INTERVAL:-}
+      MAGG_RELOAD_USE_WATCHDOG: ${MAGG_RELOAD_USE_WATCHDOG:-}
     volumes:
       - ${MAGG_CONFIG_VOLUME:-magg-config}:/home/magg/.magg
     networks:
@@ -45,13 +48,15 @@ services:
       service: base
     build:
       target: dev
+    environment:
+      MAGG_AUTO_RELOAD: ${MAGG_AUTO_RELOAD:-true}
     image: ${REGISTRY:-}${REGISTRY:+/}magg:${SOURCE:-${USER}}-dev
     container_name: magg-server-dev
     ports:
       - "8008:8000"
     volumes:
       - ${MAGG_CONFIG_VOLUME:-magg-config}:/home/magg/.magg
-      - ./.magg:/home/magg/.magg:ro
+      - ./.magg:/home/magg/.magg:rw
 
 volumes:
   magg-config:

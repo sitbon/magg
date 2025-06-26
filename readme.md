@@ -28,6 +28,7 @@ Think of Magg as a "package manager for LLM tools" - it lets AI assistants insta
 ## Features
 
 - **Self-Service Tool Management**: LLMs can search for and add new MCP servers without human intervention.
+- **Dynamic Configuration Reloading**: Automatically detects and applies config changes without restarting.
 - **Automatic Tool Proxying**: Tools from added servers are automatically exposed with configurable prefixes.
 - **ProxyMCP Tool**: A built-in tool that proxies the MCP protocol to itself, for clients that don't support notifications or dynamic tool updates (which is most of them currently).
 - **Smart Configuration**: Uses MCP sampling to intelligently configure servers from just a URL.
@@ -128,7 +129,7 @@ Magg uses a multi-stage Docker build with three target stages:
 
 Images are automatically published to GitHub Container Registry with the following tags:
 
-- **Version tags** (from main branch): `latest`, `1.2.3.4`, `1.2`
+- **Version tags** (from main branch): `latest`, `1.2.3`, `1.2`, `dev`, `1.2-dev`, `1.2-dev-py3.12`, etc.
 - **Branch tags** (from beta branch): `beta`, `beta-pre`, `beta-dev`
 - **Python-specific dev tags**: `beta-dev-py3.12`, `beta-dev-py3.13`, etc.
 
@@ -188,6 +189,7 @@ Once Magg is running, it exposes the following tools to LLMs:
 - `magg_analyze_servers` - Analyze configured servers and suggest improvements
 - `magg_status` - Get server and tool statistics
 - `magg_check` - Health check servers with repair actions (report/remount/unmount/disable)
+- `magg_reload_config` - Reload configuration from disk and apply changes
 
 ### Authentication
 
@@ -247,6 +249,21 @@ See [examples/authentication.py](examples/authentication.py) for more usage patt
 ### Configuration
 
 Magg stores its configuration in `.magg/config.json` in your current working directory. This allows for project-specific tool configurations.
+
+#### Dynamic Configuration Reloading
+
+Magg supports automatic configuration reloading without requiring a restart:
+
+- **Automatic file watching**: Detects changes to `config.json` and reloads automatically (uses watchdog when available)
+- **SIGHUP signal**: Send `kill -HUP <pid>` to trigger immediate reload (Unix-like systems)
+- **MCP tool**: Use `magg_reload_config` tool from any MCP client
+- **Smart transitions**: Only affected servers are restarted during reload
+
+Configuration reload is enabled by default. You can control it with:
+- `MAGG_AUTO_RELOAD=false` - Disable automatic reloading
+- `MAGG_RELOAD_POLL_INTERVAL=5.0` - Set polling interval in seconds (when watchdog unavailable)
+
+See [Configuration Reload Documentation](docs/config-reload.md) for detailed information.
 
 Example configuration:
 ```json

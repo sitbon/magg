@@ -72,7 +72,7 @@ class TestConfigStructure:
             command="python",
             args=["-m", "test_mcp"],
             env={"TEST_VAR": "value"},
-            working_dir="/tmp/test",
+            cwd="/tmp/test",
             notes="Test server for unit tests",
             enabled=False
         )
@@ -95,7 +95,7 @@ class TestConfigStructure:
         assert server_data["command"] == "python"
         assert server_data["args"] == ["-m", "test_mcp"]
         assert server_data["env"] == {"TEST_VAR": "value"}
-        assert server_data["working_dir"] == "/tmp/test"
+        assert server_data["cwd"] == "/tmp/test"
         assert server_data["notes"] == "Test server for unit tests"
         assert server_data["enabled"] is False
 
@@ -125,7 +125,7 @@ class TestConfigStructure:
         assert minimal.args is None
         assert minimal.uri is None
         assert minimal.env is None
-        assert minimal.working_dir is None
+        assert minimal.cwd is None
         assert minimal.notes is None
 
     def test_environment_variable_override(self):

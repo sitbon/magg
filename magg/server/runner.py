@@ -5,6 +5,7 @@ import logging
 import signal
 from contextlib import asynccontextmanager
 from functools import cached_property
+from pathlib import Path
 from typing import Callable, Coroutine
 
 from fastmcp import Client
@@ -19,16 +20,20 @@ class MaggRunner:
     """Manages Magg server lifecycle with proper signal handling."""
     _server: MaggServer
     _shutdown_event: asyncio.Event
+    _reload_event: asyncio.Event
     _original_sigint: Callable | None
     _original_sigterm: Callable | None
+    _original_sighup: Callable | None
     _hook_signals: bool
     _hooked_signals: bool = False
 
-    def __init__(self, config_path: str | None = None, *, hook_signals: bool = True):
+    def __init__(self, config_path: Path | str | None = None, *, hook_signals: bool = True):
         self._server = MaggServer(config_path)
         self._shutdown_event = asyncio.Event()
+        self._reload_event = asyncio.Event()
         self._original_sigint = None
         self._original_sigterm = None
+        self._original_sighup = None
         self._hook_signals = hook_signals
 
     @cached_property
@@ -61,11 +66,20 @@ class MaggRunner:
         signal.signal(signal.SIGINT, signal.SIG_IGN)
         signal.signal(signal.SIGTERM, signal.SIG_IGN)
 
+    # noinspection PyUnusedLocal
+    def _handle_reload_signal(self, signum, frame):
+        """Handle reload signal (SIGHUP)."""
+        logger.info("Received SIGHUP, triggering config reload...")
+        self._reload_event.set()
+
     def _setup_signal_handlers(self):
-        """Setup signal handlers for graceful shutdown."""
+        """Setup signal handlers for graceful shutdown and reload."""
         if self._hook_signals and self._hooked_signals is False:
             self._original_sigint = signal.signal(signal.SIGINT, self._handle_signal)
             self._original_sigterm = signal.signal(signal.SIGTERM, self._handle_signal)
+            # SIGHUP for config reload (Unix-like systems only)
+            if hasattr(signal, 'SIGHUP'):
+                self._original_sighup = signal.signal(signal.SIGHUP, self._handle_reload_signal)
             self._hooked_signals = True
 
     def _restore_signal_handlers(self):
@@ -75,6 +89,8 @@ class MaggRunner:
                 signal.signal(signal.SIGINT, self._original_sigint)
             if self._original_sigterm:
                 signal.signal(signal.SIGTERM, self._original_sigterm)
+            if hasattr(signal, 'SIGHUP') and self._original_sighup:
+                signal.signal(signal.SIGHUP, self._original_sighup)
             self._hooked_signals = False
 
     @asynccontextmanager
@@ -91,11 +107,19 @@ class MaggRunner:
     async def _serve(self, coro: Coroutine):
         server_task = asyncio.create_task(coro)
         shutdown_task = asyncio.create_task(self._shutdown_event.wait())
+        reload_task = asyncio.create_task(self._handle_reload_events())
 
         done, pending = await asyncio.wait(
             [server_task, shutdown_task],
             return_when=asyncio.FIRST_COMPLETED
         )
+
+        # Cancel reload task
+        reload_task.cancel()
+        try:
+            await reload_task
+        except asyncio.CancelledError:
+            pass
 
         for task in pending:
             task.cancel()
@@ -108,6 +132,22 @@ class MaggRunner:
             if task is server_task and task.exception():
                 logger.error("Server task failed with exception: %s", task.exception())
                 raise task.exception()
+
+    async def _handle_reload_events(self):
+        """Handle reload events triggered by SIGHUP."""
+        while True:
+            await self._reload_event.wait()
+            self._reload_event.clear()
+
+            try:
+                logger.info("Processing config reload request...")
+                success = await self._server.reload_config()
+                if success:
+                    logger.info("Config reload completed successfully")
+                else:
+                    logger.error("Config reload failed")
+            except Exception as e:
+                logger.error("Error during config reload: %s", e)
 
     async def run_stdio(self):
         """Run server in stdio mode with proper signal handling."""

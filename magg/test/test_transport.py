@@ -29,7 +29,7 @@ class TestGetTransportForCommand:
             transport = get_transport_for_command(
                 command="python",
                 args=[script_path, "--port", "8080"],
-                working_dir="/tmp/test"
+                cwd="/tmp/test"
             )
 
             assert isinstance(transport, NoValidatePythonStdioTransport)
@@ -46,7 +46,7 @@ class TestGetTransportForCommand:
         transport = get_transport_for_command(
             command="python",
             args=["-m", "mymodule.server", "--debug"],
-            working_dir="/tmp/test"
+            cwd="/tmp/test"
         )
 
         assert isinstance(transport, NoValidatePythonStdioTransport)
@@ -101,7 +101,7 @@ class TestGetTransportForCommand:
             transport = get_transport_for_command(
                 command="npx",
                 args=["@modelcontextprotocol/server-calculator"],
-                working_dir=tmpdir
+                cwd=tmpdir
             )
 
             assert isinstance(transport, NpxStdioTransport)

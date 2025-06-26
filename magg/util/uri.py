@@ -42,44 +42,44 @@ def extract_directory_from_uri(uri: str) -> Path | None:
         return None
 
 
-def validate_working_directory(working_dir: Path | str | None, source_uri: str | None) -> tuple[Path | None, str | None]:
+def validate_working_directory(cwd: Path | str | None, source_uri: str | None) -> tuple[Path | None, str | None]:
     """Validate and normalize working directory for a server.
 
     Args:
-        working_dir: Proposed working directory (or None)
+        cwd: Proposed working directory (or None)
         source_uri: URI of the source (or None)
 
     Returns:
         Tuple of (normalized_path or None, error_message or None)
     """
-    if working_dir is None:
-        # No validation needed if no working_dir provided
+    if cwd is None:
+        # No validation needed if no cwd provided
         return None, None
 
     project_root = get_project_root()
 
     # Normalize the provided path
-    working_dir = Path(working_dir)
+    cwd = Path(cwd)
 
     # Make absolute if relative
-    if not working_dir.is_absolute():
-        working_dir = project_root / working_dir
+    if not cwd.is_absolute():
+        cwd = project_root / cwd
 
     # Resolve to canonical path
     try:
-        working_dir = working_dir.resolve()
+        cwd = cwd.resolve()
     except (OSError, RuntimeError):
-        return None, f"Invalid working directory: {working_dir}"
+        return None, f"Invalid working directory: {cwd}"
 
     # Check that it exists
-    if not working_dir.exists():
-        return None, f"Working directory does not exist: {working_dir}"
+    if not cwd.exists():
+        return None, f"Working directory does not exist: {cwd}"
 
-    if not working_dir.is_dir():
-        return None, f"Working directory is not a directory: {working_dir}"
+    if not cwd.is_dir():
+        return None, f"Working directory is not a directory: {cwd}"
 
     # Check that it's not the exact project root
-    if working_dir == project_root:
+    if cwd == project_root:
         return None, "Working directory cannot be the project root"
 
     # If source has a local directory, validate relationship
@@ -87,7 +87,7 @@ def validate_working_directory(working_dir: Path | str | None, source_uri: str |
         source_dir = extract_directory_from_uri(source_uri)
         if source_dir is not None:
             source_dir_abs = source_dir.resolve()
-            if not is_subdirectory(working_dir, source_dir_abs):
+            if not is_subdirectory(cwd, source_dir_abs):
                 return None, f"Working directory must be within source directory: {source_dir_abs}"
 
-    return working_dir, None
+    return cwd, None

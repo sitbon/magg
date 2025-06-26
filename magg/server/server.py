@@ -1,5 +1,5 @@
-"""Magg - MCP Aggregator Server - Clean Class-Based Implementation"""
-
+"""Magg - MCP Aggregator Server - Main Implementation
+"""
 import asyncio
 import json
 import logging
@@ -14,10 +14,10 @@ from mcp.types import PromptMessage, TextContent
 from pydantic import Field, AnyUrl
 
 from .defaults import MAGG_ADD_SERVER_DOC, PROXY_TOOL_DOC
-from .manager import ServerManager, ManagedServer
+from .manager import ManagedServer, ServerManager
 from .response import MaggResponse
 from ..discovery.metadata import CatalogManager, SourceMetadataCollector
-from ..settings import ConfigManager, ServerConfig
+from ..settings import ServerConfig, ConfigManager
 from ..util.transport import TRANSPORT_DOCS
 from ..util.uri import validate_working_directory
 
@@ -26,16 +26,13 @@ logger = logging.getLogger(__name__)
 
 class MaggServer(ManagedServer):
     """Main Magg server with tools for managing other MCP servers."""
-    _is_setup = False
 
-    def __init__(self, config_path: Path | str | None = None):
-        super().__init__(ServerManager(ConfigManager(config_path)))
-        self._register_tools()
-
-    @property
-    def is_setup(self) -> bool:
-        """Check if the server is fully set up with tools and resources."""
-        return self._is_setup
+    def __init__(self, config_path: Path | str | None = None, *, enable_config_reload: bool | None = None):
+        # Keep track of whether config reload should be enabled
+        config_manager = ConfigManager(config_path)
+        config = config_manager.load_config()
+        enable_config_reload = enable_config_reload if enable_config_reload is not None else config.auto_reload
+        super().__init__(ServerManager(config_manager), enable_config_reload=enable_config_reload)
 
     def _register_tools(self):
         """Register all Magg management tools programmatically."""
@@ -52,6 +49,7 @@ class MaggServer(ManagedServer):
             (self.analyze_servers, f"{self_prefix_}analyze_servers", None),
             (self.status, f"{self_prefix_}status", None),
             (self.check, f"{self_prefix_}check", None),
+            (self.reload_config_tool, f"{self_prefix_}reload_config", None),
         ]
 
         def call_tool_wrapper(func):
@@ -73,8 +71,7 @@ class MaggServer(ManagedServer):
         self._register_prompts()
 
     def _register_resources(self):
-        """Register MCP resources for server metadata.
-        """
+        """Register MCP resources for server metadata."""
         resources = [
             (self.get_server_metadata, f"{self.self_prefix}://server/{{name}}"),
             (self.get_all_servers_metadata, f"{self.self_prefix}://servers/all"),
@@ -87,8 +84,7 @@ class MaggServer(ManagedServer):
             )(method)
 
     def _register_prompts(self):
-        """Register MCP prompts for intelligent configuration.
-        """
+        """Register MCP prompts for intelligent configuration."""
         prompts = [
             (self.configure_server_prompt, f"{self.self_prefix_}configure_server"),
         ]
@@ -203,8 +199,8 @@ Please determine the following configuration:
 2. prefix: A valid Python identifier (no underscores)
 3. command: The full command to run (e.g., "python server.py", "npx @playwright/mcp@latest", or null for HTTP)
 4. uri: For HTTP servers (if applicable)
-5. working_dir: If needed
-6. env_vars: Environment variables as an object (if needed)
+5. cwd: If needed
+6. env: Environment variables as an object (if needed)
 7. notes: Helpful setup instructions
 8. transport: Any transport-specific configuration (optional dict)
 
@@ -249,8 +245,8 @@ Documentation for proxy tool:
             description="Full command to run (e.g., 'python server.py', 'npx @playwright/mcp@latest')"
         )] = None,
         uri: Annotated[AnyUrl | None, Field(description="URI for HTTP servers")] = None,
-        env_vars: Annotated[dict[str, str] | None, Field(description="Environment variables")] = None,
-        working_dir: Annotated[str | None, Field(description="Working directory (for commands)")] = None,
+        env: Annotated[dict[str, str] | None, Field(description="Environment variables")] = None,
+        cwd: Annotated[str | None, Field(description="Working directory (for commands)")] = None,
         notes: Annotated[str | None, Field(description="Setup notes")] = None,
         enable: Annotated[bool | None, Field(description="Whether to enable the server immediately (default: True)")] = True,
         transport: Annotated[dict[str, Any] | None, Field(
@@ -276,11 +272,11 @@ Documentation for proxy tool:
                     actual_command = parts[0]
                     actual_args = None
 
-            if working_dir:
-                validated_dir, error = validate_working_directory(working_dir, source)
+            if cwd:
+                validated_dir, error = validate_working_directory(cwd, source)
                 if error:
                     return MaggResponse.error(error)
-                working_dir = validated_dir
+                cwd = validated_dir
 
             try:
                 server = ServerConfig(
@@ -290,8 +286,8 @@ Documentation for proxy tool:
                     command=actual_command,
                     args=actual_args,
                     uri=uri,
-                    env=env_vars,
-                    working_dir=working_dir,
+                    env=env,
+                    cwd=cwd,
                     notes=notes,
                     enabled=enable if enable is not None else True,
                     transport=transport or {},
@@ -323,7 +319,7 @@ Documentation for proxy tool:
                         if server.command else None
                     ),
                     "uri": server.uri,
-                    "working_dir": server.working_dir,
+                    "cwd": server.cwd,
                     "notes": server.notes,
                     "enabled": server.enabled,
                     "mounted": mount_success
@@ -381,8 +377,8 @@ Documentation for proxy tool:
                     server_data["command"] = f"{server.command} {' '.join(server.args) if server.args else ''}".strip()
                 if server.uri:
                     server_data["uri"] = server.uri
-                if server.working_dir:
-                    server_data["working_dir"] = str(server.working_dir)
+                if server.cwd:
+                    server_data["cwd"] = str(server.cwd)
                 if server.notes:
                     server_data["notes"] = server.notes
 
@@ -552,8 +548,8 @@ Required fields:
 2. prefix: A valid Python identifier for tool prefixing (no underscores)
 3. command: The appropriate command and args (python, node, npx, uvx, or null for HTTP/SSE servers)
 4. uri: For HTTP/SSE servers (if applicable)
-5. working_dir: If needed
-6. env_vars: Environment variables as an object (if needed)
+5. cwd: If needed
+6. env: Environment variables as an object (if needed)
 7. notes: Helpful setup instructions for the user
 8. transport: Any transport-specific configuration (optional dict)
 
@@ -589,8 +585,8 @@ Documentation for proxy tool:
                         prefix=config_data.get("prefix"),
                         command=config_data.get("command"),
                         uri=config_data.get("uri"),
-                        env_vars=config_data.get("env_vars"),
-                        working_dir=config_data.get("working_dir"),
+                        env=config_data.get("env"),
+                        cwd=config_data.get("cwd"),
                         notes=config_data.get("notes"),
                         enable=config_data.get("enabled"),
                         transport=config_data.get("transport"),
@@ -744,6 +740,45 @@ Please provide:
         except Exception as e:
             return MaggResponse.error(f"Failed to get status: {str(e)}")
 
+    async def reload_config_tool(self) -> MaggResponse:
+        """Reload configuration from disk and apply changes.
+
+        This will:
+        1. Re-read the configuration file
+        2. Detect changes (added/removed/modified servers)
+        3. Apply changes by mounting/unmounting servers as needed
+
+        Note: This operation may briefly interrupt service for affected servers.
+        Config reload can also be triggered via SIGHUP signal on Unix systems.
+        """
+        # Check if reload is disabled
+        if not self.config.auto_reload:
+            return MaggResponse.error(
+                "Configuration reload is disabled. Set MAGG_AUTO_RELOAD=true to enable."
+            )
+
+        # Check if in read-only mode
+        if self.config.read_only:
+            return MaggResponse.error(
+                "Configuration reload is not allowed in read-only mode."
+            )
+
+        try:
+            success = await self.reload_config()
+
+            if success:
+                return MaggResponse.success({
+                    "message": "Configuration reloaded successfully",
+                    "config_path": str(self.server_manager.config_manager.config_path),
+                    "read_only": self.config.read_only
+                })
+            else:
+                return MaggResponse.error("Configuration reload failed - check logs for details")
+
+        except Exception as e:
+            logger.exception("Error during config reload")
+            return MaggResponse.error(f"Config reload error: {str(e)}")
+
     async def check(
         self,
         action: Annotated[Literal["report", "remount", "unmount", "disable"], Field(
@@ -751,7 +786,7 @@ Please provide:
         )] = "report",
         timeout: Annotated[float, Field(
             description="Timeout in seconds for health check per server"
-        )] = 5.0,
+        )] = 2.5,
     ) -> MaggResponse:
         """Check health of all mounted servers and handle unresponsive ones."""
         try:
@@ -765,52 +800,71 @@ Please provide:
                     unresponsive_servers.append(server_name)
                     continue
 
-                async with client:
-                    try:
-                        # Use asyncio timeout to prevent hanging
-                        async with asyncio.timeout(timeout):
+                try:
+                    # Use asyncio timeout to prevent hanging
+                    async with asyncio.timeout(timeout):
+                        async with client:
                             tools = await client.list_tools()
-                        results[server_name] = {
-                            "status": "healthy",
-                            "tools_count": len(tools)
-                        }
-                    except asyncio.TimeoutError:
-                        results[server_name] = {"status": "timeout", "reason": f"No response within {timeout}s"}
-                        unresponsive_servers.append(server_name)
-                    except Exception as e:
-                        results[server_name] = {"status": "error", "reason": str(e)}
-                        unresponsive_servers.append(server_name)
+                    results[server_name] = {
+                        "status": "healthy",
+                        "tools_count": len(tools)
+                    }
+                except asyncio.TimeoutError:
+                    results[server_name] = {"status": "timeout", "reason": f"No response within {timeout}s"}
+                    unresponsive_servers.append(server_name)
+                except Exception as e:
+                    results[server_name] = {"status": "error", "reason": str(e)}
+                    unresponsive_servers.append(server_name)
 
             # Handle unresponsive servers based on action
             actions_taken = []
             if unresponsive_servers and action != "report":
-                for server_name in unresponsive_servers:
-                    if action == "remount":
-                        # Unmount then remount
-                        await self.server_manager.unmount_server(server_name)
-                        server = self.config.servers.get(server_name)
-                        if server and server.enabled:
-                            mount_success = await self.server_manager.mount_server(server)
-                            if mount_success:
-                                actions_taken.append(f"Remounted {server_name}")
-                                results[server_name]["action"] = "remounted"
+                if action == "disable":
+                    # Batch disable to avoid multiple config saves
+                    config = self.config
+                    any_changes = False
+
+                    for server_name in unresponsive_servers:
+                        if server_name in config.servers:
+                            server = config.servers[server_name]
+                            if server.enabled:
+                                server.enabled = False
+                                any_changes = True
+                                await self.server_manager.unmount_server(server_name)
+                                actions_taken.append(f"Disabled {server_name}")
+                                results[server_name]["action"] = "disabled"
                             else:
-                                actions_taken.append(f"Failed to remount {server_name}")
-                                results[server_name]["action"] = "remount_failed"
-
-                    elif action == "unmount":
-                        await self.server_manager.unmount_server(server_name)
-                        actions_taken.append(f"Unmounted {server_name}")
-                        results[server_name]["action"] = "unmounted"
-
-                    elif action == "disable":
-                        disable_result = await self.disable_server(server_name)
-                        if disable_result.is_success:
-                            actions_taken.append(f"Disabled {server_name}")
-                            results[server_name]["action"] = "disabled"
+                                actions_taken.append(f"{server_name} already disabled")
+                                results[server_name]["action"] = "already_disabled"
                         else:
                             actions_taken.append(f"Failed to disable {server_name}")
                             results[server_name]["action"] = "disable_failed"
+
+                    # Save config once for all changes
+                    if any_changes:
+                        if not self.save_config(config):
+                            logger.error("Failed to save config after disabling servers")
+
+                else:
+                    # Handle other actions individually
+                    for server_name in unresponsive_servers:
+                        if action == "remount":
+                            # Unmount then remount
+                            await self.server_manager.unmount_server(server_name)
+                            server = self.config.servers.get(server_name)
+                            if server and server.enabled:
+                                mount_success = await self.server_manager.mount_server(server)
+                                if mount_success:
+                                    actions_taken.append(f"Remounted {server_name}")
+                                    results[server_name]["action"] = "remounted"
+                                else:
+                                    actions_taken.append(f"Failed to remount {server_name}")
+                                    results[server_name]["action"] = "remount_failed"
+
+                        elif action == "unmount":
+                            await self.server_manager.unmount_server(server_name)
+                            actions_taken.append(f"Unmounted {server_name}")
+                            results[server_name]["action"] = "unmounted"
 
             return MaggResponse.success({
                 "servers_checked": len(results),
@@ -822,54 +876,6 @@ Please provide:
 
         except Exception as e:
             return MaggResponse.error(f"Failed to check servers: {str(e)}")
-
-    # ============================================================================
-    # endregion
-    # region MCP Server Management - Setup and Run Methods
-    # ============================================================================
-
-    async def __aenter__(self):
-        """Enter the context manager, setting up the server."""
-        await self.setup()
-        return self
-
-    async def __aexit__(self, exc_type, exc_value, traceback):
-        """Exit the context manager, performing any necessary cleanup."""
-        # No specific cleanup needed for now, but can be extended later
-        pass
-
-    async def setup(self):
-        """Initialize Magg and mount existing servers.
-
-        This is called automatically by run_stdio() and run_http().
-        For in-memory usage via FastMCPTransport, call this manually:
-
-            server = MaggServer()
-            await server.setup()
-            client = Client(FastMCPTransport(server.mcp))
-
-            OR
-
-            (server task)
-            async with server:
-                await server.run_http()
-
-            (client task, after server start)
-            client = Client(FastMCPTransport(server.mcp))
-        """
-        if not self._is_setup:
-            self._is_setup = True
-            await self.server_manager.mount_all_enabled()
-
-    async def run_stdio(self):
-        """Run Magg in stdio mode."""
-        await self.setup()
-        await self.mcp.run_stdio_async()
-
-    async def run_http(self, host: str = "localhost", port: int = 8000):
-        """Run Magg in HTTP mode."""
-        await self.setup()
-        await self.mcp.run_http_async(host=host, port=port, log_level="WARNING")
 
     # ============================================================================
     # endregion

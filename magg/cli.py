@@ -99,7 +99,7 @@ async def cmd_add_server(args) -> None:
             args=command_args,
             uri=args.uri,
             env=env,
-            working_dir=args.working_dir,
+            cwd=args.cwd,
             notes=args.notes
         )
     except ValueError as e:

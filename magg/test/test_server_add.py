@@ -26,16 +26,16 @@ class TestAddServer:
             project_root = Path(tmpdir) / "project"
             project_root.mkdir()
 
-            working_dir = Path(tmpdir) / "work"
-            working_dir.mkdir()
+            cwd = Path(tmpdir) / "work"
+            cwd.mkdir()
 
-            subdir = working_dir / "subdir"
+            subdir = cwd / "subdir"
             subdir.mkdir()
 
             yield {
                 "tmpdir": tmpdir,
                 "project_root": project_root,
-                "working_dir": working_dir,
+                "cwd": cwd,
                 "subdir": subdir
             }
 
@@ -61,7 +61,7 @@ class TestAddServer:
                     name="testpythonserver",
                     source="https://github.com/example/test",
                     command="python server.py --port 8080",
-                    working_dir=str(temp_dirs["subdir"])
+                    cwd=str(temp_dirs["subdir"])
                 )
 
                 assert result.is_success
@@ -77,13 +77,13 @@ class TestAddServer:
             mock_mount.return_value = True
 
             with patch('magg.server.server.validate_working_directory') as mock_validate:
-                mock_validate.return_value = (Path(temp_dirs["working_dir"]), None)
+                mock_validate.return_value = (Path(temp_dirs["cwd"]), None)
 
                 result = await magg_server.add_server(
                     name="testmoduleserver",
                     source="https://github.com/example/test",
                     command="python -m mypackage.server --debug",
-                    working_dir=str(temp_dirs["working_dir"])
+                    cwd=str(temp_dirs["cwd"])
                 )
 
                 assert result.is_success
@@ -99,7 +99,7 @@ class TestAddServer:
                 name="testserver",
                 source="https://github.com/example/test",
                 command="python server.py",
-                working_dir=str(temp_dirs["project_root"])
+                cwd=str(temp_dirs["project_root"])
             )
 
             assert result.is_error
@@ -166,7 +166,7 @@ class TestAddServer:
                 name="envtestserver",
                 source="https://github.com/example/test",
                 command="node server.js",
-                env_vars={"NODE_ENV": "production", "PORT": "3000"}
+                env={"NODE_ENV": "production", "PORT": "3000"}
             )
 
             assert result.is_success

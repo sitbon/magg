@@ -41,7 +41,7 @@ if __name__ == "__main__":
                 name="pythontest",
                 source="file://" + str(tmpdir),
                 command=f"python {server_script}",
-                working_dir=str(tmpdir)
+                cwd=str(tmpdir)
             )
 
             assert result.is_success
@@ -65,7 +65,7 @@ if __name__ == "__main__":
                 name="moduletest",
                 source="https://github.com/example/module-server",
                 command="python -m example.server --port 8080",
-                working_dir=str(tmpdir)
+                cwd=str(tmpdir)
             )
 
             assert result.is_success

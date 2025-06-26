@@ -60,7 +60,7 @@ if __name__ == "__main__":
             prefix="calc",  # Explicit prefix
             command="python",
             args=["server.py"],
-            working_dir=str(calc_dir)
+            cwd=str(calc_dir)
         )
         config.add_server(server)
 

@@ -89,8 +89,8 @@ def print_server_list(servers: Dict[str, Any]):
         if server.uri:
             print(f"    URI: {server.uri}")
 
-        if server.working_dir:
-            print(f"    Working Dir: {server.working_dir}")
+        if server.cwd:
+            print(f"    Working Dir: {server.cwd}")
 
         if server.env:
             print(f"    Environment: {', '.join(f'{k}={v}' for k, v in server.env.items())}")

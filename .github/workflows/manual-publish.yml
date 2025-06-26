@@ -1,4 +1,4 @@
-name: Manual Publish (Dry Run)
+name: Manual Publish
 
 on:
   workflow_dispatch:
@@ -8,11 +8,24 @@ on:
         required: true
         default: true
         type: boolean
+      create_github_release:
+        description: 'Create GitHub release'
+        required: false
+        default: 'auto'
+        type: choice
+        options:
+          - 'auto'
+          - 'yes'
+          - 'no'
 
 jobs:
-  dry-run-publish:
+  manual-publish:
+    name: Manual Publish
     runs-on: ubuntu-latest
     environment: publish
+    permissions:
+      contents: write
+      id-token: write
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -47,44 +60,118 @@ jobs:
           git config commit.gpgsign true
           git config tag.gpgsign true
       
-      - name: Test publish commit creation
+      - name: Validate version
+        id: validate
         run: |
-          # Create a temporary branch for testing
-          git checkout -b test-publish-${{ github.run_id }}
+          # Validate and get version info
+          VALIDATION_JSON=$(python scripts/validate_manual_release.py)
+          echo "Validation result:"
+          echo "${VALIDATION_JSON}" | jq .
           
-          # Run the create-publish-commit command
-          # This will create the commit and tag locally
-          uv run poe create-publish-commit
+          # Extract values
+          VERSION=$(echo "${VALIDATION_JSON}" | jq -r .version)
+          IS_POSTRELEASE=$(echo "${VALIDATION_JSON}" | jq -r .is_postrelease)
+          MESSAGE=$(echo "${VALIDATION_JSON}" | jq -r .message)
           
-          # Show what was created
-          echo "=== Version Update ==="
-          git diff HEAD~1 pyproject.toml || echo "First commit on branch"
+          echo "${MESSAGE}"
           
-          echo "=== Build Output ==="
-          ls -la dist/
-          
-          echo "=== Commit Created ==="
-          git log -1 --pretty=fuller
-          
-          echo "=== Tag Created ==="
-          git tag -l --points-at HEAD
-          git tag -v $(git tag -l --points-at HEAD) || echo "Tag verification requires GPG public key"
-          
-          VERSION=$(uv run poe -q version)
-          echo "=== Would push: ==="
-          echo "  - Commit to main branch"
-          echo "  - Tag: magg/v${VERSION}"
+          # Set outputs
+          echo "VERSION=${VERSION}" >> $GITHUB_ENV
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "is_postrelease=${IS_POSTRELEASE}" >> $GITHUB_OUTPUT
       
-      - name: Test PyPI publish (dry run)
-        if: ${{ inputs.dry_run }}
+      - name: Check if tag exists
+        run: |
+          TAG="v${VERSION}"
+          if git show-ref --tags --quiet --verify "refs/tags/${TAG}"; then
+            echo "❌ Tag ${TAG} already exists!"
+            exit 1
+          fi
+          echo "✅ Tag ${TAG} does not exist, can proceed"
+      
+      - name: Build package
+        if: ${{ !inputs.dry_run }}
+        run: UV_FROZEN=true uv build
+      
+      - name: Create and push tag
+        if: ${{ !inputs.dry_run }}
+        run: |
+          TAG="v${VERSION}"
+          TAG_MESSAGE="[Manual] Release Version ${VERSION}"
+          git tag -s -m "${TAG_MESSAGE}" "${TAG}"
+          
+          # Get changelog for GitHub release
+          echo "CHANGELOG<<EOFEOF" >> $GITHUB_ENV
+          if git show-ref --tags --quiet --verify refs/tags/latest-publish; then
+            # Show changes since last publish
+            git log latest-publish..HEAD --pretty=format:'### [%s](https://github.com/${{ github.repository }}/commit/%H)%n*%ad*%n%n%b%n' | sed -e '/^Signed-off-by:/d' -e '/^### /!{/^$/!s/^/> /}' -e 's/^$/>/g' >> $GITHUB_ENV
+          else
+            # No previous publish, show last 2 commits
+            git log -2 --pretty=format:'### [%s](https://github.com/${{ github.repository }}/commit/%H)%n*%ad*%n%n%b%n' | sed -e '/^Signed-off-by:/d' -e '/^### /!{/^$/!s/^/> /}' -e 's/^$/>/g' >> $GITHUB_ENV
+          fi
+          echo "EOFEOF" >> $GITHUB_ENV
+          
+          git push origin "${TAG}"
+      
+      - name: Update latest-publish tag for post-releases
+        if: ${{ !inputs.dry_run && steps.validate.outputs.is_postrelease == 'true' }}
+        run: |
+          # Check if this is a post-release of the latest published version
+          if git show-ref --tags --quiet --verify refs/tags/latest-publish; then
+            # Get the version from latest-publish tag
+            git checkout latest-publish
+            LATEST_VERSION=$(uv version --short)
+            git checkout -
+            
+            # Extract base versions (first 3 parts only)
+            LATEST_BASE=$(echo "${LATEST_VERSION}" | grep -oE '^[0-9]+\.[0-9]+\.[0-9]+')
+            CURRENT_BASE=$(echo "${VERSION}" | grep -oE '^[0-9]+\.[0-9]+\.[0-9]+')
+            
+            if [ "${LATEST_BASE}" = "${CURRENT_BASE}" ]; then
+              echo "Updating latest-publish tag for post-release ${VERSION}"
+              git push origin :refs/tags/latest-publish || true
+              git tag -d latest-publish || true
+              git tag --no-sign latest-publish
+              git push origin refs/tags/latest-publish
+            else
+              echo "Not updating latest-publish: post-release ${VERSION} (base ${CURRENT_BASE}) is not based on latest ${LATEST_VERSION} (base ${LATEST_BASE})"
+            fi
+          else
+            echo "No latest-publish tag found, skipping update"
+          fi
+      
+      - name: Create GitHub Release
+        if: ${{ !inputs.dry_run && (inputs.create_github_release == 'yes' || (inputs.create_github_release == 'auto' && steps.validate.outputs.is_postrelease == 'true')) }}
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ env.VERSION }}
+          name: 🧲 Magg Release v${{ env.VERSION }}
+          body: |
+            ***Note: This is a manual release. PyPI availability depends on the type of release (pre, post, or dev).***
+            
+            ## Changes
+            ${{ env.CHANGELOG }}
+            
+            ## Installation
+            ```bash
+            uv add magg==${{ env.VERSION }}
+            ```
+          files: |
+            dist/*.tar.gz
+            dist/*.whl
+      
+      - name: Publish to PyPI
+        if: ${{ !inputs.dry_run }}
         env:
           PYPI_TOKEN: ${{ secrets.PYPI_TOKEN }}
-        run: |
-          echo "Would run: uv run poe pypi-publish"
-          echo "Dry run complete - no actual publish performed"
+        run: uv publish --token $PYPI_TOKEN
       
-      - name: Cleanup
-        if: always()
+      - name: Dry run summary
+        if: ${{ inputs.dry_run }}
         run: |
-          git checkout -
-          git branch -D test-publish-${{ github.run_id }} || true
+          echo "=== DRY RUN SUMMARY ==="
+          echo "Version: ${VERSION}"
+          echo "Tag: v${VERSION}"
+          echo "Would create GitHub release: ${{ (inputs.create_github_release == 'yes' || (inputs.create_github_release == 'auto' && steps.validate.outputs.is_postrelease == 'true')) && 'YES' || 'NO' }}"
+          echo ""
+          echo "No actual changes were made."

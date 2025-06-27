@@ -56,6 +56,7 @@ class MCPBrowserCLI:
             self.multiline_handler = MultilineInputHandler(self.formatter)
             # Multiline state
             self._multiline_buffer = []
+        
 
     @cached_property
     def _completer(self):
@@ -102,16 +103,17 @@ class MCPBrowserCLI:
         
         if self.use_enhanced:
             # Add enhanced features
-            kwargs['auto_suggest'] = AutoSuggestFromHistory()
+            kwargs['auto_suggest'] = self._create_smart_auto_suggest()
             kwargs['enable_history_search'] = True
             kwargs['key_bindings'] = self._create_key_bindings()
             kwargs['complete_style'] = CompleteStyle.COLUMN  # Try single column for popup
             kwargs['complete_in_thread'] = False  # Keep in main thread for better popup display
             kwargs['style'] = self._create_completion_style()
             kwargs['bottom_toolbar'] = self._create_bottom_toolbar
-            kwargs['multiline'] = True  # Enable multiline support
+            # Enable multiline mode for proper history support
+            kwargs['multiline'] = True
             kwargs['prompt_continuation'] = self._create_continuation_prompt
-            kwargs['validator'] = self._create_input_validator()
+            # Validator commented out - multiline mode handles validation internally
         
         return PromptSession(**kwargs)
     
@@ -136,8 +138,50 @@ class MCPBrowserCLI:
     def _create_key_bindings(self):
         """Create key bindings for enhanced mode."""
         kb = KeyBindings()
-        # Removed multiline JSON mode - overcomplicated
+        
+        @kb.add('c-c')
+        def _(event):
+            """Handle Ctrl+C - cancel multiline input or interrupt."""
+            buffer = event.app.current_buffer
+            if buffer.text.strip():
+                # Clear the buffer and cancel current input
+                buffer.reset()
+            else:
+                # If buffer is empty, exit the application
+                raise KeyboardInterrupt()
+        
+        @kb.add('enter')
+        def _(event):
+            """Handle Enter key - submit on empty line in multiline mode."""
+            buffer = event.app.current_buffer
+            
+            # Get current line
+            document = buffer.document
+            current_line = document.current_line
+            
+            # Check if we should submit (empty line after content)
+            if not current_line.strip() and document.text.strip():
+                # Check if the command needs continuation
+                validator_instance = self._create_input_validator()
+                if not validator_instance._needs_continuation(document.text.strip()):
+                    # Submit the command
+                    buffer.validate_and_handle()
+                    return
+            
+            # Otherwise, insert newline for multiline editing
+            buffer.insert_text('\n')
+        
+        @kb.add('escape', 'enter')
+        def _(event):
+            """Alt+Enter to force submit even with incomplete input."""
+            buffer = event.app.current_buffer
+            buffer.validate_and_handle()
+        
         return kb
+    
+    def _create_smart_auto_suggest(self):
+        """Create auto-suggestion from history."""
+        return AutoSuggestFromHistory()
     
     def _create_bottom_toolbar(self):
         """Create bottom toolbar for enhanced mode."""
@@ -150,14 +194,24 @@ class MCPBrowserCLI:
         return ""
     
     def _create_continuation_prompt(self, width, line_number, wrap_count):
-        """Create Python REPL-style continuation prompt."""
+        """Create Python REPL-style continuation prompt aligned with main prompt."""
         if wrap_count > 0:
             return " " * (width - 3) + "-> "  # Line wrapping
         else:
-            if self.formatter.use_rich:
-                return HTML('<ansiyellow>... </ansiyellow>')  # PS2 style
+            # Calculate padding to align with main prompt
+            current = self.browser.current_connection if self.browser.current_connection else None
+            if current:
+                # "mbro:name> " -> align "... " to same position as ">"
+                padding = len(f"mbro:{current}> ") - 2  # -2 for "> "
             else:
-                return "... "
+                # "mbro> " -> align "... " to same position as ">"
+                padding = len("mbro> ") - 2  # -2 for "> "
+            
+            spaces = " " * padding
+            if self.formatter.use_rich:
+                return HTML(f'{spaces}<ansiyellow>... </ansiyellow>')
+            else:
+                return f"{spaces}... "
     
     def _create_input_validator(self):
         """Create validator that detects incomplete input for multiline support."""
@@ -184,6 +238,10 @@ class MCPBrowserCLI:
             
             def _needs_continuation(self, text: str) -> bool:
                 """Check if input needs continuation like Python REPL."""
+                # Empty input or whitespace-only should not continue
+                if not text.strip():
+                    return False
+                
                 # Backslash continuation
                 if text.endswith('\\'):
                     return True
@@ -196,14 +254,71 @@ class MCPBrowserCLI:
                 if self._has_unclosed_brackets(text):
                     return True
                 
+                # For mbro commands, we're done if quotes/brackets are balanced
+                # Don't use _is_complete_mbro_command check here since it doesn't
+                # consider quotes/brackets properly
+                
                 # Try Python compilation check for complex cases
+                # This is mainly for Python-style dict/list arguments
                 try:
+                    # First check if it's an mbro command
+                    words = text.strip().split(maxsplit=1)
+                    if words and words[0] in {
+                        'help', 'quit', 'exit', 'connect', 'connections', 'conns', 'switch',
+                        'disconnect', 'tools', 'resources', 'prompts', 'call', 'resource',
+                        'prompt', 'status', 'search', 'info'
+                    }:
+                        # For mbro commands, if quotes/brackets are balanced, we're done
+                        return False
+                    
+                    # For other input, use Python compilation check
                     result = codeop.compile_command(text, '<input>', 'exec')
                     return result is None  # None means incomplete
                 except SyntaxError:
                     return False  # Syntax error, don't continue
                 
                 return False
+            
+            def _is_complete_mbro_command(self, text: str) -> bool:
+                """Check if text is a complete mbro command."""
+                text = text.strip()
+                if not text:
+                    return False
+                
+                # All known mbro commands
+                mbro_commands = {
+                    'help', 'quit', 'exit', 'connect', 'connections', 'conns', 'switch',
+                    'disconnect', 'tools', 'resources', 'prompts', 'call', 'resource',
+                    'prompt', 'status', 'search', 'info'
+                }
+                
+                # Commands that are complete with just the command word
+                standalone_commands = {
+                    'help', 'quit', 'exit', 'connections', 'conns', 'disconnect',
+                    'tools', 'resources', 'prompts', 'status'
+                }
+                
+                # Split and check first word
+                words = text.split()
+                if not words or words[0] not in mbro_commands:
+                    return False  # Not a recognized mbro command
+                
+                command = words[0]
+                
+                # Check standalone commands
+                if command in standalone_commands:
+                    return True
+                
+                # For commands that need arguments, check if they look complete
+                if command == 'call':
+                    # call command needs tool name, args are optional
+                    # call tool_name {...} or call tool_name key=value
+                    return len(words) >= 2
+                elif command in ['connect', 'switch', 'resource', 'prompt', 'search', 'info']:
+                    # These commands need at least one argument
+                    return len(words) >= 2
+                
+                return True  # Default to complete for other commands
             
             def _has_unclosed_quotes(self, text: str) -> bool:
                 """Check for unclosed string literals."""
@@ -289,6 +404,68 @@ class MCPBrowserCLI:
         
         return InputValidator(self)
     
+    def _parse_shell_args(self, args: list[str]) -> dict:
+        """Parse shell-style key=value arguments.
+        
+        Examples:
+            name="test" -> {"name": "test"}
+            count=42 -> {"count": 42}
+            enabled=true -> {"enabled": true}
+            name="my server" count=5 -> {"name": "my server", "count": 5}
+        """
+        result = {}
+        
+        # Join all args and split by spaces, but preserve quoted strings
+        full_args = " ".join(args)
+        
+        # Simple parser for key=value pairs
+        import shlex
+        try:
+            # Use shlex to handle quoted strings properly
+            tokens = shlex.split(full_args)
+        except ValueError:
+            # If shlex fails, fall back to simple split
+            tokens = full_args.split()
+        
+        for token in tokens:
+            if '=' in token:
+                key, value = token.split('=', 1)
+                
+                # Skip empty keys
+                if not key:
+                    continue
+                
+                # Handle empty values
+                if not value:
+                    result[key] = ""
+                    continue
+                
+                # Try to parse the value as JSON to get proper types
+                try:
+                    # Handle booleans
+                    if value.lower() == 'true':
+                        result[key] = True
+                    elif value.lower() == 'false':
+                        result[key] = False
+                    # Try to parse as number
+                    elif value.replace('.', '', 1).replace('-', '', 1).isdigit():
+                        if '.' in value:
+                            result[key] = float(value)
+                        else:
+                            result[key] = int(value)
+                    else:
+                        # It's a string - remove quotes if present
+                        if (value.startswith('"') and value.endswith('"')) or \
+                           (value.startswith("'") and value.endswith("'")):
+                            result[key] = value[1:-1]
+                        else:
+                            result[key] = value
+                except:
+                    # If parsing fails, treat as string
+                    result[key] = value
+        
+        return result
+    
     async def _refresh_completer_cache(self):
         """Refresh the completer cache after connection changes."""
         if self.use_enhanced and hasattr(self, '_completer'):
@@ -302,12 +479,6 @@ class MCPBrowserCLI:
             elif hasattr(completer, 'refresh_cache'):
                 await completer.refresh_cache()
 
-    async def _handle_multiline_input(self, command: str) -> str:
-        """Handle multiline input processing."""
-        # For now, just return the command as-is
-        # The validator handles multiline detection automatically
-        # Future enhancement: could add special processing here
-        return command
 
     async def start(self, repl: bool = False):
         """Start the interactive CLI."""
@@ -333,7 +504,7 @@ class MCPBrowserCLI:
             self.formatter.print("MBRO - MCP Browser", file=sys.stderr)
             if self.use_enhanced:
                 self.formatter.print("Type 'help' for available commands or 'quit' to exit.", file=sys.stderr)
-                self.formatter.print("Enhanced mode: Ctrl+M for multiline JSON, natural language supported\n", file=sys.stderr)
+                self.formatter.print("Enhanced mode: Python REPL-style multiline, natural language supported\n", file=sys.stderr)
             else:
                 self.formatter.print("Type 'help' for available commands or 'quit' to exit.\n", file=sys.stderr)
 
@@ -361,9 +532,9 @@ class MCPBrowserCLI:
                 if not command:
                     continue
                 
-                # Handle multiline commands
-                full_command = await self._handle_multiline_input(command)
-                await self.handle_command(full_command)
+                # With multiline mode enabled, command may contain newlines
+                # Process the command directly
+                await self.handle_command(command)
 
             except KeyboardInterrupt:
                 if not self.formatter.json_only:
@@ -381,8 +552,33 @@ class MCPBrowserCLI:
 
     async def handle_command(self, command: str):
         """Handle a CLI command."""
-        # Simple, direct parsing - no natural language nonsense
-        parts = command.split()
+        # Preprocess multiline commands - handle backslash continuations
+        if '\n' in command:
+            lines = command.split('\n')
+            processed_lines = []
+            i = 0
+            while i < len(lines):
+                line = lines[i]
+                # Check if line ends with backslash (continuation)
+                if line.rstrip().endswith('\\'):
+                    # Remove the backslash and add a space before next line
+                    processed_lines.append(line.rstrip()[:-1])
+                    if i + 1 < len(lines):
+                        # Add a space only if not inside quotes
+                        processed_lines.append(' ')
+                else:
+                    processed_lines.append(line)
+                i += 1
+            command = ''.join(processed_lines)
+        
+        # Use shlex to properly handle quoted strings
+        import shlex
+        try:
+            parts = shlex.split(command)
+        except ValueError:
+            # If shlex fails, fall back to simple split
+            parts = command.split()
+        
         if not parts:
             return
         cmd = parts[0].lower()
@@ -650,19 +846,27 @@ class MCPBrowserCLI:
         arguments = {}
 
         if len(args) > 1:
-            json_str = " ".join(args[1:])
-            try:
-                arguments = json.loads(json_str)
-            except json.JSONDecodeError as e:
-                self.formatter.format_error(f"Invalid JSON arguments: {e}")
-                if not self.formatter.json_only:
-                    self.formatter.format_info(
-                        "\nJSON formatting tips:\n"
-                        "  - Use double quotes for strings: {\"key\": \"value\"}\n"
-                        "  - Numbers don't need quotes: {\"count\": 42}\n"
-                        "  - Booleans: {\"enabled\": true}"
-                    )
-                return
+            args_str = " ".join(args[1:])
+            
+            # Try to parse as JSON first
+            if args_str.strip().startswith('{'):
+                try:
+                    arguments = json.loads(args_str)
+                except json.JSONDecodeError as e:
+                    self.formatter.format_error(f"Invalid JSON arguments: {e}")
+                    if not self.formatter.json_only:
+                        self.formatter.format_info(
+                            "\nJSON formatting tips:\n"
+                            "  - Use double quotes for strings: {\"key\": \"value\"}\n"
+                            "  - Numbers don't need quotes: {\"count\": 42}\n"
+                            "  - Booleans: {\"enabled\": true}"
+                        )
+                    return
+            else:
+                # Parse shell-like key=value syntax
+                # For multiline commands, args might contain the full command split by spaces
+                # We need to be careful to preserve quoted strings
+                arguments = self._parse_shell_args(args[1:])
         # If no arguments and the tool needs them, show helpful message
         elif len(args) == 1:
             tools = await conn.get_tools()

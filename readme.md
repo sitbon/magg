@@ -37,6 +37,7 @@ Think of Magg as a "package manager for LLM tools" - it lets AI assistants insta
 - **Bearer Token Authentication**: Optional RSA-based JWT authentication for secure HTTP access.
 - **Docker Support**: Pre-built images for production, staging, and development workflows.
 - **Health Monitoring**: Built-in `magg_status` and `magg_check` tools for server health checks.
+- **Real-time Messaging**: Full support for MCP notifications and messages - receive tool/resource updates and progress notifications from backend servers.
 - **Python 3.12+ Support**: Fully compatible with Python 3.12 and 3.13.
 
 ## Installation
@@ -299,6 +300,26 @@ Servers can be added in several ways:
    ```
 
 3. **Direct config editing**: Edit `.magg/config.json` directly
+
+### Real-time Notifications with MaggClient
+
+The `MaggClient` now supports real-time notifications from backend MCP servers:
+
+```python
+from magg import MaggClient, MaggMessageHandler
+
+# Using callbacks
+handler = MaggMessageHandler(
+    on_tool_list_changed=lambda n: print("Tools changed!"),
+    on_progress=lambda n: print(f"Progress: {n.params.progress}")
+)
+
+async with MaggClient("http://localhost:8000/mcp", message_handler=handler) as client:
+    # Client will receive notifications while connected
+    tools = await client.list_tools()
+```
+
+See [Messaging Documentation](docs/messaging.md) for advanced usage including custom message handlers.
 
 ## Documentation
 

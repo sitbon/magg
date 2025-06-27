@@ -11,9 +11,10 @@
 7. [Prompts Reference](#prompts-reference)
 8. [Authentication](#authentication)
 9. [Configuration Reload](#configuration-reload)
-10. [Proxy Documentation](#proxy-documentation)
-11. [Example Sessions](#example-sessions)
-12. [Advanced Configuration](#advanced-configuration)
+10. [Messaging and Notifications](#messaging-and-notifications)
+11. [Proxy Documentation](#proxy-documentation)
+12. [Example Sessions](#example-sessions)
+13. [Advanced Configuration](#advanced-configuration)
 
 ## Overview
 
@@ -538,6 +539,52 @@ result = await client.call_tool("magg_reload_config")
 - Changes to auto_reload settings themselves
 
 For complete documentation, see **[Configuration Reload Guide](config-reload.md)**.
+
+## Messaging and Notifications
+
+Magg provides comprehensive support for MCP messaging and notifications, enabling real-time communication between clients and backend servers. This feature leverages FastMCP's messaging capabilities to provide transparent message forwarding across multiple backend servers.
+
+### Key Features
+- **Transparent Message Forwarding**: All notifications from backend servers are automatically forwarded to clients
+- **Message Aggregation**: Coordinates notifications from multiple backend servers  
+- **Real-time Updates**: Receive immediate notifications for tool/resource/prompt list changes
+- **Progress Tracking**: Monitor long-running operations across all servers
+- **Custom Handlers**: Implement custom logic for different notification types
+
+### Supported Notifications
+- **Tool List Changes**: When backend servers add/remove/modify tools
+- **Resource List Changes**: When available resources change
+- **Prompt List Changes**: When available prompts change  
+- **Progress Updates**: For long-running operations
+- **Log Messages**: Server logs forwarded to clients
+- **Resource Updates**: When individual resources are modified
+
+### Basic Usage
+
+```python
+from magg import MaggClient, MaggMessageHandler
+
+# Create message handler with callbacks
+handler = MaggMessageHandler(
+    on_tool_list_changed=lambda notif: print("Tools changed!"),
+    on_progress=lambda notif: print(f"Progress: {notif.progress}")
+)
+
+# Create client with message handling
+client = MaggClient("http://localhost:8000", message_handler=handler)
+
+async with client:
+    # All notifications from backend servers automatically forwarded
+    tools = await client.list_tools()
+```
+
+### Advanced Features
+- **Server-specific handlers** for targeted message routing
+- **Message coordination** with deduplication and aggregation
+- **Custom handler classes** for complex notification logic
+- **Debug capabilities** for monitoring message flow
+
+For complete documentation, see **[Messaging Guide](messaging.md)**.
 
 ## Proxy Documentation
 

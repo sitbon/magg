@@ -235,7 +235,7 @@ class TestMCPBrowserCLI:
             mock_get.return_value = mock_connection
 
             output = await self.capture_json_output(
-                self.cli.cmd_call(["test_tool", "invalid json"])
+                self.cli.cmd_call(["test_tool", "{invalid json}"])
             )
 
             # Should show error as JSON

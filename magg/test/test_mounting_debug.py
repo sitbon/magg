@@ -52,7 +52,7 @@ if __name__ == "__main__":
         print(f"Proxy has _has_lifespan: {hasattr(proxy, '_has_lifespan')}")
 
         # Mount the proxy
-        main.mount("test", proxy)
+        main.mount(server=proxy, prefix="test")
         print("Mounted proxy with prefix 'test'")
 
         # Check what tools are available

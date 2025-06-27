@@ -2,10 +2,12 @@
 from typing import Any
 
 from fastmcp.client import BearerAuth
+from fastmcp.client.messages import MessageHandler, MessageHandlerT
 from httpx import Auth
 
 from .proxy.client import ProxyClient
 from .settings import ClientSettings
+from .messaging import MaggMessageHandler
 
 
 class MaggClient(ProxyClient):
@@ -23,6 +25,7 @@ class MaggClient(ProxyClient):
         settings: ClientSettings | None = None,
         auth: Auth | str | None = None,
         transparent: bool = True,
+        message_handler: MessageHandlerT | None = None,
         **kwds,
     ):
         """Initialize Magg client with JWT authentication and proxy support.
@@ -33,6 +36,7 @@ class MaggClient(ProxyClient):
             settings: Client settings (defaults to loading from env)
             auth: Override auth (if not provided, uses JWT from settings)
             transparent: Enable transparent proxy mode (default: True for Magg)
+            message_handler: Optional message handler for notifications/requests
             **kwds: Additional keyword arguments for ProxyClient/FastMCP Client
         """
         self.settings = settings or ClientSettings()
@@ -41,5 +45,12 @@ class MaggClient(ProxyClient):
         if auth is None and self.settings.jwt:
             auth = BearerAuth(self.settings.jwt)
 
-        # Pass everything to parent ProxyClient with auth and transparent mode
-        super().__init__(transport, *args, auth=auth, transparent=transparent, **kwds)
+        # Pass everything to parent ProxyClient with auth, transparent mode, and message handler
+        super().__init__(
+            transport,
+            *args,
+            auth=auth,
+            transparent=transparent,
+            message_handler=message_handler,
+            **kwds
+        )

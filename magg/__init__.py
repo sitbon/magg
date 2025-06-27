@@ -10,3 +10,14 @@ except metadata.PackageNotFoundError:
     __version__ = "unknown"
 
 del metadata
+
+# Export main components
+from .client import MaggClient
+from .messaging import MaggMessageHandler, MessageRouter, ServerMessageCoordinator
+
+__all__ = [
+    "MaggClient",
+    "MaggMessageHandler", 
+    "MessageRouter",
+    "ServerMessageCoordinator",
+]

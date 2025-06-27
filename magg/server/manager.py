@@ -77,6 +77,15 @@ class ServerManager:
             return False
 
         try:
+            # Create message handler for this backend server if ProxyFastMCP supports it
+            message_handler = None
+            if hasattr(self.mcp, 'message_coordinator'):
+                from ..proxy.server import BackendMessageHandler
+                message_handler = BackendMessageHandler(
+                    server_id=server.name,
+                    coordinator=self.mcp.message_coordinator
+                )
+
             if server.command:
                 # Command-based server
                 transport = get_transport_for_command(
@@ -86,7 +95,7 @@ class ServerManager:
                     cwd=server.cwd,
                     transport_config=server.transport
                 )
-                client = Client(transport)
+                client = Client(transport, message_handler=message_handler)
 
             elif server.uri:
                 # URI-based server
@@ -94,7 +103,7 @@ class ServerManager:
                     uri=server.uri,
                     transport_config=server.transport
                 )
-                client = Client(transport)
+                client = Client(transport, message_handler=message_handler)
 
             else:
                 logger.error("No command or URI specified for %s", server.name)
@@ -102,7 +111,7 @@ class ServerManager:
 
             # Create proxy and mount
             proxy_server = FastMCP.as_proxy(client)
-            self.mcp.mount(server.prefix, proxy_server, as_proxy=True)
+            self.mcp.mount(server=proxy_server, prefix=server.prefix, as_proxy=True)
             # Store both proxy and client for resource/prompt access
             self.mounted_servers[server.name] = {
                 'proxy': proxy_server,
@@ -123,10 +132,10 @@ class ServerManager:
             # Get the server config to find the prefix
             config = self.config
             server = config.servers.get(name)
-            if server and server.prefix in self.mcp._mounted_servers:
-                # Properly unmount from FastMCP
-                self.mcp.unmount(server.prefix)
-                logger.debug("Called unmount for prefix %s", server.prefix)
+            if server and server.prefix in self.mcp._tool_manager._mounted_servers:
+                # TODO: FastMCP doesn't have an unmount method yet
+                # For now, we just close the client and remove from our tracking
+                logger.debug("Would unmount prefix %s (FastMCP unmount not available)", server.prefix)
 
             # Close the client to clean up background tasks
             server_info = self.mounted_servers.get(name, {})

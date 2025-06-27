@@ -100,8 +100,8 @@ jobs:
     name: Push Dev Images
     runs-on: ubuntu-latest
 
-    needs: build-dev-image
-    if: ${{ always() && needs.build-dev-image.result == 'success' && (jobs.test-dev-image.result == 'success' || jobs.test-dev-image.result == 'skipped') }}
+    needs: [build-dev-image, test-dev-image]
+    if: ${{ always() && needs.build-dev-image.result == 'success' && (needs.test-dev-image.result == 'success' || needs.test-dev-image.result == 'skipped') }}
 
     permissions:
       contents: read
@@ -174,8 +174,8 @@ jobs:
     name: Build and Push Image
     runs-on: ubuntu-latest
 
-    needs: build-dev-image
-    if: ${{ always() && needs.build-dev-image.result == 'success' && (jobs.test-dev-image.result == 'success' || jobs.test-dev-image.result == 'skipped') }}
+    needs: [build-dev-image, test-dev-image]
+    if: ${{ always() && needs.build-dev-image.result == 'success' && (needs.test-dev-image.result == 'success' || needs.test-dev-image.result == 'skipped') }}
 
     permissions:
       contents: read

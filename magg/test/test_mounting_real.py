@@ -49,7 +49,7 @@ if __name__ == "__main__":
                 )
                 client = Client(transport)
                 # Try to mount the client directly
-                main_server.mount("test1", client)
+                main_server.mount(server=client, prefix="test1")
                 print("✓ Direct client mount succeeded")
             except Exception as e:
                 print(f"✗ Direct client mount failed: {e}")
@@ -61,7 +61,7 @@ if __name__ == "__main__":
                     cwd=tmpdir
                 )
                 client = Client(transport)
-                main_server.mount("test2", client, as_proxy=True)
+                main_server.mount(server=client, prefix="test2", as_proxy=True)
                 print("✓ Client mount with as_proxy=True succeeded")
             except Exception as e:
                 print(f"✗ Client mount with as_proxy=True failed: {e}")
@@ -74,7 +74,7 @@ if __name__ == "__main__":
                 )
                 client = Client(transport)
                 proxy = FastMCP.as_proxy(client)
-                main_server.mount("test3", proxy)
+                main_server.mount(server=proxy, prefix="test3")
                 print("✓ as_proxy mount succeeded")
             except Exception as e:
                 print(f"✗ as_proxy mount failed: {e}")

@@ -128,7 +128,7 @@ class TestToolDiscovery:
             return value * 2
 
         # Mount the test server
-        server.mcp.mount("test", test_server)
+        server.mcp.mount(server=test_server, prefix="test")
 
         # Access tools through the client
         async with Client(server.mcp) as client:
@@ -148,4 +148,7 @@ class TestToolDiscovery:
             test_tools = [t for t in tool_names if t.startswith("test_")]
 
             assert len(magg_tools) >= 2  # At least magg_list_servers and magg_add_server
-            assert len(test_tools) == 2  # tool1 and tool2
+            assert len(test_tools) >= 2  # At least tool1 and tool2
+            # Verify our specific tools are present
+            assert "test_test_tool1" in test_tools
+            assert "test_test_tool2" in test_tools

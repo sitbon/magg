@@ -16,10 +16,11 @@ class LogQueue(queue.Queue):
 
     def put(self, item, block=True, timeout=None) -> asyncio.Handle | None:
         try:
-            if (loop := asyncio.get_event_loop()).is_running():
-                return loop.call_soon_threadsafe(super().put, item, block, timeout)
-
+            # Use get_running_loop() to avoid deprecation warning
+            loop = asyncio.get_running_loop()
+            return loop.call_soon_threadsafe(super().put, item, block, timeout)
         except RuntimeError:
+            # No running event loop, use synchronous put
             pass
 
         return super().put(item, block, timeout)

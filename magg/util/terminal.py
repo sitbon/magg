@@ -126,30 +126,42 @@ def confirm_action(prompt: str) -> bool:
 
 
 def print_startup_banner():
-    """Print a nice startup banner."""
-    banner = """
-╔═══════════════════════════════════════════════════╗
-║                                                   ║
-║        ███╗   ███╗ █████╗  ██████╗  ██████╗       ║
-║        ████╗ ████║██╔══██╗██╔════╝ ██╔════╝       ║
-║        ██╔████╔██║███████║██║  ███╗██║  ███╗      ║
-║        ██║╚██╔╝██║██╔══██║██║   ██║██║   ██║      ║
-║        ██║ ╚═╝ ██║██║  ██║╚██████╔╝╚██████╔╝      ║
-║        ╚═╝     ╚═╝╚═╝  ╚═╝ ╚═════╝  ╚═════╝       ║
-║                                                   ║
-║          MCP Aggregator - Tool Ecosystem          ║
-║   Organizing and Managing Your MCP Environment    ║
-╚═══════════════════════════════════════════════════╝
-"""
-    if not os.environ.get("MAGG_QUIET", "").lower() in ("1", "true", "yes"):
-        if os.environ.get("NO_RICH", "").lower() in ("1", "true", "yes"):
-            print(banner, file=sys.stderr)
-        else:
-            try:
-                console = initterm()
-                if console:
-                    console.print(banner, style="bold cyan purple italic", width=60)
-                else:
-                    print(banner, file=sys.stderr)
-            except ImportError:
-                print(banner, file=sys.stderr)
+    """Print a beautiful startup banner using pyfiglet with solid characters."""
+    if os.environ.get("MAGG_QUIET", "").lower() in ("1", "true", "yes"):
+        return
+
+    # import pyfiglet
+    # Use banner font which has solid # characters
+    # ascii_art = pyfiglet.figlet_format("MAGG", font="big")
+    # ascii_art = pyfiglet.figlet_format("MAGG", font="isometric3")
+    # ascii_art = pyfiglet.figlet_format("MAGG", font="whimsy")
+
+    import art
+    # ascii_art = art.text2art("MAGG", font="cricket")
+    # ascii_art = art.text2art("MAGG", font="diamond")
+    # ascii_art = art.text2art("MAGG", font="tarty1")
+    ascii_art = art.text2art("MAGG", font="isometric3")
+
+    if os.environ.get("NO_RICH", "").lower() in ("1", "true", "yes"):
+        print(ascii_art, file=sys.stderr)
+    else:
+        try:
+            console = initterm()
+            if console:
+                # console.print()
+
+                # Apply gradient colors to each line
+                lines = ascii_art.split('\n')
+                colors = ['#4796E4', '#5B8FE6', '#7087E8', '#847ACE', '#9B72B8', '#B26BA2', '#C3677F']
+
+                for i, line in enumerate(lines):
+                    if line.strip():
+                        color_idx = min(i, len(colors) - 1)
+                        console.print(line, style=f"bold {colors[color_idx]}")
+
+                console.print()
+            else:
+                print(ascii_art, file=sys.stderr)
+        except ImportError:
+            print(ascii_art, file=sys.stderr)
+

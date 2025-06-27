@@ -71,7 +71,7 @@ if __name__ == "__main__":
             return "Local response"
 
         # Mount the proxy
-        magg.mount("calc", proxy)
+        magg.mount(server=proxy, prefix="calc")
 
         # Verify tools are available via the mount
         # Note: We can't directly test the mounted tools without running the server

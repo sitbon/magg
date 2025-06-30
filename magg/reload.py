@@ -311,7 +311,7 @@ class ConfigReloader:
             for name, server_data in data.get('servers', {}).items():
                 try:
                     server_data['name'] = name
-                    servers[name] = ServerConfig(**server_data)
+                    servers[name] = ServerConfig.model_validate(server_data)
                 except Exception as e:
                     logger.error("Error loading server '%s': %s", name, e)
                     continue

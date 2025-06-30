@@ -5,7 +5,7 @@ import pytest
 from fastmcp import Client
 from fastmcp.client import FastMCPTransport
 
-from magg.server import MaggServer
+from magg.server.server import MaggServer
 
 
 @pytest.mark.asyncio

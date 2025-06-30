@@ -31,8 +31,9 @@ The proxy tool accepts the following parameters:
   - Required for `info` and `call` actions
   - Not allowed for `list` action
 
-- **args** (optional): object
+- **args** (optional): object | string
   - Arguments to pass when using the `call` action
+  - Can be provided as a dict or JSON string (automatically parsed)
   - Only allowed for `call` action
   - Not allowed for `list` and `info` actions
   - For tools: tool-specific arguments
@@ -55,12 +56,20 @@ The proxy tool accepts the following parameters:
   "path": "calculator_add"
 }
 
-// Call a tool
+// Call a tool (with dict args)
 {
   "action": "call",
   "type": "tool", 
   "path": "calculator_add",
   "args": {"a": 5, "b": 3}
+}
+
+// Call a tool (with JSON string args)
+{
+  "action": "call",
+  "type": "tool",
+  "path": "calculator_add", 
+  "args": "{\"a\": 5, \"b\": 3}"
 }
 
 // Read a resource

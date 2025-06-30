@@ -8,7 +8,7 @@ from pathlib import Path
 from unittest.mock import patch, MagicMock, AsyncMock
 
 from magg.settings import ConfigManager, ServerConfig, MaggConfig
-from magg.server import MaggServer
+from magg.server.server import MaggServer
 
 
 class TestErrorHandling:

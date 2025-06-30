@@ -9,12 +9,13 @@
 5. [Tools Reference](#tools-reference)
 6. [Resources Reference](#resources-reference)
 7. [Prompts Reference](#prompts-reference)
-8. [Authentication](#authentication)
-9. [Configuration Reload](#configuration-reload)
-10. [Messaging and Notifications](#messaging-and-notifications)
-11. [Proxy Documentation](#proxy-documentation)
-12. [Example Sessions](#example-sessions)
-13. [Advanced Configuration](#advanced-configuration)
+8. [Kit Management](#kit-management)
+9. [Authentication](#authentication)
+10. [Configuration Reload](#configuration-reload)
+11. [Messaging and Notifications](#messaging-and-notifications)
+12. [Proxy Documentation](#proxy-documentation)
+13. [Example Sessions](#example-sessions)
+14. [Advanced Configuration](#advanced-configuration)
 
 ## Overview
 
@@ -26,6 +27,7 @@ Magg (MCP Aggregator) is a meta-MCP server that acts as a central hub for managi
 - **Prefix**: A namespace prefix for tools from a specific server
 - **Mounting**: The process of connecting to an MCP server and exposing its tools
 - **Tool Delegation**: Proxying tool calls to the appropriate server
+- **Kit**: A bundle of related MCP servers that can be loaded/unloaded as a group
 
 ## Project Components
 
@@ -324,6 +326,73 @@ Analyze configured servers and provide insights/recommendations.
 
 **Note:** Requires MCP client support for sampling.
 
+### Kit Management Tools
+
+#### `magg_load_kit`
+Load a kit and all its servers into the configuration.
+
+**Parameters:**
+- `name` (str, required): Kit name to load (filename without .json)
+
+**Returns:**
+```json
+{
+    "action": "kit_loaded",
+    "kit": "web-tools",
+    "message": "Kit 'web-tools' loaded successfully. Added servers: browser, scraper"
+}
+```
+
+#### `magg_unload_kit`
+Unload a kit and optionally remove its servers.
+
+**Parameters:**
+- `name` (str, required): Kit name to unload
+
+**Returns:**
+```json
+{
+    "action": "kit_unloaded",
+    "kit": "web-tools",
+    "message": "Kit 'web-tools' unloaded successfully. Removed servers: browser"
+}
+```
+
+#### `magg_list_kits`
+List all available kits with their status.
+
+**Returns:**
+```json
+{
+    "kits": {
+        "web-tools": {
+            "loaded": true,
+            "description": "Web automation and scraping tools",
+            "author": "Magg Team",
+            "servers": ["browser", "scraper"]
+        },
+        "dev-tools": {
+            "loaded": false,
+            "description": "Development tools",
+            "servers": ["git", "github"]
+        }
+    },
+    "summary": {
+        "total": 2,
+        "loaded": 1,
+        "available": 1
+    }
+}
+```
+
+#### `magg_kit_info`
+Get detailed information about a specific kit.
+
+**Parameters:**
+- `name` (str, required): Kit name to get information about
+
+**Returns:** Detailed kit metadata including all servers and their configurations.
+
 ### Proxy Tool
 
 #### `proxy`
@@ -382,6 +451,70 @@ Interactive prompt for configuring a server with LLM assistance.
 **Returns:** A prompt template that guides the LLM to analyze the URL and generate optimal server configuration.
 
 **Usage:** The LLM can use this prompt to help determine optimal configuration for a server based on its URL. The prompt includes metadata collection and guides the LLM to generate a complete JSON configuration.
+
+## Kit Management
+
+Kits are a way to bundle related MCP servers together for easy installation and management. Think of them as "packages" or "toolkits" that group servers with similar functionality.
+
+### What are Kits?
+
+- JSON files stored in `~/.magg/kit.d/` or `.magg/kit.d/`
+- Bundle related servers with metadata (description, author, version, etc.)
+- Can be loaded/unloaded as a group
+- Servers track which kits they came from
+- Servers shared by multiple kits are only removed when their last kit is unloaded
+
+### Kit Discovery
+
+Magg looks for kits in these locations:
+1. `$MAGG_KITD_PATH` (defaults to `~/.magg/kit.d`)
+2. `.magg/kit.d` in the same directory as your `config.json`
+
+### Creating Kits
+
+Example kit file (`~/.magg/kit.d/web-tools.json`):
+```json
+{
+  "name": "web-tools",
+  "description": "Web automation and scraping tools",
+  "author": "Your Name",
+  "version": "1.0.0",
+  "keywords": ["web", "browser", "scraping"],
+  "links": {
+    "homepage": "https://github.com/example/web-tools-kit"
+  },
+  "servers": {
+    "playwright": {
+      "source": "https://github.com/microsoft/playwright-mcp",
+      "command": "npx",
+      "args": ["@playwright/mcp@latest"],
+      "enabled": true
+    },
+    "scraper": {
+      "source": "https://github.com/example/scraper-mcp",
+      "uri": "http://localhost:8080/mcp"
+    }
+  }
+}
+```
+
+### Using Kits
+
+```bash
+# List all available kits
+mbro:magg> call magg_list_kits
+
+# Load a kit (adds all its servers)
+mbro:magg> call magg_load_kit name="web-tools"
+
+# Get detailed info about a kit
+mbro:magg> call magg_kit_info name="web-tools"
+
+# Unload a kit
+mbro:magg> call magg_unload_kit name="web-tools"
+```
+
+For complete documentation, see **[Kit Management Guide](kits.md)**.
 
 ## Authentication
 

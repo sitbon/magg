@@ -200,11 +200,27 @@ class TestMCPBrowserCLI:
     async def test_cmd_call_tool(self):
         """Test calling a tool."""
         mock_connection = Mock()
-
+        
+        # Create a mock client that supports async context manager
+        mock_client = AsyncMock()
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=None)
+        
         # Mock tool result - the new format expects a Content object with type and text
         from mcp.types import TextContent
         mock_result = TextContent(type="text", text='{"result": "Tool result"}')
+        mock_client.list_tools = AsyncMock(return_value=[
+            {"name": "test_tool", "inputSchema": {"type": "object", "properties": {"arg": {"type": "string"}}}}
+        ])
+        mock_client.call_tool = AsyncMock(return_value=[mock_result])
+        
+        # Set up the connection to use our mock client
+        mock_connection.client = mock_client
+        mock_connection.connected = True
         mock_connection.call_tool = AsyncMock(return_value=[mock_result])
+        mock_connection.get_tools = AsyncMock(return_value=[
+            {"name": "test_tool", "inputSchema": {"type": "object", "properties": {"arg": {"type": "string"}}}}
+        ])
 
         with patch.object(self.cli.browser, 'get_current_connection') as mock_get:
             mock_get.return_value = mock_connection
@@ -230,12 +246,16 @@ class TestMCPBrowserCLI:
     async def test_cmd_call_tool_invalid_json(self):
         """Test calling a tool with invalid JSON arguments."""
         mock_connection = Mock()
+        # Mock get_tools for validation
+        mock_connection.get_tools = AsyncMock(return_value=[
+            {"name": "test_tool", "inputSchema": {"type": "object"}}
+        ])
 
         with patch.object(self.cli.browser, 'get_current_connection') as mock_get:
             mock_get.return_value = mock_connection
 
             output = await self.capture_json_output(
-                self.cli.cmd_call(["test_tool", "{invalid json}"])
+                self.cli.cmd_call(["test_tool", '{"invalid": json}'])
             )
 
             # Should show error as JSON

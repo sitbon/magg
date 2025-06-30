@@ -91,7 +91,7 @@ class TestToolDiscovery:
     @pytest.mark.asyncio
     async def test_server_tool_listing(self):
         """Test listing tools from a server via Client."""
-        from magg.server import MaggServer
+        from magg.server.server import MaggServer
 
         server = MaggServer()
         await server.setup()
@@ -109,7 +109,7 @@ class TestToolDiscovery:
     @pytest.mark.asyncio
     async def test_mounted_server_tools(self):
         """Test that mounted server tools appear in listings."""
-        from magg.server import MaggServer
+        from magg.server.server import MaggServer
 
         server = MaggServer()
         await server.setup()

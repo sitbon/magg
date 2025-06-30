@@ -5,7 +5,7 @@ from pathlib import Path
 from unittest.mock import AsyncMock, patch
 import tempfile
 
-from magg.server import MaggServer
+from magg.server.server import MaggServer
 from magg.settings import MaggConfig
 
 

@@ -2,7 +2,7 @@
 
 import pytest
 from fastmcp import Client
-from magg.server import MaggServer
+from magg.server.server import MaggServer
 import tempfile
 from pathlib import Path
 
@@ -14,18 +14,17 @@ class TestMaggBasicFunctionality:
     async def test_basic_setup_and_tools(self, tmp_path):
         """Test Magg setup and tool availability."""
         config_path = tmp_path / "config.json"
-        server = MaggServer(config_path)
-        await server.setup()
+        server = MaggServer(config_path, enable_config_reload=False)
+        
+        async with server:
+            expected_tools = ["magg_list_servers", "magg_add_server", "magg_status", "magg_check"]
 
-        # Check for core Magg tools
-        expected_tools = ["magg_list_servers", "magg_add_server", "magg_status", "magg_check"]
+            async with Client(server.mcp) as client:
+                tools = await client.list_tools()
+                tool_names = [tool.name for tool in tools]
 
-        async with Client(server.mcp) as client:
-            tools = await client.list_tools()
-            tool_names = [tool.name for tool in tools]
-
-            for tool in expected_tools:
-                assert tool in tool_names
+                for tool in expected_tools:
+                    assert tool in tool_names
 
     # list_tools was removed from the server
     # @pytest.mark.asyncio
@@ -44,14 +43,14 @@ class TestMaggBasicFunctionality:
     async def test_list_servers(self, tmp_path):
         """Test listing servers."""
         config_path = tmp_path / "config.json"
-        server = MaggServer(config_path)
-        await server.setup()
-
-        async with Client(server.mcp) as client:
-            result = await client.call_tool("magg_list_servers", {})
-            assert len(result) > 0
-            assert hasattr(result[0], 'text')
-            assert isinstance(result[0].text, str)
+        server = MaggServer(config_path, enable_config_reload=False)
+        
+        async with server:
+            async with Client(server.mcp) as client:
+                result = await client.call_tool("magg_list_servers", {})
+                assert len(result) > 0
+                assert hasattr(result[0], 'text')
+                assert isinstance(result[0].text, str)
 
 
 class TestMaggServerManagement:
@@ -61,28 +60,27 @@ class TestMaggServerManagement:
     async def test_add_server(self, tmp_path):
         """Test adding a server."""
         config_path = tmp_path / "config.json"
-        server = MaggServer(config_path)
-        await server.setup()
+        server = MaggServer(config_path, enable_config_reload=False)
 
         import time
         unique_id = str(int(time.time()))
 
-        async with Client(server.mcp) as client:
-            # Add a server directly
-            server_name = f"testserver{unique_id}"
-            result = await client.call_tool("magg_add_server", {
-                "name": server_name,
-                "source": f"https://github.com/example/test-{unique_id}",
-                "prefix": "test",
-                "command": "echo test"
-            })
+        async with server:
+            async with Client(server.mcp) as client:
+                server_name = f"testserver{unique_id}"
+                result = await client.call_tool("magg_add_server", {
+                    "name": server_name,
+                    "source": f"https://github.com/example/test-{unique_id}",
+                    "prefix": "test",
+                    "command": "echo test",
+                    "enable": False  # Don't try to mount it
+                })
 
-            assert len(result) > 0
-            assert hasattr(result[0], 'text')
+                assert len(result) > 0
+                assert hasattr(result[0], 'text')
 
-            # Verify server was added by listing
-            result = await client.call_tool("magg_list_servers", {})
-            assert server_name in result[0].text
+                result = await client.call_tool("magg_list_servers", {})
+                assert server_name in result[0].text
 
 
 class TestMaggServerSearch:
@@ -93,16 +91,16 @@ class TestMaggServerSearch:
     async def test_search_servers(self, tmp_path):
         """Test server search (requires internet)."""
         config_path = tmp_path / "config.json"
-        server = MaggServer(config_path)
-        await server.setup()
+        server = MaggServer(config_path, enable_config_reload=False)
 
-        async with Client(server.mcp) as client:
-            try:
-                result = await client.call_tool("magg_search_servers", {
-                    "query": "filesystem",
-                    "limit": 3
-                })
-                assert len(result) > 0
-                assert hasattr(result[0], 'text')
-            except Exception as e:
-                pytest.skip(f"Search test failed (requires internet): {e}")
+        async with server:
+            async with Client(server.mcp) as client:
+                try:
+                    result = await client.call_tool("magg_search_servers", {
+                        "query": "filesystem",
+                        "limit": 3
+                    })
+                    assert len(result) > 0
+                    assert hasattr(result[0], 'text')
+                except Exception as e:
+                    pytest.skip(f"Search test failed (requires internet): {e}")

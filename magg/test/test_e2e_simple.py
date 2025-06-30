@@ -54,7 +54,7 @@ import os
 sys.path.insert(0, "{Path.cwd()}")
 os.chdir("{magg_dir}")
 
-from magg.server import MaggServer
+from magg.server.server import MaggServer
 import asyncio
 
 async def main():

@@ -132,6 +132,7 @@ class ServerConfig(BaseSettings):
     cwd: Path | None = Field(None, description="Working directory")
     transport: dict[str, Any] | None = Field(None, description="Transport-specific configuration")
     enabled: bool = Field(True, description="Whether server is enabled")
+    kits: list[str] = Field(default_factory=list, description="List of kits this server was added from")
 
     @model_validator(mode='after')
     def set_default_prefix(self) -> 'ServerConfig':
@@ -219,6 +220,7 @@ class MaggConfig(BaseSettings):
     reload_poll_interval: float = Field(default=1.0, description="Config file poll interval in seconds (env: MAGG_RELOAD_POLL_INTERVAL)")
     reload_use_watchdog: bool | None = Field(default=None, description="Use file system notifications if available, None=auto-detect (env: MAGG_RELOAD_USE_WATCHDOG)")
     servers: dict[str, ServerConfig] = Field(default_factory=dict, description="Servers configuration (loaded from config_path)")
+    kits: list[str] = Field(default_factory=list, description="List of loaded kits")
 
     @model_validator(mode='after')
     def export_environment_variables(self) -> 'MaggConfig':
@@ -302,12 +304,15 @@ class ConfigManager:
             for name, server_data in data.pop('servers', {}).items():
                 try:
                     server_data['name'] = name
-                    servers[name] = ServerConfig(**server_data)
+                    servers[name] = ServerConfig.model_validate(server_data)
                 except Exception as e:
                     self.logger.error(f"Error loading server '{name}': {e}")
                     continue
 
             config.servers = servers
+
+            if 'kits' in data:
+                config.kits = data.pop('kits', [])
 
             for key, value in data.items():
                 if not hasattr(config, key):
@@ -334,7 +339,6 @@ class ConfigManager:
             if self._reload_manager:
                 self._reload_manager.ignore_next_change()
 
-            # Only save servers to JSON, other settings come from env
             data = {
                 'servers': {
                     name: server.model_dump(
@@ -345,6 +349,9 @@ class ConfigManager:
                     for name, server in config.servers.items()
                 }
             }
+
+            if config.kits:
+                data['kits'] = config.kits
 
             if not self.config_path.parent.exists():
                 self.logger.warning(f"Creating new directory: {self.config_path.parent}")

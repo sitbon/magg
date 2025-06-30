@@ -152,24 +152,29 @@ class MCPBrowserCLI:
         
         @kb.add('enter')
         def _(event):
-            """Handle Enter key - submit on empty line in multiline mode."""
+            """Handle Enter key - submit complete commands immediately."""
             buffer = event.app.current_buffer
-            
-            # Get current line
             document = buffer.document
-            current_line = document.current_line
+            text = document.text.strip()
             
-            # Check if we should submit (empty line after content)
-            if not current_line.strip() and document.text.strip():
-                # Check if the command needs continuation
-                validator_instance = self._create_input_validator()
-                if not validator_instance._needs_continuation(document.text.strip()):
-                    # Submit the command
+            # Check if the command needs continuation
+            validator_instance = self._create_input_validator()
+            
+            # For complete single-line commands, submit immediately
+            if text and not validator_instance._needs_continuation(text):
+                # Check if this is the first line (no newlines in document)
+                if '\n' not in document.text:
                     buffer.validate_and_handle()
                     return
             
-            # Otherwise, insert newline for multiline editing
-            buffer.insert_text('\n')
+            # Otherwise follow standard multiline behavior
+            # Insert newline unless it's an empty line after content
+            if not buffer.document.current_line.strip() and buffer.text.strip():
+                # Empty line after content - submit
+                buffer.validate_and_handle()
+            else:
+                # Continue editing
+                buffer.insert_text('\n')
         
         @kb.add('escape', 'enter')
         def _(event):
@@ -198,14 +203,15 @@ class MCPBrowserCLI:
         if wrap_count > 0:
             return " " * (width - 3) + "-> "  # Line wrapping
         else:
-            # Calculate padding to align with main prompt
+            # Calculate padding to align "... " with the input position
             current = self.browser.current_connection if self.browser.current_connection else None
             if current:
-                # "mbro:name> " -> align "... " to same position as ">"
-                padding = len(f"mbro:{current}> ") - 2  # -2 for "> "
+                # "mbro:name> " we want input after "... " to align with input after "> "
+                # So we need len("mbro:name> ") - 4 spaces before "... "
+                padding = len(f"mbro:{current}> ") - 4
             else:
-                # "mbro> " -> align "... " to same position as ">"
-                padding = len("mbro> ") - 2  # -2 for "> "
+                # "mbro> " -> similar calculation
+                padding = len("mbro> ") - 4
             
             spaces = " " * padding
             if self.formatter.use_rich:
@@ -415,53 +421,35 @@ class MCPBrowserCLI:
         """
         result = {}
         
-        # Join all args and split by spaces, but preserve quoted strings
-        full_args = " ".join(args)
-        
-        # Simple parser for key=value pairs
-        import shlex
-        try:
-            # Use shlex to handle quoted strings properly
-            tokens = shlex.split(full_args)
-        except ValueError:
-            # If shlex fails, fall back to simple split
-            tokens = full_args.split()
-        
-        for token in tokens:
-            if '=' in token:
-                key, value = token.split('=', 1)
+        # Process each argument individually
+        for arg in args:
+            if '=' not in arg:
+                continue
                 
-                # Skip empty keys
-                if not key:
-                    continue
-                
-                # Handle empty values
-                if not value:
-                    result[key] = ""
-                    continue
-                
-                # Try to parse the value as JSON to get proper types
-                try:
-                    # Handle booleans
-                    if value.lower() == 'true':
-                        result[key] = True
-                    elif value.lower() == 'false':
-                        result[key] = False
-                    # Try to parse as number
-                    elif value.replace('.', '', 1).replace('-', '', 1).isdigit():
-                        if '.' in value:
-                            result[key] = float(value)
-                        else:
-                            result[key] = int(value)
-                    else:
-                        # It's a string - remove quotes if present
-                        if (value.startswith('"') and value.endswith('"')) or \
-                           (value.startswith("'") and value.endswith("'")):
-                            result[key] = value[1:-1]
-                        else:
-                            result[key] = value
-                except:
-                    # If parsing fails, treat as string
+            key, value = arg.split('=', 1)
+            # Strip whitespace from key to handle cases like ' a=1'
+            key = key.strip()
+            
+            # Skip empty keys
+            if not key:
+                continue
+            
+            # Try to parse the value to get proper types
+            if value.lower() == 'true':
+                result[key] = True
+            elif value.lower() == 'false':
+                result[key] = False
+            elif value.replace('.', '', 1).replace('-', '', 1).isdigit():
+                if '.' in value:
+                    result[key] = float(value)
+                else:
+                    result[key] = int(value)
+            else:
+                # String value - remove quotes if present
+                if (value.startswith('"') and value.endswith('"')) or \
+                   (value.startswith("'") and value.endswith("'")):
+                    result[key] = value[1:-1]
+                else:
                     result[key] = value
         
         return result
@@ -502,11 +490,7 @@ class MCPBrowserCLI:
 
         if not self.formatter.json_only:
             self.formatter.print("MBRO - MCP Browser", file=sys.stderr)
-            if self.use_enhanced:
-                self.formatter.print("Type 'help' for available commands or 'quit' to exit.", file=sys.stderr)
-                self.formatter.print("Enhanced mode: Python REPL-style multiline, natural language supported\n", file=sys.stderr)
-            else:
-                self.formatter.print("Type 'help' for available commands or 'quit' to exit.\n", file=sys.stderr)
+            self.formatter.print("Type 'help' for available commands or 'quit' to exit.\n", file=sys.stderr)
 
         session = self.create_prompt_session()
 
@@ -552,37 +536,58 @@ class MCPBrowserCLI:
 
     async def handle_command(self, command: str):
         """Handle a CLI command."""
-        # Preprocess multiline commands - handle backslash continuations
-        if '\n' in command:
-            lines = command.split('\n')
-            processed_lines = []
-            i = 0
-            while i < len(lines):
-                line = lines[i]
-                # Check if line ends with backslash (continuation)
-                if line.rstrip().endswith('\\'):
-                    # Remove the backslash and add a space before next line
-                    processed_lines.append(line.rstrip()[:-1])
-                    if i + 1 < len(lines):
-                        # Add a space only if not inside quotes
-                        processed_lines.append(' ')
+        # Handle multiline commands properly
+        # First remove backslash-newline continuations
+        command = command.replace('\\\n', ' ')
+        # Then replace any remaining newlines with spaces
+        command = command.replace('\n', ' ').strip()
+        
+        # Special handling for commands with JSON arguments
+        # Check if this looks like a command with JSON (has '{' after first word)
+        if '{' in command:
+            # Find the start of potential JSON
+            json_start = command.find('{')
+            prefix = command[:json_start].strip()
+            json_part = command[json_start:].strip()
+            
+            # Check if the JSON part is properly balanced
+            if json_part.count('{') == json_part.count('}'):
+                # Split the prefix to get command and tool name
+                prefix_parts = prefix.split()
+                if prefix_parts:
+                    cmd = prefix_parts[0].lower()
+                    args = prefix_parts[1:] + [json_part] if len(prefix_parts) > 1 else [json_part]
+                    
+                    # Validate this is a command that accepts JSON
+                    if cmd in ['call', 'prompt', 'get-prompt']:
+                        if not args:
+                            return
+                        # Successfully parsed command with JSON
+                    else:
+                        # Not a JSON command, use regular parsing
+                        cmd = None
                 else:
-                    processed_lines.append(line)
-                i += 1
-            command = ''.join(processed_lines)
+                    cmd = None
+            else:
+                cmd = None
+        else:
+            cmd = None
         
-        # Use shlex to properly handle quoted strings
-        import shlex
-        try:
-            parts = shlex.split(command)
-        except ValueError:
-            # If shlex fails, fall back to simple split
-            parts = command.split()
-        
-        if not parts:
-            return
-        cmd = parts[0].lower()
-        args = parts[1:]
+        # If special JSON handling didn't work, use regular parsing
+        if cmd is None:
+            # Use shlex to properly handle quoted strings and shell-style parsing
+            import shlex
+            try:
+                # shlex handles the actual parsing
+                parts = shlex.split(command)
+            except ValueError:
+                # If shlex fails, fall back to simple split
+                parts = command.split()
+            
+            if not parts:
+                return
+            cmd = parts[0].lower()
+            args = parts[1:]
 
         if cmd == "help":
             self.show_help()
@@ -824,17 +829,15 @@ class MCPBrowserCLI:
     async def cmd_call(self, args: list[str]):
         """Call a tool."""
         if not args:
-            self.formatter.format_error("Usage: call <tool_name> [json_arguments]")
+            self.formatter.format_error("Usage: call <tool_name> [arguments]")
             if not self.formatter.json_only:
                 self.formatter.format_info("\nExamples:\n"
                                            "  call magg_status\n"
-                                           "  call magg_search_tools {\"query\": \"calculator\", \"limit\": 3}\n"
-                                           "  call add {\"a\": 5, \"b\": 3}\n"
+                                           "  call calc_add a=5 b=3\n"
+                                           "  call magg_search_servers query=\"calculator\" limit=3\n"
+                                           "  call test_echo {\"message\": \"hello\", \"count\": 42}\n"
+                                           "\nNote: JSON arguments don't need quotes around the entire object."
                                            )
-                if self.use_enhanced:
-                    self.formatter.format_info("\nEnhanced features:\n"
-                                             "  - Natural language: 'call add with a=5 and b=3'\n" 
-                                             "  - Press Ctrl+M for multiline JSON editor\n")
             return
 
         conn = self.browser.get_current_connection()
@@ -859,24 +862,52 @@ class MCPBrowserCLI:
                             "\nJSON formatting tips:\n"
                             "  - Use double quotes for strings: {\"key\": \"value\"}\n"
                             "  - Numbers don't need quotes: {\"count\": 42}\n"
-                            "  - Booleans: {\"enabled\": true}"
+                            "  - Booleans: {\"enabled\": true}\n"
+                            "  - Don't quote the entire JSON object\n"
+                            "  - Example: call tool {\"param\": \"value\"}"
                         )
                     return
             else:
+                # Check for positional arguments (no '=' sign)
+                has_positional = False
+                for arg in args[1:]:
+                    if '=' not in arg and not arg.startswith('{'):
+                        has_positional = True
+                        break
+                
+                if has_positional:
+                    self.formatter.format_error("Positional arguments are not supported. Use key=value syntax.")
+                    self.formatter.format_info(f"Example: call {tool_name} a=1 b=2")
+                    return
+                
                 # Parse shell-like key=value syntax
-                # For multiline commands, args might contain the full command split by spaces
-                # We need to be careful to preserve quoted strings
                 arguments = self._parse_shell_args(args[1:])
-        # If no arguments and the tool needs them, show helpful message
-        elif len(args) == 1:
-            tools = await conn.get_tools()
-            tool = next((t for t in tools if t['name'] == tool_name), None)
-            if tool:
-                schema = tool.get('inputSchema', {})
-                if schema.get('required'):
-                    required = schema['required']
-                    self.formatter.format_error(f"Tool '{tool_name}' requires arguments: {required}")
-                    self.formatter.format_info("Usage: call <tool_name> <json_arguments>")
+        
+        # Validate required parameters
+        tools = await conn.get_tools()
+        tool = next((t for t in tools if t['name'] == tool_name), None)
+        if tool:
+            schema = tool.get('inputSchema', {})
+            required = schema.get('required', [])
+            if required:
+                missing = [param for param in required if param not in arguments]
+                if missing:
+                    self.formatter.format_error(f"Tool '{tool_name}' missing required parameters: {missing}")
+                    
+                    # Show parameter details if available
+                    properties = schema.get('properties', {})
+                    if properties and not self.formatter.json_only:
+                        self.formatter.format_info("\nRequired parameters:")
+                        for param in required:
+                            if param in properties:
+                                prop = properties[param]
+                                param_type = prop.get('type', 'string')
+                                desc = prop.get('description', 'No description')
+                                self.formatter.format_info(f"  {param}: {param_type} - {desc}")
+                    
+                    # Show example
+                    example_args = " ".join([f"{p}=<value>" for p in required])
+                    self.formatter.format_info(f"\nExample: call {tool_name} {example_args}")
                     return
 
         try:

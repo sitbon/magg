@@ -20,22 +20,23 @@ from ..discovery.metadata import CatalogManager, SourceMetadataCollector
 from ..settings import ServerConfig, ConfigManager
 from ..util.transport import TRANSPORT_DOCS
 from ..util.uri import validate_working_directory
+from ..util.transform import json_to_dict
 
 logger = logging.getLogger(__name__)
 
 
 class MaggServer(ManagedServer):
-    """Main Magg server with tools for managing other MCP servers."""
+    """Main Magg server with tools for managing other MCP servers.
+    """
 
     def __init__(self, config_path: Path | str | None = None, *, enable_config_reload: bool | None = None):
         # Keep track of whether config reload should be enabled
         config_manager = ConfigManager(config_path)
-        config = config_manager.load_config()
-        enable_config_reload = enable_config_reload if enable_config_reload is not None else config.auto_reload
         super().__init__(ServerManager(config_manager), enable_config_reload=enable_config_reload)
 
     def _register_tools(self):
-        """Register all Magg management tools programmatically."""
+        """Register all Magg management tools programmatically.
+        """
         self_prefix_ = self.self_prefix_
 
         tools = [
@@ -50,6 +51,10 @@ class MaggServer(ManagedServer):
             (self.status, f"{self_prefix_}status", None),
             (self.check, f"{self_prefix_}check", None),
             (self.reload_config_tool, f"{self_prefix_}reload_config", None),
+            (self.load_kit, f"{self_prefix_}load_kit", None),
+            (self.unload_kit, f"{self_prefix_}unload_kit", None),
+            (self.list_kits, f"{self_prefix_}list_kits", None),
+            (self.kit_info, f"{self_prefix_}kit_info", None),
         ]
 
         def call_tool_wrapper(func):
@@ -75,6 +80,8 @@ class MaggServer(ManagedServer):
         resources = [
             (self.get_server_metadata, f"{self.self_prefix}://server/{{name}}"),
             (self.get_all_servers_metadata, f"{self.self_prefix}://servers/all"),
+            (self.get_kit_metadata, f"{self.self_prefix}://kit/{{name}}"),
+            (self.get_all_kits_metadata, f"{self.self_prefix}://kits/all"),
         ]
 
         for method, uri_pattern in resources:
@@ -245,12 +252,12 @@ Documentation for proxy tool:
             description="Full command to run (e.g., 'python server.py', 'npx @playwright/mcp@latest')"
         )] = None,
         uri: Annotated[AnyUrl | None, Field(description="URI for HTTP servers")] = None,
-        env: Annotated[dict[str, str] | None, Field(description="Environment variables")] = None,
+        env: Annotated[dict[str, str] | str | None, Field(description="Environment variables (dict or JSON string)")] = None,
         cwd: Annotated[str | None, Field(description="Working directory (for commands)")] = None,
         notes: Annotated[str | None, Field(description="Setup notes")] = None,
         enable: Annotated[bool | None, Field(description="Whether to enable the server immediately (default: True)")] = True,
-        transport: Annotated[dict[str, Any] | None, Field(
-            description=f"Transport-specific configuration (optional){TRANSPORT_DOCS}"
+        transport: Annotated[dict[str, Any] | str | None, Field(
+            description=f"Transport-specific configuration (dict or JSON string){TRANSPORT_DOCS}"
         )] = None,
     ) -> MaggResponse:
         """Add a new MCP server."""
@@ -286,11 +293,11 @@ Documentation for proxy tool:
                     command=actual_command,
                     args=actual_args,
                     uri=uri,
-                    env=env,
+                    env=json_to_dict(env),
                     cwd=cwd,
                     notes=notes,
                     enabled=enable if enable is not None else True,
-                    transport=transport or {},
+                    transport=json_to_dict(transport),
                 )
             except ValueError as e:
                 return MaggResponse.error(str(e))

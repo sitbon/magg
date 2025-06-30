@@ -11,7 +11,7 @@ import logging
 # Add magg to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from magg.server.server import MaggServer
+from magg.server.server.server import MaggServer
 from magg.server.runner import MaggRunner
 from magg import process
 

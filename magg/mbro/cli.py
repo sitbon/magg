@@ -490,11 +490,7 @@ class MCPBrowserCLI:
 
         if not self.formatter.json_only:
             self.formatter.print("MBRO - MCP Browser", file=sys.stderr)
-            if self.use_enhanced:
-                self.formatter.print("Type 'help' for available commands or 'quit' to exit.", file=sys.stderr)
-                self.formatter.print("Enhanced mode: Python REPL-style multiline, natural language supported\n", file=sys.stderr)
-            else:
-                self.formatter.print("Type 'help' for available commands or 'quit' to exit.\n", file=sys.stderr)
+            self.formatter.print("Type 'help' for available commands or 'quit' to exit.\n", file=sys.stderr)
 
         session = self.create_prompt_session()
 
@@ -546,20 +542,52 @@ class MCPBrowserCLI:
         # Then replace any remaining newlines with spaces
         command = command.replace('\n', ' ').strip()
         
-        # Use shlex to properly handle quoted strings and shell-style parsing
-        import shlex
-        try:
-            # shlex handles the actual parsing
-            parts = shlex.split(command)
-        except ValueError:
-            # If shlex fails, fall back to simple split
-            parts = command.split()
+        # Special handling for commands with JSON arguments
+        # Check if this looks like a command with JSON (has '{' after first word)
+        if '{' in command:
+            # Find the start of potential JSON
+            json_start = command.find('{')
+            prefix = command[:json_start].strip()
+            json_part = command[json_start:].strip()
+            
+            # Check if the JSON part is properly balanced
+            if json_part.count('{') == json_part.count('}'):
+                # Split the prefix to get command and tool name
+                prefix_parts = prefix.split()
+                if prefix_parts:
+                    cmd = prefix_parts[0].lower()
+                    args = prefix_parts[1:] + [json_part] if len(prefix_parts) > 1 else [json_part]
+                    
+                    # Validate this is a command that accepts JSON
+                    if cmd in ['call', 'prompt', 'get-prompt']:
+                        if not args:
+                            return
+                        # Successfully parsed command with JSON
+                    else:
+                        # Not a JSON command, use regular parsing
+                        cmd = None
+                else:
+                    cmd = None
+            else:
+                cmd = None
+        else:
+            cmd = None
         
-        
-        if not parts:
-            return
-        cmd = parts[0].lower()
-        args = parts[1:]
+        # If special JSON handling didn't work, use regular parsing
+        if cmd is None:
+            # Use shlex to properly handle quoted strings and shell-style parsing
+            import shlex
+            try:
+                # shlex handles the actual parsing
+                parts = shlex.split(command)
+            except ValueError:
+                # If shlex fails, fall back to simple split
+                parts = command.split()
+            
+            if not parts:
+                return
+            cmd = parts[0].lower()
+            args = parts[1:]
 
         if cmd == "help":
             self.show_help()
@@ -807,6 +835,8 @@ class MCPBrowserCLI:
                                            "  call magg_status\n"
                                            "  call calc_add a=5 b=3\n"
                                            "  call magg_search_servers query=\"calculator\" limit=3\n"
+                                           "  call test_echo {\"message\": \"hello\", \"count\": 42}\n"
+                                           "\nNote: JSON arguments don't need quotes around the entire object."
                                            )
             return
 
@@ -832,7 +862,9 @@ class MCPBrowserCLI:
                             "\nJSON formatting tips:\n"
                             "  - Use double quotes for strings: {\"key\": \"value\"}\n"
                             "  - Numbers don't need quotes: {\"count\": 42}\n"
-                            "  - Booleans: {\"enabled\": true}"
+                            "  - Booleans: {\"enabled\": true}\n"
+                            "  - Don't quote the entire JSON object\n"
+                            "  - Example: call tool {\"param\": \"value\"}"
                         )
                     return
             else:

@@ -1,7 +1,7 @@
 """Transformation utilities for MCP results.
 """
 import base64
-from typing import TypeAlias
+from typing import TypeAlias, Any
 
 from mcp import GetPromptResult
 from mcp.types import (
@@ -20,6 +20,7 @@ __all__ = (
     "prompt_result_as_tool_result", "tool_result_as_prompt_result",
     "annotate_content", "deserialize_embedded_resource_python_object",
     "embed_python_object_list_in_resource", "get_mcp_result_contents",
+    "json_to_dict", "json_to_list",
 )
 
 
@@ -371,3 +372,43 @@ def annotate_content(
                 setattr(data.annotations, key, value)
 
     return data
+
+
+def json_to_dict(value: Any) -> dict[str, Any] | Any:
+    """Convert a JSON string to a dict, or pass through if not a string.
+    
+    Args:
+        value: A JSON string, dict, or any other value
+        
+    Returns:
+        If value is a string containing valid JSON that decodes to a dict, returns the dict.
+        Otherwise, returns the original value unchanged.
+    """
+    if isinstance(value, str):
+        try:
+            parsed = json.loads(value)
+            if isinstance(parsed, dict):
+                return parsed
+        except (json.JSONDecodeError, TypeError):
+            pass
+    return value
+
+
+def json_to_list(value: Any) -> list[Any] | Any:
+    """Convert a JSON string to a list, or pass through if not a string.
+    
+    Args:
+        value: A JSON string, list, or any other value
+        
+    Returns:
+        If value is a string containing valid JSON that decodes to a list, returns the list.
+        Otherwise, returns the original value unchanged.
+    """
+    if isinstance(value, str):
+        try:
+            parsed = json.loads(value)
+            if isinstance(parsed, list):
+                return parsed
+        except (json.JSONDecodeError, TypeError):
+            pass
+    return value

@@ -10,7 +10,7 @@ from pydantic import Field, BaseModel
 from .types import LiteralProxyType, LiteralProxyAction
 from ..util.transform import resource_result_as_tool_result, prompt_result_as_tool_result, annotate_content, \
     embed_python_object_list_in_resource, embed_python_object_in_resource, get_embedded_resource_python_object, \
-    deserialize_embedded_resource_python_object
+    deserialize_embedded_resource_python_object, json_to_dict
 
 __all__ = (
     "ProxyMCP",
@@ -74,8 +74,8 @@ class ProxyMCP:
             description="Type of MCP capability to interact with: tool, resource, or prompt.",
             alias="type"
         )],
-        args: Annotated[dict[str, Any] | None, Field(
-            description="Arguments for a 'call' action (call tool, read resource, or get prompt)."
+        args: Annotated[dict[str, Any] | str | None, Field(
+            description="Arguments for a 'call' action (call tool, read resource, or get prompt). Can be a dict or JSON string."
         )] = None,
         path: Annotated[str | None, Field(
             description="Name or URI of the specific tool/resource/prompt (with FastMCP prefixing).\n"
@@ -138,7 +138,7 @@ class ProxyMCP:
                 )
 
         elif action == "call":
-            result = await self._proxy_call(a_type, path, args or {})
+            result = await self._proxy_call(a_type, path, json_to_dict(args))
         else:
             raise ValueError(
                 f"Unknown action: {action!r}. Supported actions are 'list', 'info', and 'call'."

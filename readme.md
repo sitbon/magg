@@ -39,6 +39,7 @@ Think of Magg as a "package manager for LLM tools" - it lets AI assistants insta
 - **Health Monitoring**: Built-in `magg_status` and `magg_check` tools for server health checks.
 - **Real-time Messaging**: Full support for MCP notifications and messages - receive tool/resource updates and progress notifications from backend servers.
 - **Python 3.12+ Support**: Fully compatible with Python 3.12 and 3.13.
+- **Kit Management**: Bundle related MCP servers into kits for easy loading/unloading as a group.
 
 ## Installation
 
@@ -191,6 +192,10 @@ Once Magg is running, it exposes the following tools to LLMs:
 - `magg_status` - Get server and tool statistics
 - `magg_check` - Health check servers with repair actions (report/remount/unmount/disable)
 - `magg_reload_config` - Reload configuration from disk and apply changes
+- `magg_load_kit` - Load a kit and its servers into the configuration
+- `magg_unload_kit` - Unload a kit and optionally its servers from the configuration
+- `magg_list_kits` - List all available kits with their status
+- `magg_kit_info` - Get detailed information about a specific kit
 
 ### Authentication
 
@@ -320,6 +325,23 @@ async with MaggClient("http://localhost:8000/mcp", message_handler=handler) as c
 ```
 
 See [Messaging Documentation](docs/messaging.md) for advanced usage including custom message handlers.
+
+### Kit Management
+
+Magg supports organizing related MCP servers into "kits" - bundles that can be loaded and unloaded as a group:
+
+```bash
+# List available kits
+mbro call magg_list_kits
+
+# Load a kit (adds all its servers)
+mbro call magg_load_kit name="web-tools"
+
+# Unload a kit (removes servers only in that kit)
+mbro call magg_unload_kit name="web-tools"
+```
+
+Kits are JSON files stored in `~/.magg/kit.d/` or `.magg/kit.d/` that define a collection of related servers. See [Kit Documentation](docs/kits.md) for details on creating and managing kits.
 
 ## Documentation
 

@@ -33,16 +33,16 @@ Parameters:
           Arguments will be split automatically.
   uri (string | null) (optional)
     URI for HTTP servers
-  env (object | null) (optional)
-    Environment variables
+  env (object | string | null) (optional)
+    Environment variables (dict or JSON string)
   cwd (string | null) (optional)
     Working directory (for commands)
   notes (string | null) (optional)
     Setup notes
   enable (boolean | null) (optional)
     Whether to enable the server immediately (default: True)
-  transport (object | null) (optional)
-    Transport-specific configuration (optional)
+  transport (object | string | null) (optional)
+    Transport-specific configuration (dict or JSON string)
     Common options for all command-based servers:
     - `keep_alive` (boolean): Keep the process alive between requests (default: true)
 
@@ -119,8 +119,9 @@ Parameters:
     Action to perform: list, info, or call.
   type (string) (required)
     Type of MCP capability to interact with: tool, resource, or prompt.
-  args (object | null) (optional)
+  args (object | string | null) (optional)
     Arguments for a 'call' action (call tool, read resource, or get prompt).
+    Can be provided as a dict or JSON string (automatically parsed).
   path (string | null) (optional)
     Name or URI of the specific tool/resource/prompt (with FastMCP prefixing).
     Not allowed for 'list' and 'info' actions.

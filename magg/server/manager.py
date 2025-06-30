@@ -4,12 +4,15 @@ import asyncio
 import logging
 from functools import cached_property
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Annotated
 
 from fastmcp import FastMCP, Client
+from pydantic import Field
 
 from .defaults import MAGG_INSTRUCTIONS
+from .response import MaggResponse
 from ..auth import BearerAuthManager
+from ..kit import KitManager
 from ..reload import ConfigChange, ServerChange
 from ..proxy.server import ProxyFastMCP
 from ..settings import ConfigManager, MaggConfig, ServerConfig
@@ -277,13 +280,24 @@ class ServerManager:
 
 
 class ManagedServer:
+    kit_manager: KitManager
     server_manager: ServerManager
     _enable_config_reload: bool | None
     _is_setup = False
 
     def __init__(self, server_manager: ServerManager, *, enable_config_reload: bool | None = None):
         self.server_manager = server_manager
+
+        config = server_manager.config_manager.load_config()
+
+        if enable_config_reload is None:
+            enable_config_reload = config.auto_reload
+
         self._enable_config_reload = enable_config_reload
+
+        self.kit_manager = KitManager(server_manager.config_manager)
+        self.kit_manager.load_kits_from_config(config)
+
         self._register_tools()
 
     @property
@@ -394,6 +408,155 @@ class ManagedServer:
             )
 
         return await self.server_manager.config_manager.reload_config()
+
+    # ============================================================================
+    # endregion
+    # ============================================================================
+
+
+    # ============================================================================
+    # region Kit Management Tools
+    # ============================================================================
+
+    async def load_kit(
+            self,
+            name: Annotated[str, Field(description="Kit name to load (filename without .json)")],
+    ) -> MaggResponse:
+        """Load a kit and its servers into the configuration."""
+        try:
+            config = self.config
+            success, message = self.kit_manager.load_kit_to_config(name, config)
+
+            if success:
+                if not self.save_config(config):
+                    return MaggResponse.error("Failed to save configuration")
+
+                for server_name, server in config.servers.items():
+                    if server.enabled and server_name not in self.server_manager.mounted_servers:
+                        await self.server_manager.mount_server(server)
+
+                return MaggResponse.success({
+                    "action": "kit_loaded",
+                    "kit": name,
+                    "message": message
+                })
+            else:
+                return MaggResponse.error(message)
+
+        except Exception as e:
+            return MaggResponse.error(f"Failed to load kit: {str(e)}")
+
+    async def unload_kit(
+            self,
+            name: Annotated[str, Field(description="Kit name to unload")],
+    ) -> MaggResponse:
+        """Unload a kit and optionally its servers from the configuration."""
+        try:
+            config = self.config
+
+            # Track servers before removal
+            servers_before = set(config.servers.keys())
+
+            success, message = self.kit_manager.unload_kit_from_config(name, config)
+
+            if success:
+                # Save the config
+                if not self.save_config(config):
+                    return MaggResponse.error("Failed to save configuration")
+                # Unmount any removed servers
+                servers_after = set(config.servers.keys())
+                removed_servers = servers_before - servers_after
+
+                for server_name in removed_servers:
+                    if server_name in self.server_manager.mounted_servers:
+                        await self.server_manager.unmount_server(server_name)
+
+                return MaggResponse.success({
+                    "action": "kit_unloaded",
+                    "kit": name,
+                    "message": message
+                })
+            else:
+                return MaggResponse.error(message)
+
+        except Exception as e:
+            return MaggResponse.error(f"Failed to unload kit: {str(e)}")
+
+    async def list_kits(self) -> MaggResponse:
+        """List all available kits with their status."""
+        try:
+            kits = self.kit_manager.list_all_kits()
+
+            return MaggResponse.success({
+                "kits": kits,
+                "summary": {
+                    "total": len(kits),
+                    "loaded": len([k for k in kits.values() if k['loaded']]),
+                    "available": len([k for k in kits.values() if not k['loaded']])
+                }
+            })
+
+        except Exception as e:
+            return MaggResponse.error(f"Failed to list kits: {str(e)}")
+
+    async def kit_info(
+            self,
+            name: Annotated[str, Field(description="Kit name to get information about")],
+    ) -> MaggResponse:
+        """Get detailed information about a specific kit."""
+        try:
+            info = self.kit_manager.get_kit_details(name)
+
+            if info:
+                return MaggResponse.success(info)
+            else:
+                return MaggResponse.error(f"Kit '{name}' not found")
+
+        except Exception as e:
+            return MaggResponse.error(f"Failed to get kit info: {str(e)}")
+
+    # ============================================================================
+    # endregion
+    # region Kit Resources - Kit configurations suitable for saving as JSON files
+    # ============================================================================
+
+    async def get_kit_metadata(self, name: str) -> dict:
+        """Expose kit metadata as an MCP resource suitable for saving as a kit file.
+        
+        Only returns kits that are currently loaded in memory.
+        """
+        loaded_kits = self.kit_manager.kits
+        
+        if name not in loaded_kits:
+            raise ValueError(f"Kit '{name}' not found in loaded kits")
+        
+        kit_config = loaded_kits[name]
+
+        return kit_config.model_dump(
+            mode="json",
+            exclude_none=True,
+            exclude_defaults=True,
+            exclude_unset=True,
+            by_alias=True
+        )
+    
+    async def get_all_kits_metadata(self) -> dict[str, dict]:
+        """Expose all loaded kits metadata as an MCP resource.
+        
+        Only returns kits that are currently loaded in memory.
+        """
+        result = {}
+
+        for kit_name, kit_config in self.kit_manager.kits.items():
+            result[kit_name] = kit_config.model_dump(
+                mode="json",
+                exclude_none=True,
+                exclude_defaults=True,
+                exclude_unset=True,
+                by_alias=True
+            )
+        
+        return result
 
     # ============================================================================
     # endregion

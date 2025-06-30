@@ -6,7 +6,7 @@ import os
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from magg.server import MaggServer
+from magg.server.server import MaggServer
 from magg.settings import MaggConfig, ConfigManager, ServerConfig
 
 

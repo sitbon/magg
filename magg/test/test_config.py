@@ -66,25 +66,13 @@ class TestServerConfig:
         ServerConfig(name="test", source="test", prefix="validprefix")
 
         # Invalid prefixes - no underscores allowed
-        with pytest.raises(ValueError, match="cannot contain '_'"):
+        with pytest.raises(ValueError, match="cannot contain underscores"):
             ServerConfig(name="test", source="test", prefix="invalid_prefix")
 
         # Invalid prefixes - must be identifier
         with pytest.raises(ValueError, match="must be a valid Python identifier"):
             ServerConfig(name="test", source="test", prefix="123invalid")
 
-    def test_prefix_generation(self):
-        """Test the generate_prefix_from_name helper method."""
-        # Test various name patterns
-        assert ServerConfig.generate_prefix_from_name("simple") == "simple"
-        assert ServerConfig.generate_prefix_from_name("weather-mcp") == "weathermcp"
-        assert ServerConfig.generate_prefix_from_name("test_server") == "testserver"
-        assert ServerConfig.generate_prefix_from_name("my.package.name") == "mypackagename"
-        assert ServerConfig.generate_prefix_from_name("123-start") == "srv123start"
-        assert ServerConfig.generate_prefix_from_name("@namespace/package") == "namespacepackage"
-        assert ServerConfig.generate_prefix_from_name("UPPERCASE") == "uppercase"
-        assert ServerConfig.generate_prefix_from_name("") == "server"
-        assert ServerConfig.generate_prefix_from_name("!!!") == "server"
 
 
 class TestMaggConfig:

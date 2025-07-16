@@ -842,6 +842,86 @@ Check logs for:
 - Tool delegation errors
 - Configuration problems
 
+### Tool Naming and Prefix System
+
+#### Understanding Tool Names
+
+Magg organizes tools from multiple servers using a prefix system. Every tool name follows this pattern:
+
+```
+{prefix}{separator}{tool_name}
+```
+
+Where:
+- `prefix` is the namespace for a server (configurable per server)
+- `separator` is configurable via `prefix_sep` field or `MAGG_PREFIX_SEP` env var (default: `_`)
+- `tool_name` is the original tool name from the server
+
+Examples:
+- `calc_add` - "add" tool from server with "calc" prefix
+- `pw_screenshot` - "screenshot" tool from server with "pw" prefix  
+- `magg_list_servers` - "list_servers" tool from Magg itself
+- `read_file` - "read_file" tool from server with no prefix
+
+#### Configuring Server Prefixes
+
+When adding a server, specify the `prefix` field:
+
+```json
+{
+  "name": "calculator",
+  "source": "...",
+  "prefix": "calc"      // All tools will be calc_*
+}
+```
+
+Special cases:
+- `"prefix": ""` or `"prefix": null` - No prefix, tools keep original names
+- Omitting prefix field - Server name is used as default prefix
+- Multiple servers can share the same prefix (tools are merged)
+
+#### Configuring Magg's Prefix
+
+Magg's own tools use the prefix from `MAGG_SELF_PREFIX`:
+
+```bash
+# Default: magg_list_servers, magg_add_server, etc.
+export MAGG_SELF_PREFIX=magg
+
+# Custom: myapp_list_servers, myapp_add_server, etc.
+export MAGG_SELF_PREFIX=myapp
+
+# No prefix: list_servers, add_server, etc.
+export MAGG_SELF_PREFIX=""
+```
+
+#### Configuring the Separator
+
+You can change the separator between prefix and tool name:
+
+```bash
+# Default underscore separator: calc_add, magg_list_servers
+export MAGG_PREFIX_SEP="_"
+
+# Dash separator: calc-add, magg-list-servers  
+export MAGG_PREFIX_SEP="-"
+
+# Dot separator: calc.add, magg.list.servers
+export MAGG_PREFIX_SEP="."
+
+# No separator: calcadd, magglistservers
+export MAGG_PREFIX_SEP=""
+```
+
+#### Prefix Validation Rules
+
+- Must be valid Python identifiers (alphanumeric, not starting with digit)
+- Cannot contain the separator character (default: underscore, but configurable)
+- Case-sensitive
+- Empty string allowed (results in no prefix)
+
+Note: While the separator is configurable, server prefixes currently still cannot contain underscores due to Python identifier constraints.
+
 ### Performance Optimization
 
 1. **Disable unused servers** to reduce memory usage

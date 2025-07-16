@@ -4,10 +4,10 @@ import logging
 import os
 from functools import cached_property
 from pathlib import Path
-from typing import Any, ClassVar, Callable, Coroutine, TYPE_CHECKING
+from typing import Any, Callable, Coroutine, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from .reload import ConfigReloader, ConfigChange
+    from .reload import ConfigChange
 
 from pydantic import field_validator, Field, model_validator, AnyUrl
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -114,13 +114,11 @@ class ServerConfig(BaseSettings):
         arbitrary_types_allowed=True,
     )
 
-    PREFIX_SEP: ClassVar[str] = "_"
-
     name: str = Field(..., description="Unique server name - can contain any characters")
     source: str = Field(..., description="URL/URI/path of the server package, repository, or listing")
     prefix: str | None = Field(
         default=None,
-        description=f"Tool prefix for this server - must be a valid Python identifier without {PREFIX_SEP!r}."
+        description="Tool prefix for this server - must be a valid Python identifier without underscores."
     )
     notes: str | None = Field(None, description="Setup notes for LLM and humans")
 
@@ -147,9 +145,9 @@ class ServerConfig(BaseSettings):
                 raise ValueError(
                     f"Server prefix {v!r} must be a valid Python identifier (letters and numbers only, not starting with a number)"
                 )
-            if cls.PREFIX_SEP in v:
+            if "_" in v:
                 raise ValueError(
-                    f"Server prefix {v!r} must be a valid Python identifier and cannot contain {cls.PREFIX_SEP!r}"
+                    f"Server prefix {v!r} must be a valid Python identifier and cannot contain underscores"
                 )
         return v
 
@@ -164,31 +162,6 @@ class ServerConfig(BaseSettings):
         if v:
             AnyUrl(v)  # Validate as URL
         return v
-
-    @classmethod
-    def generate_prefix_from_name(cls, name: str) -> str:
-        """Generate a valid prefix from a server name.
-
-        Removes special characters and ensures it's a valid Python identifier
-        without underscores.
-        """
-        prefix = (
-            name.replace('-', '')
-                .replace('_', '')
-                .replace('.', '')
-                .replace(' ', '')
-                .replace(cls.PREFIX_SEP, '')
-        )
-
-        prefix = ''.join(c for c in prefix if c.isalnum())
-
-        if prefix and prefix[0].isdigit():
-            prefix = 'srv' + prefix
-
-        if not prefix or not prefix.isidentifier():
-            prefix = 'server'
-
-        return prefix.lower()[:30]
 
 
 class MaggConfig(BaseSettings):
@@ -213,6 +186,10 @@ class MaggConfig(BaseSettings):
     self_prefix: str = Field(
         default="magg",
         description="Prefix for Magg tools and commands - must be a valid Python identifier without underscores (env: MAGG_SELF_PREFIX)"
+    )
+    prefix_sep: str = Field(
+        default="_",
+        description="Separator between prefix and tool name (env: MAGG_PREFIX_SEP)"
     )
     auto_reload: bool = Field(default=True, description="Enable automatic config reloading on file changes (env: MAGG_AUTO_RELOAD)")
     reload_poll_interval: float = Field(default=1.0, description="Config file poll interval in seconds (env: MAGG_RELOAD_POLL_INTERVAL)")

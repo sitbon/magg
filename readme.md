@@ -281,7 +281,8 @@ Magg supports several environment variables for configuration:
 - `MAGG_RELOAD_POLL_INTERVAL` - Config polling interval in seconds (default: 1.0)
 - `MAGG_READ_ONLY=true` - Run in read-only mode
 - `MAGG_QUIET=true` - Suppress output unless errors occur
-- `MAGG_SELF_PREFIX` - Prefix for Magg tools (default: "magg")
+- `MAGG_SELF_PREFIX` - Prefix for Magg tools (default: "magg"). Tools will be named as `{prefix}{sep}{tool}` (e.g., `magg_list_servers`)
+- `MAGG_PREFIX_SEP` - Separator between prefix and tool name (default: "_")
 
 Example configuration:
 ```json

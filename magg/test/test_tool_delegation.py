@@ -145,7 +145,8 @@ class TestToolDiscovery:
             assert "test_test_tool2" in tool_names
 
             # Verify we have tools from both servers
-            magg_tools = [t for t in tool_names if t.startswith("magg_")]
+            server_prefix = server.self_prefix_
+            magg_tools = [t for t in tool_names if t.startswith(server_prefix)]
             test_tools = [t for t in tool_names if t.startswith("test_")]
 
             assert len(magg_tools) >= 2  # At least magg_list_servers and magg_add_server

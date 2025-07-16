@@ -60,7 +60,7 @@ class ServerManager:
     @cached_property
     def prefix_separator(self) -> str:
         """Get the prefix separator for this Magg server - cannot be changed during process lifetime."""
-        return ServerConfig.PREFIX_SEP
+        return self.config.prefix_sep
 
     @cached_property
     def self_prefix(self) -> str:

@@ -72,7 +72,11 @@ class WatchdogHandler(FileSystemEventHandler):
     def __init__(self, config_path: Path, reload_event: asyncio.Event):
         self.config_path = config_path
         self.reload_event = reload_event
-        self._loop = asyncio.get_event_loop()
+        try:
+            self._loop = asyncio.get_running_loop()
+        except RuntimeError:
+            # Not in an async context, get the event loop
+            self._loop = asyncio.get_event_loop()
 
     def on_modified(self, event):
         """Handle file modification events."""

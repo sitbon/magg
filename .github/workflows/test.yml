@@ -3,8 +3,18 @@ name: Tests
 on:
   push:
     branches: ['*']
+    paths:
+      - 'magg/**'
+      - 'tests/**'
+      - 'pyproject.toml'
+      - 'uv.lock'
   pull_request:
     branches: ['*']
+    paths:
+      - 'magg/**'
+      - 'tests/**'
+      - 'pyproject.toml'
+      - 'uv.lock'
 
 jobs:
   test:

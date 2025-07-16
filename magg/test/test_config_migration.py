@@ -57,7 +57,7 @@ class TestConfigStructure:
 
         filesystem = loaded_config.servers["filesystemserver"]
         assert filesystem.uri == "http://localhost:8080"
-        assert filesystem.prefix == "filesystemserver"  # Default prefix
+        assert filesystem.prefix is None  # Default is None now
 
     def test_config_serialization_format(self, temp_config_file):
         """Test the actual JSON format of saved config."""
@@ -119,7 +119,7 @@ class TestConfigStructure:
 
         assert minimal.name == "minimal"
         assert minimal.source == "https://example.com"
-        assert minimal.prefix == "minimal"  # Defaults to name
+        assert minimal.prefix is None  # Default is None now
         assert minimal.enabled is True  # Default enabled
         assert minimal.command is None
         assert minimal.args is None
@@ -167,6 +167,6 @@ class TestConfigStructure:
         assert "valid" in config.servers
         assert "123invalid" in config.servers
 
-        # Check that the problematic server got a valid prefix
+        # Check that the problematic server now has None prefix
         assert config.servers["123invalid"].name == "123invalid"
-        assert config.servers["123invalid"].prefix == "srv123invalid"  # Auto-generated prefix
+        assert config.servers["123invalid"].prefix is None  # Default is None now

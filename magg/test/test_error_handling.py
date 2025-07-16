@@ -83,12 +83,6 @@ class TestErrorHandling:
             assert result2.is_error
             assert "already exists" in result2.errors[0]
 
-    @pytest.mark.asyncio
-    async def test_circular_dependency_handling(self):
-        """Test handling of circular dependencies."""
-        # In the new architecture, we don't have dependencies between servers
-        # This test is no longer applicable
-        pytest.skip("Circular dependencies not applicable in new architecture")
 
     @pytest.mark.asyncio
     async def test_invalid_url_format_handling(self):

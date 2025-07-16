@@ -289,7 +289,7 @@ Documentation for proxy tool:
                 server = ServerConfig(
                     name=name,
                     source=source,
-                    prefix=prefix or "",
+                    prefix=prefix,
                     command=actual_command,
                     args=actual_args,
                     uri=uri,
@@ -739,7 +739,7 @@ Please provide:
                 "tools": {
                     "total": total_tools,
                 },
-                "prefixes": {s.name: s.prefix for s in config.servers.values()}
+                "prefixes": {s.name: s.prefix for s in config.servers.values() if s.prefix is not None}
             }
 
             return MaggResponse.success(status_data)

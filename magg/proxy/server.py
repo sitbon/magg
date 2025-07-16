@@ -20,40 +20,40 @@ __all__ = "ProxyFastMCP",
 
 class BackendMessageHandler(MessageHandler):
     """Message handler that forwards notifications from backend servers."""
-    
+
     def __init__(self, server_id: str, coordinator: ServerMessageCoordinator):
         super().__init__()
         self.server_id = server_id
         self.coordinator = coordinator
-    
+
     async def on_tool_list_changed(
         self,
         notification: mcp.types.ToolListChangedNotification
     ) -> None:
         """Forward tool list changed notification."""
         await self.coordinator.handle_tool_list_changed(notification, self.server_id)
-    
+
     async def on_resource_list_changed(
         self,
         notification: mcp.types.ResourceListChangedNotification
     ) -> None:
         """Forward resource list changed notification."""
         await self.coordinator.handle_resource_list_changed(notification, self.server_id)
-    
+
     async def on_prompt_list_changed(
         self,
         notification: mcp.types.PromptListChangedNotification
     ) -> None:
         """Forward prompt list changed notification."""
         await self.coordinator.handle_prompt_list_changed(notification, self.server_id)
-    
+
     async def on_progress(
         self,
         notification: mcp.types.ProgressNotification
     ) -> None:
         """Forward progress notification."""
         await self.coordinator.handle_progress(notification, self.server_id)
-    
+
     async def on_logging_message(
         self,
         notification: mcp.types.LoggingMessageNotification
@@ -64,7 +64,7 @@ class BackendMessageHandler(MessageHandler):
 
 class ProxyFastMCP(ProxyMCP, FastMCP):
     """FastMCP server with ProxyMCP capabilities and message forwarding."""
-    
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         # Initialize message routing
@@ -88,21 +88,21 @@ class ProxyFastMCP(ProxyMCP, FastMCP):
         )
 
         self.add_tool(tool)
-    
-    
+
+
     async def register_client_message_handler(
         self,
         handler: MessageHandler,
         client_id: str | None = None
     ) -> None:
         """Register a message handler for client notifications.
-        
+
         Args:
             handler: Message handler to register
             client_id: Optional client ID for targeted messaging
         """
         await self._message_router.register_handler(handler, client_id)
-    
+
     async def unregister_client_message_handler(
         self,
         handler: MessageHandler,
@@ -110,7 +110,7 @@ class ProxyFastMCP(ProxyMCP, FastMCP):
     ) -> None:
         """Unregister a client message handler."""
         await self._message_router.unregister_handler(handler, client_id)
-    
+
     @property
     def message_coordinator(self) -> ServerMessageCoordinator:
         """Access to the message coordinator for debugging/monitoring."""

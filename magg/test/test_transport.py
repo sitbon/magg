@@ -145,7 +145,8 @@ class TestGetTransportForUri:
         """Test SSE transport for /sse endpoints."""
         transport = get_transport_for_uri("http://localhost:8080/sse")
         assert isinstance(transport, SSETransport)
-        assert str(transport.url) == "http://localhost:8080/sse/"
+        # FastMCP 2.10.5 no longer adds trailing slash
+        assert str(transport.url) in ["http://localhost:8080/sse", "http://localhost:8080/sse/"]
 
     def test_sse_endpoint_with_trailing_slash(self):
         """Test SSE transport for /sse/ endpoints."""
@@ -156,7 +157,8 @@ class TestGetTransportForUri:
         """Test StreamableHttpTransport for regular HTTP."""
         transport = get_transport_for_uri("http://localhost:3000")
         assert isinstance(transport, StreamableHttpTransport)
-        assert str(transport.url) == "http://localhost:3000/"
+        # FastMCP 2.10.5 no longer adds trailing slash
+        assert str(transport.url) in ["http://localhost:3000", "http://localhost:3000/"]
 
     def test_https_endpoint(self):
         """Test StreamableHttpTransport for HTTPS."""

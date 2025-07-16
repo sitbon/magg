@@ -92,30 +92,6 @@ class TestFastMCPMounting:
         # Typically expect name and client parameters
         assert isinstance(params, list)
 
-    @pytest.mark.skip(reason="Requires running server for actual mounting")
-    def test_http_client_mounting(self, test_mcp):
-        """Test mounting HTTP client (requires running server)."""
-        http_client = Client("http://localhost:8080")
-
-        # This would require an actual running server
-        # test_mcp.mount("test_http", http_client)
-        pass
-
-    @pytest.mark.skip(reason="Requires external command for actual mounting")
-    def test_command_client_mounting(self, test_mcp):
-        """Test mounting command client (requires external command)."""
-        mcp_config = {
-            "mcpServers": {
-                "test": {
-                    "command": "echo hello"
-                }
-            }
-        }
-        command_client = Client(mcp_config)
-
-        # This would require the command to be available
-        # test_mcp.mount("test_cmd", command_client)
-        pass
 
 
 class TestClientLifespanCompatibility:

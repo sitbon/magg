@@ -40,13 +40,43 @@ The proxy tool accepts the following parameters:
   - For resources: typically not used (URI is in path)
   - For prompts: prompt-specific arguments
 
+- **limit** (optional): integer (1-1000)
+  - Maximum number of items to return
+  - Only allowed for `list` action
+  - Default: 100
+
+- **offset** (optional): integer (≥0)
+  - Number of items to skip
+  - Only allowed for `list` action
+  - Default: 0
+
+- **filter_server** (optional): string
+  - Filter results by server name prefix
+  - Only allowed for `list` action
+  - Example: `"serena_"` to show only tools from the serena server
+
 ### Examples
 
 ```json
-// List all tools
+// List all tools (with default pagination: limit=100, offset=0)
 {
   "action": "list",
   "type": "tool"
+}
+
+// List tools with pagination
+{
+  "action": "list",
+  "type": "tool",
+  "limit": 50,
+  "offset": 50
+}
+
+// List tools from a specific server only
+{
+  "action": "list",
+  "type": "tool",
+  "filter_server": "serena_"
 }
 
 // Get info about a specific tool
@@ -101,7 +131,10 @@ Example list response structure:
             proxyAction="list",
             proxyType="tool",
             pythonType="Tool",  # Or "Resource | ResourceTemplate", "Prompt"
-            many=True  # For list actions
+            many=True,  # For list actions
+            totalCount=250,  # Total number of items available
+            offset=0,        # Current offset
+            limit=100        # Current limit
         )
     )
 ]
@@ -333,7 +366,8 @@ Proxy errors are returned as standard MCP errors:
 
 - Self-client connection is reused across calls
 - Use targeted queries when possible
-- Consider implementing pagination for large result sets
+- Pagination is implemented with `limit`, `offset`, and `filter_server` parameters
+- Default limit is 100 items to prevent token limit issues
 - Transparent mode adds minimal overhead (one extra tool call)
 
 ## Future Extensions

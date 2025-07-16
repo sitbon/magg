@@ -82,6 +82,18 @@ class ProxyMCP:
                         "Not allowed for 'list' and 'info' actions.",
             # validation_alias=AliasChoices("name", "uri"),
         )] = None,
+        limit: Annotated[int | None, Field(
+            description="Maximum number of items to return (for 'list' action only). Default: 100",
+            ge=1,
+            le=1000
+        )] = None,
+        offset: Annotated[int | None, Field(
+            description="Number of items to skip (for 'list' action only). Default: 0",
+            ge=0
+        )] = None,
+        filter_server: Annotated[str | None, Field(
+            description="Filter results by server name prefix (for 'list' action only)"
+        )] = None,
     ) -> Any:
         """Main proxy tool for dynamic access to mounted MCP servers.
 
@@ -111,8 +123,24 @@ class ProxyMCP:
                 "Parameter 'path' should not be provided for action 'list'"
             )
 
+        if action != "list" and (limit is not None or offset is not None or filter_server is not None):
+            raise ValueError(
+                "Parameters 'limit', 'offset', and 'filter_server' are only allowed for 'list' action"
+            )
+
         if action == "list":
             result, result_type = await self._proxy_list(a_type)
+
+            # Apply filtering if requested
+            if filter_server and result:
+                result = [item for item in result if hasattr(item, 'name') and item.name.startswith(filter_server)]
+
+            # Apply pagination
+            total_count = len(result) if result else 0
+            if result and (limit or offset):
+                offset_val = offset or 0
+                limit_val = limit or 100
+                result = result[offset_val:offset_val + limit_val]
 
             if result:
                 # Send results as a single json/object-encoded EmbeddedResource result
@@ -122,6 +150,9 @@ class ProxyMCP:
                     uri=f"{self.PROXY_TOOL_NAME}:{action}/{a_type}",
                     proxyAction=action,
                     proxyType=a_type,
+                    totalCount=total_count,
+                    offset=offset or 0,
+                    limit=limit or 100,
                 )
 
         elif action == "info":

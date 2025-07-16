@@ -54,8 +54,9 @@ if __name__ == "__main__":
 
             # Test calling a tool
             result = await client.call_tool("add", {"a": 5, "b": 3})
-            assert len(result) > 0
-            assert "8" in result[0].text
+            assert hasattr(result, 'content')
+            assert len(result.content) > 0
+            assert "8" in result.content[0].text
 
         # Test 2: Create proxy from client (new way)
         proxy = FastMCP.as_proxy(client)

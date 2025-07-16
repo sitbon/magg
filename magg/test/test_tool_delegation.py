@@ -39,8 +39,9 @@ class TestToolDelegation:
             assert tools[0].name == "delegate_test"
 
             result = await client.call_tool("delegate_test", {"query": "test"})
-            assert len(result) > 0
-            assert "Delegated result: test" in result[0].text
+            assert hasattr(result, 'content')
+            assert len(result.content) > 0
+            assert "Delegated result: test" in result.content[0].text
 
     def test_tool_prefix_handling(self):
         """Test that tool prefixes are handled correctly."""
@@ -55,13 +56,13 @@ class TestToolDelegation:
         # Test prefix validation
         assert server.prefix == "custom"
 
-        # Test that default prefix uses cleaned name
+        # Test that default prefix is now None
         server2 = ServerConfig(
             name="test-server",
             source="https://example.com",
             command="echo"
         )
-        assert server2.prefix == "testserver"  # Hyphens removed
+        assert server2.prefix is None  # Default is None now
 
     def test_tool_name_collision_handling(self):
         """Test handling of tool name collisions."""
@@ -144,7 +145,8 @@ class TestToolDiscovery:
             assert "test_test_tool2" in tool_names
 
             # Verify we have tools from both servers
-            magg_tools = [t for t in tool_names if t.startswith("magg_")]
+            server_prefix = server.self_prefix_
+            magg_tools = [t for t in tool_names if t.startswith(server_prefix)]
             test_tools = [t for t in tool_names if t.startswith("test_")]
 
             assert len(magg_tools) >= 2  # At least magg_list_servers and magg_add_server

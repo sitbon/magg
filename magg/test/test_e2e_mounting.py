@@ -162,17 +162,17 @@ asyncio.run(main())
                 # Test calling a mounted tool
                 result = await client.call_tool("calc_add", {"a": 5, "b": 3})
                 print(f"\ncalc_add(5, 3) = {result}")
-                # Parse the result - calculator returns raw value, not JSON
-                if isinstance(result, list) and result:
-                    result_text = result[0].text
+                # Parse the result - calculator returns CallToolResult
+                if hasattr(result, 'content') and result.content:
+                    result_text = result.content[0].text
                     assert result_text == "8"
                 else:
                     assert False, f"Unexpected result format: {result}"
 
                 result = await client.call_tool("calc_multiply", {"a": 4, "b": 7})
                 print(f"calc_multiply(4, 7) = {result}")
-                if isinstance(result, list) and result:
-                    result_text = result[0].text
+                if hasattr(result, 'content') and result.content:
+                    result_text = result.content[0].text
                     assert result_text == "28"
                 else:
                     assert False, f"Unexpected result format: {result}"

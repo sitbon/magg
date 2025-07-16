@@ -4,10 +4,10 @@ import logging
 import os
 from functools import cached_property
 from pathlib import Path
-from typing import Any, ClassVar, Callable, Coroutine, TYPE_CHECKING
+from typing import Any, Callable, Coroutine, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from .reload import ConfigReloader, ConfigChange
+    from .reload import ConfigChange
 
 from pydantic import field_validator, Field, model_validator, AnyUrl
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -114,13 +114,11 @@ class ServerConfig(BaseSettings):
         arbitrary_types_allowed=True,
     )
 
-    PREFIX_SEP: ClassVar[str] = "_"
-
     name: str = Field(..., description="Unique server name - can contain any characters")
     source: str = Field(..., description="URL/URI/path of the server package, repository, or listing")
-    prefix: str = Field(
-        default="",
-        description=f"Tool prefix for this server - must be a valid Python identifier without {PREFIX_SEP!r}."
+    prefix: str | None = Field(
+        default=None,
+        description="Tool prefix for this server - must be a valid Python identifier without underscores."
     )
     notes: str | None = Field(None, description="Setup notes for LLM and humans")
 
@@ -136,9 +134,7 @@ class ServerConfig(BaseSettings):
 
     @model_validator(mode='after')
     def set_default_prefix(self) -> 'ServerConfig':
-        """Set default prefix from name if not provided."""
-        if not self.prefix:
-            self.prefix = self.generate_prefix_from_name(self.name)
+        """No longer set default prefix - None is allowed."""
         return self
 
     @field_validator('prefix')
@@ -149,9 +145,9 @@ class ServerConfig(BaseSettings):
                 raise ValueError(
                     f"Server prefix {v!r} must be a valid Python identifier (letters and numbers only, not starting with a number)"
                 )
-            if cls.PREFIX_SEP in v:
+            if "_" in v:
                 raise ValueError(
-                    f"Server prefix {v!r} must be a valid Python identifier and cannot contain {cls.PREFIX_SEP!r}"
+                    f"Server prefix {v!r} must be a valid Python identifier and cannot contain underscores"
                 )
         return v
 
@@ -166,31 +162,6 @@ class ServerConfig(BaseSettings):
         if v:
             AnyUrl(v)  # Validate as URL
         return v
-
-    @classmethod
-    def generate_prefix_from_name(cls, name: str) -> str:
-        """Generate a valid prefix from a server name.
-
-        Removes special characters and ensures it's a valid Python identifier
-        without underscores.
-        """
-        prefix = (
-            name.replace('-', '')
-                .replace('_', '')
-                .replace('.', '')
-                .replace(' ', '')
-                .replace(cls.PREFIX_SEP, '')
-        )
-
-        prefix = ''.join(c for c in prefix if c.isalnum())
-
-        if prefix and prefix[0].isdigit():
-            prefix = 'srv' + prefix
-
-        if not prefix or not prefix.isidentifier():
-            prefix = 'server'
-
-        return prefix.lower()[:30]
 
 
 class MaggConfig(BaseSettings):
@@ -216,9 +187,14 @@ class MaggConfig(BaseSettings):
         default="magg",
         description="Prefix for Magg tools and commands - must be a valid Python identifier without underscores (env: MAGG_SELF_PREFIX)"
     )
+    prefix_sep: str = Field(
+        default="_",
+        description="Separator between prefix and tool name (env: MAGG_PREFIX_SEP)"
+    )
     auto_reload: bool = Field(default=True, description="Enable automatic config reloading on file changes (env: MAGG_AUTO_RELOAD)")
     reload_poll_interval: float = Field(default=1.0, description="Config file poll interval in seconds (env: MAGG_RELOAD_POLL_INTERVAL)")
     reload_use_watchdog: bool | None = Field(default=None, description="Use file system notifications if available, None=auto-detect (env: MAGG_RELOAD_USE_WATCHDOG)")
+    stderr_show: bool = Field(default=False, description="Show stderr output from subprocess MCP servers (env: MAGG_STDERR_SHOW)")
     servers: dict[str, ServerConfig] = Field(default_factory=dict, description="Servers configuration (loaded from config_path)")
     kits: list[str] = Field(default_factory=list, description="List of loaded kits")
 
@@ -286,10 +262,16 @@ class ConfigManager:
         return logging.getLogger(__name__)
 
     def load_config(self) -> MaggConfig:
-        """Load configuration from disk.
+        """Load configuration from disk or return cached version if reload is enabled.
 
         Note: The only dynamic part of the config is the servers.
         """
+        # If reload manager is active and has a cached config, return it
+        if self._reload_manager:
+            cached = self._reload_manager.cached_config
+            if cached:
+                return cached
+
         config = MaggConfig()
 
         if not self.config_path.exists():

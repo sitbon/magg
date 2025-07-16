@@ -39,26 +39,26 @@ class TestServerConfig:
         assert server.prefix == "custom"
 
     def test_server_name_validation(self):
-        """Test that server names can be anything and prefix generation works."""
-        # Any name is now valid - prefix auto-generated from name
+        """Test that server names can be anything and prefix defaults to None."""
+        # Any name is now valid - prefix defaults to None
         server1 = ServerConfig(name="valid", source="test")
-        assert server1.prefix == "valid"
+        assert server1.prefix is None
 
         server2 = ServerConfig(name="valid123", source="test")
-        assert server2.prefix == "valid123"
+        assert server2.prefix is None
 
         server3 = ServerConfig(name="valid-name", source="test")
-        assert server3.prefix == "validname"  # Hyphens removed from prefix
+        assert server3.prefix is None
 
         # Names that would have been invalid before are now accepted
         server4 = ServerConfig(name="123invalid", source="test")
-        assert server4.prefix == "srv123invalid"  # Prefix adjusted to be valid
+        assert server4.prefix is None
 
         server5 = ServerConfig(name="invalid!", source="test")
-        assert server5.prefix == "invalid"  # Special chars removed
+        assert server5.prefix is None
 
         server6 = ServerConfig(name="@namespace/package", source="test")
-        assert server6.prefix == "namespacepackage"  # Cleaned up
+        assert server6.prefix is None
 
     def test_server_prefix_validation(self):
         """Test server prefix validation."""
@@ -66,25 +66,13 @@ class TestServerConfig:
         ServerConfig(name="test", source="test", prefix="validprefix")
 
         # Invalid prefixes - no underscores allowed
-        with pytest.raises(ValueError, match="cannot contain '_'"):
+        with pytest.raises(ValueError, match="cannot contain underscores"):
             ServerConfig(name="test", source="test", prefix="invalid_prefix")
 
         # Invalid prefixes - must be identifier
         with pytest.raises(ValueError, match="must be a valid Python identifier"):
             ServerConfig(name="test", source="test", prefix="123invalid")
 
-    def test_prefix_generation(self):
-        """Test the generate_prefix_from_name helper method."""
-        # Test various name patterns
-        assert ServerConfig.generate_prefix_from_name("simple") == "simple"
-        assert ServerConfig.generate_prefix_from_name("weather-mcp") == "weathermcp"
-        assert ServerConfig.generate_prefix_from_name("test_server") == "testserver"
-        assert ServerConfig.generate_prefix_from_name("my.package.name") == "mypackagename"
-        assert ServerConfig.generate_prefix_from_name("123-start") == "srv123start"
-        assert ServerConfig.generate_prefix_from_name("@namespace/package") == "namespacepackage"
-        assert ServerConfig.generate_prefix_from_name("UPPERCASE") == "uppercase"
-        assert ServerConfig.generate_prefix_from_name("") == "server"
-        assert ServerConfig.generate_prefix_from_name("!!!") == "server"
 
 
 class TestMaggConfig:

@@ -4,8 +4,20 @@ on:
   push:
     branches: [ main, beta ]
     tags: [ 'v*.*.*' ]
+    paths:
+      - 'magg/**'
+      - 'pyproject.toml'
+      - 'uv.lock'
+      - 'magg.dockerfile'
+      - 'compose.yaml'
   pull_request:
     branches: [ main, beta ]
+    paths:
+      - 'magg/**'
+      - 'pyproject.toml'
+      - 'uv.lock'
+      - 'magg.dockerfile'
+      - 'compose.yaml'
   workflow_dispatch:
 
 env:

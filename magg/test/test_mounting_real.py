@@ -54,17 +54,19 @@ if __name__ == "__main__":
             except Exception as e:
                 print(f"✗ Direct client mount failed: {e}")
 
-            # Approach 2: Try with proxy flag
-            try:
-                transport = NoValidatePythonStdioTransport(
-                    script_path=str(server_file),
-                    cwd=tmpdir
-                )
-                client = Client(transport)
-                main_server.mount(server=client, prefix="test2", as_proxy=True)
-                print("✓ Client mount with as_proxy=True succeeded")
-            except Exception as e:
-                print(f"✗ Client mount with as_proxy=True failed: {e}")
+            # Approach 2: Try with proxy flag (deprecated approach - remove this test)
+            # This approach is deprecated and causes warnings
+            # Keeping as commented documentation of what NOT to do
+            # try:
+            #     transport = NoValidatePythonStdioTransport(
+            #         script_path=str(server_file),
+            #         cwd=tmpdir
+            #     )
+            #     client = Client(transport)
+            #     main_server.mount(server=client, prefix="test2", as_proxy=True)
+            #     print("✓ Client mount with as_proxy=True succeeded")
+            # except Exception as e:
+            #     print(f"✗ Client mount with as_proxy=True failed: {e}")
 
             # Approach 3: Try as_proxy (new way)
             try:

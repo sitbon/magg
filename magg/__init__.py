@@ -17,7 +17,7 @@ from .messaging import MaggMessageHandler, MessageRouter, ServerMessageCoordinat
 
 __all__ = [
     "MaggClient",
-    "MaggMessageHandler", 
+    "MaggMessageHandler",
     "MessageRouter",
     "ServerMessageCoordinator",
 ]

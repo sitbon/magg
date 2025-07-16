@@ -3,8 +3,7 @@
 import asyncio
 import logging
 from functools import cached_property
-from pathlib import Path
-from typing import TYPE_CHECKING, Annotated
+from typing import Annotated
 
 from fastmcp import FastMCP, Client
 from pydantic import Field
@@ -13,9 +12,10 @@ from .defaults import MAGG_INSTRUCTIONS
 from .response import MaggResponse
 from ..auth import BearerAuthManager
 from ..kit import KitManager
-from ..reload import ConfigChange, ServerChange
 from ..proxy.server import ProxyFastMCP
+from ..reload import ConfigChange, ServerChange
 from ..settings import ConfigManager, MaggConfig, ServerConfig
+from ..util.stdio_patch import patch_stdio_transport_stderr
 from ..util.transport import get_transport_for_command, get_transport_for_uri
 
 logger = logging.getLogger(__name__)
@@ -60,7 +60,7 @@ class ServerManager:
     @cached_property
     def prefix_separator(self) -> str:
         """Get the prefix separator for this Magg server - cannot be changed during process lifetime."""
-        return ServerConfig.PREFIX_SEP
+        return self.config.prefix_sep
 
     @cached_property
     def self_prefix(self) -> str:
@@ -98,6 +98,9 @@ class ServerManager:
                     cwd=server.cwd,
                     transport_config=server.transport
                 )
+                # Suppress stderr from subprocess servers by default
+                if not self.config.stderr_show:
+                    transport = patch_stdio_transport_stderr(transport)
                 client = Client(transport, message_handler=message_handler)
 
             elif server.uri:
@@ -112,16 +115,15 @@ class ServerManager:
                 logger.error("No command or URI specified for %s", server.name)
                 return False
 
-            # Create proxy and mount
-            proxy_server = FastMCP.as_proxy(client)
-            self.mcp.mount(server=proxy_server, prefix=server.prefix, as_proxy=True)
-            # Store both proxy and client for resource/prompt access
+            proxy_server = FastMCP.as_proxy(client, name=server.name)
+            self.mcp.mount(server=proxy_server, prefix=server.prefix)
+
             self.mounted_servers[server.name] = {
                 'proxy': proxy_server,
                 'client': client
             }
 
-            logger.debug("Mounted server %s with prefix %s", server.name, server.prefix)
+            logger.debug("Mounted server %s with prefix %r", server.name, server.prefix)
             return True
 
         except Exception as e:
@@ -129,18 +131,54 @@ class ServerManager:
             return False
 
     # noinspection PyProtectedMember
+    def _unmount_from_fastmcp(self, server_name: str) -> bool:
+        """Remove a mounted server from FastMCP's internal structures.
+
+        This is a workaround until FastMCP provides an official unmount method.
+        Returns True if server was found and removed.
+        """
+        # We need to find and remove the MountedServer object from all managers
+        found = False
+
+        # Check tool manager
+        if hasattr(self.mcp, '_tool_manager') and hasattr(self.mcp._tool_manager, '_mounted_servers'):
+            mounted_servers = self.mcp._tool_manager._mounted_servers
+            for i, ms in enumerate(mounted_servers):
+                if hasattr(ms, 'server') and hasattr(ms.server, 'name') and ms.server.name == server_name:
+                    mounted_servers.pop(i)
+                    found = True
+                    logger.debug("Removed server %s from tool manager", server_name)
+                    break
+
+        # Check resource manager
+        if hasattr(self.mcp, '_resource_manager') and hasattr(self.mcp._resource_manager, '_mounted_servers'):
+            mounted_servers = self.mcp._resource_manager._mounted_servers
+            for i, ms in enumerate(mounted_servers):
+                if hasattr(ms, 'server') and hasattr(ms.server, 'name') and ms.server.name == server_name:
+                    mounted_servers.pop(i)
+                    logger.debug("Removed server %s from resource manager", server_name)
+                    break
+
+        # Check prompt manager
+        if hasattr(self.mcp, '_prompt_manager') and hasattr(self.mcp._prompt_manager, '_mounted_servers'):
+            mounted_servers = self.mcp._prompt_manager._mounted_servers
+            for i, ms in enumerate(mounted_servers):
+                if hasattr(ms, 'server') and hasattr(ms.server, 'name') and ms.server.name == server_name:
+                    mounted_servers.pop(i)
+                    logger.debug("Removed server %s from prompt manager", server_name)
+                    break
+
+        return found
+
     async def unmount_server(self, name: str) -> bool:
         """Unmount a server."""
         if name in self.mounted_servers:
-            # Get the server config to find the prefix
-            config = self.config
-            server = config.servers.get(name)
-            if server and server.prefix in self.mcp._tool_manager._mounted_servers:
-                # TODO: FastMCP doesn't have an unmount method yet
-                # For now, we just close the client and remove from our tracking
-                logger.debug("Would unmount prefix %s (FastMCP unmount not available)", server.prefix)
+            unmounted = self._unmount_from_fastmcp(name)
+            if unmounted:
+                logger.debug("Unmounted server %s from FastMCP", name)
+            else:
+                logger.debug("Server %s was not found in FastMCP's mounted servers", name)
 
-            # Close the client to clean up background tasks
             server_info = self.mounted_servers.get(name, {})
             client: Client = server_info.get('client')
             if client:
@@ -150,7 +188,6 @@ class ServerManager:
                 except Exception as e:
                     logger.warning("Error closing client for server %s: %s", name, e)
 
-            # Remove from our tracking
             del self.mounted_servers[name]
             logger.info("Unmounted server %s", name)
             return True
@@ -320,9 +357,12 @@ class ManagedServer:
 
     @cached_property
     def self_prefix_(self) -> str:
-        """self_prefix with trailing separator.
+        """self_prefix with trailing separator if prefix exists.
         """
-        return f"{self.self_prefix}{self.server_manager.prefix_separator}"
+        prefix = self.self_prefix
+        if prefix:
+            return f"{prefix}{self.server_manager.prefix_separator}"
+        return ""
 
     def _register_tools(self):
         pass
@@ -388,12 +428,12 @@ class ManagedServer:
     async def run_stdio(self):
         """Run Magg in stdio mode."""
         await self.setup()
-        await self.mcp.run_stdio_async()
+        await self.mcp.run_stdio_async(show_banner=False)
 
     async def run_http(self, host: str = "localhost", port: int = 8000, log_level: str = "CRITICAL"):
         """Run Magg in HTTP mode."""
         await self.setup()
-        await self.mcp.run_http_async(host=host, port=port, log_level=log_level)
+        await self.mcp.run_http_async(host=host, port=port, log_level=log_level, show_banner=False)
 
     async def reload_config(self) -> bool:
         """Manually trigger a configuration reload.
@@ -522,14 +562,14 @@ class ManagedServer:
 
     async def get_kit_metadata(self, name: str) -> dict:
         """Expose kit metadata as an MCP resource suitable for saving as a kit file.
-        
+
         Only returns kits that are currently loaded in memory.
         """
         loaded_kits = self.kit_manager.kits
-        
+
         if name not in loaded_kits:
             raise ValueError(f"Kit '{name}' not found in loaded kits")
-        
+
         kit_config = loaded_kits[name]
 
         return kit_config.model_dump(
@@ -539,10 +579,10 @@ class ManagedServer:
             exclude_unset=True,
             by_alias=True
         )
-    
+
     async def get_all_kits_metadata(self) -> dict[str, dict]:
         """Expose all loaded kits metadata as an MCP resource.
-        
+
         Only returns kits that are currently loaded in memory.
         """
         result = {}
@@ -555,7 +595,7 @@ class ManagedServer:
                 exclude_unset=True,
                 by_alias=True
             )
-        
+
         return result
 
     # ============================================================================

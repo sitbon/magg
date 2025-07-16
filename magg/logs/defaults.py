@@ -54,7 +54,12 @@ LOGGING_CONFIG = {
         },
         "FastMCP": {
             "handlers": ["default"],
-            "level": (os.getenv("FASTMCP_LOG_LEVEL") or "WARNING").upper(),
+            "level": (os.getenv("FASTMCP_LOG_LEVEL") or "ERROR").upper(),
+            "propagate": False,
+        },
+        "mcp": {
+            "handlers": ["default"],
+            "level": "ERROR",
             "propagate": False,
         },
         "uvicorn": {

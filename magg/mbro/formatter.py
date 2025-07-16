@@ -529,7 +529,7 @@ class OutputFormatter:
         # Single print call with joined lines
         self.print('\n'.join(output_lines).rstrip())
 
-    def format_help(self) -> None:
+    def format_help(self, *, enhanced: bool = False) -> None:
         """Format help text."""
         if self.json_only:
             help_data = {
@@ -549,9 +549,9 @@ class OutputFormatter:
                         {"command": "info <tool|resource|prompt> <name>", "description": "Show detailed info"}
                     ],
                     "tool_interaction": [
-                        {"command": "call <tool_name> [json_args]", "description": "Call a tool"},
+                        {"command": "call <tool_name> [args]", "description": "Call a tool"},
                         {"command": "resource <uri>", "description": "Get a resource"},
-                        {"command": "prompt <name> [json_args]", "description": "Get a prompt"}
+                        {"command": "prompt <name> [args]", "description": "Get a prompt"}
                     ]
                 }
             }
@@ -576,9 +576,9 @@ Server Exploration:
   info <tool|resource|prompt> <name>  - Show detailed info
 
 Tool Interaction:
-  call <tool_name> [json_args]        - Call a tool
+  call <tool_name> [args]             - Call a tool
   resource <uri>                      - Get a resource
-  prompt <name> [json_args]           - Get a prompt
+  prompt <name> [args]                - Get a prompt
 
 Examples:
   connect magg "http://localhost:8080"
@@ -586,7 +586,7 @@ Examples:
   tools
   call magg_status
   call magg_search_tools {"query": "calculator", "limit": 3}
-  call add {"a": 5, "b": 3}
+  call add a=5 b=3
   search calculator
   info tool magg_status
 
@@ -594,8 +594,27 @@ JSON Tips (REPL):
   - Use double quotes for JSON strings: {"key": "value"}
   - No quotes for numbers: {"count": 42}
   - Boolean values: {"enabled": true}
-  - Arrays: {"items": [1, 2, 3]}
-        """
+  - Arrays: {"items": [1, 2, 3]}"""
+
+        if enhanced:
+            help_text += """
+
+Enhanced Features:
+  • TAB completion: Press TAB to see available tools, resources, and commands
+  • Parameter completion: Shows tool parameters with documentation
+  • Python-style arguments: Use param=value syntax or JSON
+  • Multiline support: Python REPL-style with '...' continuation
+  • Auto-suggestions from command history
+
+Quick Start:
+  1. connect local stdio://magg  (REQUIRED for tab completion)
+  2. call magg_<TAB>  (shows available tools)
+  3. call <tool_name> <TAB>  (shows parameters with docs)
+  4. Use: call tool param1=value1 param2=value2
+  5. Or JSON: call tool {"param1": "value1"}
+
+Note: Tab completion shows rich parameter info after connecting"""
+
         self.print(help_text)
 
     def format_tools_list(self, tools: list[dict[str, Any]]) -> None:

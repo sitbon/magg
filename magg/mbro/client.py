@@ -13,7 +13,7 @@ from magg.util.transport import get_transport_for_command_string
 logger = logging.getLogger(__name__)
 
 
-class MCPConnection:
+class BrowserConnection:
     """Represents a connection to an MCP server."""
 
     def __init__(self, name: str, connection_type: str, connection_string: str):
@@ -216,13 +216,13 @@ class MCPConnection:
         ]
 
 
-class MCPBrowser:
+class BrowserClient:
     """Main MCP browser class for managing connections."""
-    connections: dict[str, MCPConnection]
+    connections: dict[str, BrowserConnection]
     current_connection: str | None
 
     def __init__(self):
-        self.connections: dict[str, MCPConnection] = {}
+        self.connections: dict[str, BrowserConnection] = {}
         self.current_connection: str | None = None
 
     async def add_connection(self, name: str, connection_string: str) -> bool:
@@ -236,7 +236,7 @@ class MCPBrowser:
         else:
             connection_type = "command"
 
-        connection = MCPConnection(name, connection_type, connection_string)
+        connection = BrowserConnection(name, connection_type, connection_string)
         success = await connection.connect()
 
         if success:
@@ -274,7 +274,7 @@ class MCPBrowser:
 
         return True
 
-    def get_current_connection(self) -> MCPConnection | None:
+    def get_current_connection(self) -> BrowserConnection | None:
         """Get the current active connection."""
         if not self.current_connection:
             return None

@@ -4,19 +4,21 @@
 import argparse
 import asyncio
 import json
+import logging
 import os
 import sys
-import logging
 from pathlib import Path
 
 from . import __version__, process
-from .settings import ConfigManager, ServerConfig, AuthConfig, BearerAuthConfig
+from .auth import BearerAuthManager
+from .kit import KitManager
+from .settings import ConfigManager, ServerConfig, BearerAuthConfig, AuthConfig
+from .server.runner import MaggRunner
 from .util.terminal import (
     print_success, print_error, print_warning, print_startup_banner,
     print_info, print_server_list, print_status_summary, confirm_action,
     print_newline
 )
-
 
 process.setup(source=__name__)
 
@@ -25,7 +27,6 @@ logger: logging.Logger | None = logging.getLogger(__name__)
 
 async def cmd_serve(args) -> None:
     """Start Magg server."""
-    from magg.server.runner import MaggRunner
 
     logger.info("Starting Magg server (mode: %s)", 'http' if args.http else 'stdio')
 
@@ -257,7 +258,6 @@ async def cmd_export(args) -> None:
 
 async def cmd_kit(args) -> None:
     """Manage kits."""
-    from .kit import KitManager
 
     config_manager = ConfigManager(args.config)
     config = config_manager.load_config()
@@ -306,8 +306,14 @@ async def cmd_kit(args) -> None:
                 skipped_servers.append(server_name)
                 continue
 
-            # Set enabled state based on flag
-            server_config.enabled = args.enable
+            # Only override enabled state if --enable/--no-enable was explicitly set
+            # Default to kit's enabled state if not specified
+            if args.enable is not None:
+                server_config.enabled = args.enable
+            
+            # Track which kit this server came from
+            server_config.kits = [args.name]
+            
             config.servers[server_name] = server_config
             added_servers.append(server_name)
 
@@ -316,7 +322,7 @@ async def cmd_kit(args) -> None:
             if added_servers:
                 print_success(f"Added {len(added_servers)} servers from kit '{args.name}':")
                 for name in added_servers:
-                    status = "enabled" if args.enable else "disabled"
+                    status = "enabled" if config.servers[name].enabled else "disabled"
                     print(f"  • {name} ({status})")
             if skipped_servers:
                 print_warning(f"Skipped {len(skipped_servers)} servers already in configuration:")
@@ -441,9 +447,6 @@ async def cmd_config(args) -> None:
         await cmd_export(args)
     elif args.config_action == 'path':
         await cmd_config_path(args)
-    else:
-        print_error(f"Unknown config action: {args.config_action}")
-        sys.exit(1)
 
 
 async def cmd_config_path(args) -> None:
@@ -459,8 +462,6 @@ async def cmd_config_path(args) -> None:
 
 async def cmd_auth(args) -> None:
     """Manage authentication."""
-    from .auth import BearerAuthManager
-    from .settings import AuthConfig
 
     config_manager = ConfigManager(args.config)
 
@@ -645,7 +646,7 @@ def create_parser() -> argparse.ArgumentParser:
 
     # Server command
     server_parser = subparsers.add_parser('server', help='Manage servers')
-    server_subparsers = server_parser.add_subparsers(dest='server_action', help='Server actions')
+    server_subparsers = server_parser.add_subparsers(dest='server_action', help='Server actions', required=True)
 
     # Server list
     server_subparsers.add_parser('list', help='List configured servers')
@@ -680,7 +681,7 @@ def create_parser() -> argparse.ArgumentParser:
 
     # Config command
     config_parser = subparsers.add_parser('config', help='Manage configuration')
-    config_subparsers = config_parser.add_subparsers(dest='config_action', help='Config actions')
+    config_subparsers = config_parser.add_subparsers(dest='config_action', help='Config actions', required=True)
 
     # Config show (status)
     config_subparsers.add_parser('show', help='Show current configuration status')
@@ -693,8 +694,9 @@ def create_parser() -> argparse.ArgumentParser:
     config_subparsers.add_parser('path', help='Show configuration file path')
 
     # Backward compatibility - deprecated commands
-    # Create them only if environment variable is set or we're not showing help
-    if os.environ.get('MAGG_SHOW_DEPRECATED') or (len(sys.argv) > 1 and sys.argv[1] not in ['--help', '-h']):
+    # Only add them if a deprecated command is actually being used
+    deprecated_commands = ['add-server', 'list-servers', 'remove-server', 'enable-server', 'disable-server', 'status', 'export']
+    if len(sys.argv) > 1 and sys.argv[1] in deprecated_commands:
         add_parser = subparsers.add_parser('add-server', help=argparse.SUPPRESS)
         add_parser.add_argument('name', help='Server name')
         add_parser.add_argument('source', help='URL of the server package/repository')
@@ -723,7 +725,7 @@ def create_parser() -> argparse.ArgumentParser:
 
     # Kit command
     kit_parser = subparsers.add_parser('kit', help='Manage kits')
-    kit_subparsers = kit_parser.add_subparsers(dest='kit_action', help='Kit actions')
+    kit_subparsers = kit_parser.add_subparsers(dest='kit_action', help='Kit actions', required=True)
 
     # Kit list
     kit_subparsers.add_parser('list', help='List available kits')
@@ -731,8 +733,8 @@ def create_parser() -> argparse.ArgumentParser:
     # Kit load
     kit_load = kit_subparsers.add_parser('load', help='Load a kit into configuration')
     kit_load.add_argument('name', help='Kit name to load')
-    kit_load.add_argument('--enable', action='store_true', default=True, help='Enable servers after loading (default: True)')
-    kit_load.add_argument('--no-enable', dest='enable', action='store_false', help='Do not enable servers after loading')
+    kit_load.add_argument('--enable', action='store_true', default=None, help='Force enable all servers after loading')
+    kit_load.add_argument('--no-enable', dest='enable', action='store_false', help='Force disable all servers after loading')
 
     # Kit info
     kit_info = kit_subparsers.add_parser('info', help='Show information about a kit')
@@ -740,7 +742,7 @@ def create_parser() -> argparse.ArgumentParser:
 
     # Auth command
     auth_parser = subparsers.add_parser('auth', help='Manage authentication')
-    auth_subparsers = auth_parser.add_subparsers(dest='auth_action', help='Auth actions')
+    auth_subparsers = auth_parser.add_subparsers(dest='auth_action', help='Auth actions', required=True)
 
     # Initialize auth
     auth_init = auth_subparsers.add_parser('init', help='Initialize authentication')

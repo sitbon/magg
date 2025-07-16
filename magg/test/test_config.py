@@ -39,26 +39,26 @@ class TestServerConfig:
         assert server.prefix == "custom"
 
     def test_server_name_validation(self):
-        """Test that server names can be anything and prefix generation works."""
-        # Any name is now valid - prefix auto-generated from name
+        """Test that server names can be anything and prefix defaults to None."""
+        # Any name is now valid - prefix defaults to None
         server1 = ServerConfig(name="valid", source="test")
-        assert server1.prefix == "valid"
+        assert server1.prefix is None
 
         server2 = ServerConfig(name="valid123", source="test")
-        assert server2.prefix == "valid123"
+        assert server2.prefix is None
 
         server3 = ServerConfig(name="valid-name", source="test")
-        assert server3.prefix == "validname"  # Hyphens removed from prefix
+        assert server3.prefix is None
 
         # Names that would have been invalid before are now accepted
         server4 = ServerConfig(name="123invalid", source="test")
-        assert server4.prefix == "srv123invalid"  # Prefix adjusted to be valid
+        assert server4.prefix is None
 
         server5 = ServerConfig(name="invalid!", source="test")
-        assert server5.prefix == "invalid"  # Special chars removed
+        assert server5.prefix is None
 
         server6 = ServerConfig(name="@namespace/package", source="test")
-        assert server6.prefix == "namespacepackage"  # Cleaned up
+        assert server6.prefix is None
 
     def test_server_prefix_validation(self):
         """Test server prefix validation."""

@@ -554,7 +554,7 @@ def main():
         sys.exit(130)  # Standard exit code for SIGINT
     except Exception as e:
         print_error(f"Unexpected error: {e}")
-        if os.getenv('MAGG_DEBUG').lower() in {'1', 'true', 'yes'}:
+        if os.getenv('MAGG_DEBUG', '').lower() in {'1', 'true', 'yes'}:
             import traceback
             traceback.print_exc()
         sys.exit(1)

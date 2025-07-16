@@ -118,8 +118,8 @@ class ServerConfig(BaseSettings):
 
     name: str = Field(..., description="Unique server name - can contain any characters")
     source: str = Field(..., description="URL/URI/path of the server package, repository, or listing")
-    prefix: str = Field(
-        default="",
+    prefix: str | None = Field(
+        default=None,
         description=f"Tool prefix for this server - must be a valid Python identifier without {PREFIX_SEP!r}."
     )
     notes: str | None = Field(None, description="Setup notes for LLM and humans")
@@ -136,9 +136,7 @@ class ServerConfig(BaseSettings):
 
     @model_validator(mode='after')
     def set_default_prefix(self) -> 'ServerConfig':
-        """Set default prefix from name if not provided."""
-        if not self.prefix:
-            self.prefix = self.generate_prefix_from_name(self.name)
+        """No longer set default prefix - None is allowed."""
         return self
 
     @field_validator('prefix')
@@ -286,10 +284,16 @@ class ConfigManager:
         return logging.getLogger(__name__)
 
     def load_config(self) -> MaggConfig:
-        """Load configuration from disk.
+        """Load configuration from disk or return cached version if reload is enabled.
 
         Note: The only dynamic part of the config is the servers.
         """
+        # If reload manager is active and has a cached config, return it
+        if self._reload_manager:
+            cached = self._reload_manager.cached_config
+            if cached:
+                return cached
+        
         config = MaggConfig()
 
         if not self.config_path.exists():

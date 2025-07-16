@@ -112,16 +112,15 @@ class ServerManager:
                 logger.error("No command or URI specified for %s", server.name)
                 return False
 
-            # Create proxy and mount
-            proxy_server = FastMCP.as_proxy(client)
-            self.mcp.mount(server=proxy_server, prefix=server.prefix, as_proxy=True)
-            # Store both proxy and client for resource/prompt access
+            proxy_server = FastMCP.as_proxy(client, name=server.name)
+            self.mcp.mount(server=proxy_server, prefix=server.prefix)
+
             self.mounted_servers[server.name] = {
                 'proxy': proxy_server,
                 'client': client
             }
 
-            logger.debug("Mounted server %s with prefix %s", server.name, server.prefix)
+            logger.debug("Mounted server %s with prefix %r", server.name, server.prefix)
             return True
 
         except Exception as e:
@@ -129,18 +128,54 @@ class ServerManager:
             return False
 
     # noinspection PyProtectedMember
+    def _unmount_from_fastmcp(self, server_name: str) -> bool:
+        """Remove a mounted server from FastMCP's internal structures.
+        
+        This is a workaround until FastMCP provides an official unmount method.
+        Returns True if server was found and removed.
+        """
+        # We need to find and remove the MountedServer object from all managers
+        found = False
+        
+        # Check tool manager
+        if hasattr(self.mcp, '_tool_manager') and hasattr(self.mcp._tool_manager, '_mounted_servers'):
+            mounted_servers = self.mcp._tool_manager._mounted_servers
+            for i, ms in enumerate(mounted_servers):
+                if hasattr(ms, 'server') and hasattr(ms.server, 'name') and ms.server.name == server_name:
+                    mounted_servers.pop(i)
+                    found = True
+                    logger.debug("Removed server %s from tool manager", server_name)
+                    break
+        
+        # Check resource manager
+        if hasattr(self.mcp, '_resource_manager') and hasattr(self.mcp._resource_manager, '_mounted_servers'):
+            mounted_servers = self.mcp._resource_manager._mounted_servers
+            for i, ms in enumerate(mounted_servers):
+                if hasattr(ms, 'server') and hasattr(ms.server, 'name') and ms.server.name == server_name:
+                    mounted_servers.pop(i)
+                    logger.debug("Removed server %s from resource manager", server_name)
+                    break
+                    
+        # Check prompt manager
+        if hasattr(self.mcp, '_prompt_manager') and hasattr(self.mcp._prompt_manager, '_mounted_servers'):
+            mounted_servers = self.mcp._prompt_manager._mounted_servers
+            for i, ms in enumerate(mounted_servers):
+                if hasattr(ms, 'server') and hasattr(ms.server, 'name') and ms.server.name == server_name:
+                    mounted_servers.pop(i)
+                    logger.debug("Removed server %s from prompt manager", server_name)
+                    break
+                    
+        return found
+
     async def unmount_server(self, name: str) -> bool:
         """Unmount a server."""
         if name in self.mounted_servers:
-            # Get the server config to find the prefix
-            config = self.config
-            server = config.servers.get(name)
-            if server and server.prefix in self.mcp._tool_manager._mounted_servers:
-                # TODO: FastMCP doesn't have an unmount method yet
-                # For now, we just close the client and remove from our tracking
-                logger.debug("Would unmount prefix %s (FastMCP unmount not available)", server.prefix)
+            unmounted = self._unmount_from_fastmcp(name)
+            if unmounted:
+                logger.info("Unmounted server %s from FastMCP", name)
+            else:
+                logger.debug("Server %s was not found in FastMCP's mounted servers", name)
 
-            # Close the client to clean up background tasks
             server_info = self.mounted_servers.get(name, {})
             client: Client = server_info.get('client')
             if client:
@@ -150,7 +185,6 @@ class ServerManager:
                 except Exception as e:
                     logger.warning("Error closing client for server %s: %s", name, e)
 
-            # Remove from our tracking
             del self.mounted_servers[name]
             logger.info("Unmounted server %s", name)
             return True
@@ -320,9 +354,12 @@ class ManagedServer:
 
     @cached_property
     def self_prefix_(self) -> str:
-        """self_prefix with trailing separator.
+        """self_prefix with trailing separator if prefix exists.
         """
-        return f"{self.self_prefix}{self.server_manager.prefix_separator}"
+        prefix = self.self_prefix
+        if prefix:
+            return f"{prefix}{self.server_manager.prefix_separator}"
+        return ""
 
     def _register_tools(self):
         pass

@@ -55,13 +55,13 @@ class TestToolDelegation:
         # Test prefix validation
         assert server.prefix == "custom"
 
-        # Test that default prefix uses cleaned name
+        # Test that default prefix is now None
         server2 = ServerConfig(
             name="test-server",
             source="https://example.com",
             command="echo"
         )
-        assert server2.prefix == "testserver"  # Hyphens removed
+        assert server2.prefix is None  # Default is None now
 
     def test_tool_name_collision_handling(self):
         """Test handling of tool name collisions."""

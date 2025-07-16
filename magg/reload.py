@@ -187,7 +187,14 @@ class ConfigReloader:
         This keeps our internal state in sync when config is saved programmatically.
         """
         self._last_config = config
-        logger.debug("Updated cached config after programmatic save")
+    
+    def get_cached_config(self) -> MaggConfig | None:
+        """Get the cached configuration if available.
+        
+        Returns:
+            The cached config or None if no config has been loaded yet.
+        """
+        return self._last_config
 
     async def _watch_loop(self, poll_interval: float) -> None:
         """Main watch loop that handles both watchdog and polling modes."""
@@ -392,17 +399,6 @@ class ConfigReloader:
     def _validate_config(self, config: MaggConfig) -> bool:
         """Validate that the configuration is valid."""
         try:
-            # Check for duplicate prefixes
-            prefixes = {}
-            for name, server in config.servers.items():
-                if server.prefix in prefixes:
-                    logger.error(
-                        "Duplicate prefix '%s' found in servers '%s' and '%s'",
-                        server.prefix, name, prefixes[server.prefix]
-                    )
-                    return False
-                prefixes[server.prefix] = name
-
             # Validate each server
             for name, server in config.servers.items():
                 if not server.command and not server.uri:
@@ -429,6 +425,13 @@ class ReloadManager:
         self.config_manager: ConfigManager = config_manager
         self._config_reloader: ConfigReloader | None = None
         self._reload_callback: ReloadCallback | None = None
+    
+    @property
+    def cached_config(self) -> MaggConfig | None:
+        """Get the cached configuration if available."""
+        if self._config_reloader:
+            return self._config_reloader._last_config
+        return None
 
     async def setup(self, reload_callback: ReloadCallback) -> None:
         """Setup config file watching with a callback.

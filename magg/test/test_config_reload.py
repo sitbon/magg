@@ -127,7 +127,7 @@ class TestConfigReloader:
 
     @pytest.mark.asyncio
     async def test_config_validation(self):
-        """Test config validation catches duplicate prefixes."""
+        """Test config validation allows duplicate prefixes."""
         config = MaggConfig()
         config.servers["server1"] = ServerConfig(
             name="server1",
@@ -139,11 +139,26 @@ class TestConfigReloader:
             name="server2",
             source="https://example.com/2",
             command="echo",
-            prefix="test"  # Duplicate prefix
+            prefix="test"  # Duplicate prefix is now allowed
         )
 
         reloader = ConfigReloader(Path("/fake/path"), lambda x: None)
-        assert not reloader._validate_config(config)
+        assert reloader._validate_config(config)  # Should pass validation
+        
+        # Test with None/empty prefixes
+        config.servers["server3"] = ServerConfig(
+            name="server3",
+            source="https://example.com/3",
+            command="echo",
+            prefix=None
+        )
+        config.servers["server4"] = ServerConfig(
+            name="server4",
+            source="https://example.com/4",
+            command="echo",
+            prefix=None  # Duplicate None prefix is also allowed
+        )
+        assert reloader._validate_config(config)  # Should still pass
 
     @pytest.mark.asyncio
     async def test_reload_callback(self, temp_config_file):

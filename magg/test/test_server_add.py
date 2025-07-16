@@ -132,7 +132,7 @@ class TestAddServer:
 
     @pytest.mark.asyncio
     async def test_add_server_invalid_name_accepted(self, magg_server):
-        """Test that invalid names are now accepted with auto-generated prefix."""
+        """Test that invalid names are now accepted with None as default prefix."""
         result = await magg_server.add_server(
             name="123-invalid",
             source="https://github.com/example/test",
@@ -141,7 +141,7 @@ class TestAddServer:
 
         assert result.is_success
         assert result.output["server"]["name"] == "123-invalid"
-        assert result.output["server"]["prefix"] == "srv123invalid"  # Auto-generated prefix
+        assert result.output["server"]["prefix"] is None  # Default prefix is now None
 
     @pytest.mark.asyncio
     async def test_add_server_invalid_prefix(self, magg_server):

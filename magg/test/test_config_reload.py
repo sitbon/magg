@@ -144,7 +144,7 @@ class TestConfigReloader:
 
         reloader = ConfigReloader(Path("/fake/path"), lambda x: None)
         assert reloader._validate_config(config)  # Should pass validation
-        
+
         # Test with None/empty prefixes
         config.servers["server3"] = ServerConfig(
             name="server3",

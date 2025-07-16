@@ -258,11 +258,11 @@ async def cmd_export(args) -> None:
 async def cmd_kit(args) -> None:
     """Manage kits."""
     from .kit import KitManager
-    
+
     config_manager = ConfigManager(args.config)
     config = config_manager.load_config()
     kit_manager = KitManager(config_manager)
-    
+
     if args.kit_action == 'list':
         # List available kits
         discovered = kit_manager.discover_kits()
@@ -270,7 +270,7 @@ async def cmd_kit(args) -> None:
             print_warning("No kits found in kit.d directories")
             print_info(f"Search paths: {', '.join(str(p) for p in kit_manager.kitd_paths)}")
             return
-            
+
         print_info(f"Available kits ({len(discovered)}):")
         for kit_name, kit_path in discovered.items():
             # Try to load to get description
@@ -279,7 +279,7 @@ async def cmd_kit(args) -> None:
                 print(f"  • {kit_name}: {kit_config.description}")
             else:
                 print(f"  • {kit_name}")
-                
+
     elif args.kit_action == 'load':
         # Load a kit into configuration
         discovered = kit_manager.discover_kits()
@@ -287,17 +287,17 @@ async def cmd_kit(args) -> None:
             print_error(f"Kit '{args.name}' not found")
             print_info(f"Available kits: {', '.join(discovered.keys())}")
             sys.exit(1)
-            
+
         kit_path = discovered[args.name]
         kit_config = kit_manager.load_kit(kit_path)
         if not kit_config:
             print_error(f"Failed to load kit '{args.name}'")
             sys.exit(1)
-            
+
         # Add kit to config's kits list if not already there
         if args.name not in config.kits:
             config.kits.append(args.name)
-            
+
         # Add servers from kit to configuration
         added_servers = []
         skipped_servers = []
@@ -305,12 +305,12 @@ async def cmd_kit(args) -> None:
             if server_name in config.servers:
                 skipped_servers.append(server_name)
                 continue
-                
+
             # Set enabled state based on flag
             server_config.enabled = args.enable
             config.servers[server_name] = server_config
             added_servers.append(server_name)
-            
+
         # Save configuration
         if config_manager.save_config(config):
             if added_servers:
@@ -327,7 +327,7 @@ async def cmd_kit(args) -> None:
         else:
             print_error("Failed to save configuration")
             sys.exit(1)
-            
+
     elif args.kit_action == 'info':
         # Show information about a kit
         discovered = kit_manager.discover_kits()
@@ -335,13 +335,13 @@ async def cmd_kit(args) -> None:
             print_error(f"Kit '{args.name}' not found")
             print_info(f"Available kits: {', '.join(discovered.keys())}")
             sys.exit(1)
-            
+
         kit_path = discovered[args.name]
         kit_config = kit_manager.load_kit(kit_path)
         if not kit_config:
             print_error(f"Failed to load kit '{args.name}'")
             sys.exit(1)
-            
+
         print_info(f"Kit: {kit_config.name}")
         if kit_config.description:
             print(f"Description: {kit_config.description}")
@@ -355,7 +355,7 @@ async def cmd_kit(args) -> None:
             print("Links:")
             for key, url in kit_config.links.items():
                 print(f"  • {key}: {url}")
-                
+
         if kit_config.servers:
             print(f"\nServers ({len(kit_config.servers)}):")
             for server_name, server in kit_config.servers.items():
@@ -393,42 +393,42 @@ async def cmd_server_info(args) -> None:
     """Show detailed information about a server."""
     config_manager = ConfigManager(args.config)
     config = config_manager.load_config()
-    
+
     if args.name not in config.servers:
         print_error(f"Server '{args.name}' not found")
         sys.exit(1)
-    
+
     server = config.servers[args.name]
-    
+
     print_info(f"Server: {server.name}")
     print(f"Source: {server.source}")
     print(f"Enabled: {'Yes' if server.enabled else 'No'}")
     print(f"Prefix: {server.prefix if server.prefix else '(none)'}")
-    
+
     if server.command:
         print(f"Command: {server.command}")
         if server.args:
             print(f"Arguments: {' '.join(server.args)}")
-    
+
     if server.uri:
         print(f"URI: {server.uri}")
-    
+
     if server.cwd:
         print(f"Working Directory: {server.cwd}")
-    
+
     if server.env:
         print("Environment Variables:")
         for key, value in server.env.items():
             print(f"  {key}={value}")
-    
+
     if server.transport:
         print("Transport Configuration:")
         import json
         print(f"  {json.dumps(server.transport, indent=2)}")
-    
+
     if server.notes:
         print(f"\nNotes: {server.notes}")
-    
+
     if server.kits:
         print(f"\nIncluded in kits: {', '.join(server.kits)}")
 
@@ -646,10 +646,10 @@ def create_parser() -> argparse.ArgumentParser:
     # Server command
     server_parser = subparsers.add_parser('server', help='Manage servers')
     server_subparsers = server_parser.add_subparsers(dest='server_action', help='Server actions')
-    
+
     # Server list
     server_subparsers.add_parser('list', help='List configured servers')
-    
+
     # Server add
     server_add = server_subparsers.add_parser('add', help='Add a new server')
     server_add.add_argument('name', help='Server name')
@@ -660,20 +660,20 @@ def create_parser() -> argparse.ArgumentParser:
     server_add.add_argument('--env', nargs='*', help='Environment variables (KEY=VALUE)')
     server_add.add_argument('--cwd', dest='cwd', help='Working directory')
     server_add.add_argument('--notes', help='Setup notes')
-    
+
     # Server remove
     server_remove = server_subparsers.add_parser('remove', help='Remove a server')
     server_remove.add_argument('name', help='Server name')
     server_remove.add_argument('--force', '-f', action='store_true', help='Remove without confirmation')
-    
+
     # Server enable
     server_enable = server_subparsers.add_parser('enable', help='Enable a server')
     server_enable.add_argument('name', help='Server name')
-    
+
     # Server disable
     server_disable = server_subparsers.add_parser('disable', help='Disable a server')
     server_disable.add_argument('name', help='Server name')
-    
+
     # Server info (new)
     server_info = server_subparsers.add_parser('info', help='Show detailed information about a server')
     server_info.add_argument('name', help='Server name')
@@ -681,14 +681,14 @@ def create_parser() -> argparse.ArgumentParser:
     # Config command
     config_parser = subparsers.add_parser('config', help='Manage configuration')
     config_subparsers = config_parser.add_subparsers(dest='config_action', help='Config actions')
-    
+
     # Config show (status)
     config_subparsers.add_parser('show', help='Show current configuration status')
-    
+
     # Config export
     config_export = config_subparsers.add_parser('export', help='Export configuration')
     config_export.add_argument('--output', '-o', help='Output file (default: stdout)')
-    
+
     # Config path
     config_subparsers.add_parser('path', help='Show configuration file path')
 
@@ -724,16 +724,16 @@ def create_parser() -> argparse.ArgumentParser:
     # Kit command
     kit_parser = subparsers.add_parser('kit', help='Manage kits')
     kit_subparsers = kit_parser.add_subparsers(dest='kit_action', help='Kit actions')
-    
+
     # Kit list
     kit_subparsers.add_parser('list', help='List available kits')
-    
+
     # Kit load
     kit_load = kit_subparsers.add_parser('load', help='Load a kit into configuration')
     kit_load.add_argument('name', help='Kit name to load')
     kit_load.add_argument('--enable', action='store_true', default=True, help='Enable servers after loading (default: True)')
     kit_load.add_argument('--no-enable', dest='enable', action='store_false', help='Do not enable servers after loading')
-    
+
     # Kit info
     kit_info = kit_subparsers.add_parser('info', help='Show information about a kit')
     kit_info.add_argument('name', help='Kit name')

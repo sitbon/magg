@@ -15,7 +15,7 @@ class TestMaggBasicFunctionality:
         """Test Magg setup and tool availability."""
         config_path = tmp_path / "config.json"
         server = MaggServer(config_path, enable_config_reload=False)
-        
+
         async with server:
             expected_tools = ["magg_list_servers", "magg_add_server", "magg_status", "magg_check"]
 
@@ -44,7 +44,7 @@ class TestMaggBasicFunctionality:
         """Test listing servers."""
         config_path = tmp_path / "config.json"
         server = MaggServer(config_path, enable_config_reload=False)
-        
+
         async with server:
             async with Client(server.mcp) as client:
                 result = await client.call_tool("magg_list_servers", {})

@@ -187,10 +187,10 @@ class ConfigReloader:
         This keeps our internal state in sync when config is saved programmatically.
         """
         self._last_config = config
-    
+
     def get_cached_config(self) -> MaggConfig | None:
         """Get the cached configuration if available.
-        
+
         Returns:
             The cached config or None if no config has been loaded yet.
         """
@@ -425,7 +425,7 @@ class ReloadManager:
         self.config_manager: ConfigManager = config_manager
         self._config_reloader: ConfigReloader | None = None
         self._reload_callback: ReloadCallback | None = None
-    
+
     @property
     def cached_config(self) -> MaggConfig | None:
         """Get the cached configuration if available."""

@@ -200,12 +200,12 @@ class TestMCPBrowserCLI:
     async def test_cmd_call_tool(self):
         """Test calling a tool."""
         mock_connection = Mock()
-        
+
         # Create a mock client that supports async context manager
         mock_client = AsyncMock()
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
         mock_client.__aexit__ = AsyncMock(return_value=None)
-        
+
         # Mock tool result - the new format expects a Content object with type and text
         from mcp.types import TextContent
         mock_result = TextContent(type="text", text='{"result": "Tool result"}')
@@ -213,7 +213,7 @@ class TestMCPBrowserCLI:
             {"name": "test_tool", "inputSchema": {"type": "object", "properties": {"arg": {"type": "string"}}}}
         ])
         mock_client.call_tool = AsyncMock(return_value=[mock_result])
-        
+
         # Set up the connection to use our mock client
         mock_connection.client = mock_client
         mock_connection.connected = True

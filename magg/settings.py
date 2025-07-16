@@ -294,7 +294,7 @@ class ConfigManager:
             cached = self._reload_manager.cached_config
             if cached:
                 return cached
-        
+
         config = MaggConfig()
 
         if not self.config_path.exists():

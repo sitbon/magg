@@ -135,10 +135,10 @@ Parameters:
 Example usage (MBRO commands):
   - List all tools:
     -  `call proxy {"action": "list", "type": "tool"}`
-    
+
   - List tools with pagination:
     -  `call proxy {"action": "list", "type": "tool", "limit": 50, "offset": 0}`
-    
+
   - List tools from a specific server:
     -  `call proxy {"action": "list", "type": "tool", "filter_server": "serena_"}`
 

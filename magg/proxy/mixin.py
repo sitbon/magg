@@ -122,7 +122,7 @@ class ProxyMCP:
             raise ValueError(
                 "Parameter 'path' should not be provided for action 'list'"
             )
-            
+
         if action != "list" and (limit is not None or offset is not None or filter_server is not None):
             raise ValueError(
                 "Parameters 'limit', 'offset', and 'filter_server' are only allowed for 'list' action"
@@ -130,11 +130,11 @@ class ProxyMCP:
 
         if action == "list":
             result, result_type = await self._proxy_list(a_type)
-            
+
             # Apply filtering if requested
             if filter_server and result:
                 result = [item for item in result if hasattr(item, 'name') and item.name.startswith(filter_server)]
-            
+
             # Apply pagination
             total_count = len(result) if result else 0
             if result and (limit or offset):

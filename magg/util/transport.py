@@ -22,15 +22,15 @@ __all__ = "get_transport_for_command", "get_transport_for_command_string", "get_
 def parse_command_string(command_string: str) -> tuple[str, list[str]]:
     """
     Parse a command string into command and arguments.
-    
+
     Uses shell-like parsing to handle quoted arguments properly.
-    
+
     Args:
         command_string: Command string like "python -m magg serve" or "npx @playwright/mcp@latest"
-        
+
     Returns:
         Tuple of (command, args) where command is the first word and args is the rest
-        
+
     Examples:
         >>> parse_command_string("python -m magg serve")
         ("python", ["-m", "magg", "serve"])
@@ -39,15 +39,15 @@ def parse_command_string(command_string: str) -> tuple[str, list[str]]:
     """
     if not command_string.strip():
         raise ValueError("Command string cannot be empty")
-    
+
     try:
         parts = shlex.split(command_string)
     except ValueError as e:
         raise ValueError(f"Invalid command string: {e}") from e
-    
+
     if not parts:
         raise ValueError("Command string must contain at least one part")
-    
+
     return parts[0], parts[1:]
 
 
@@ -59,19 +59,19 @@ def get_transport_for_command_string(
 ) -> ClientTransport:
     """
     Create appropriate transport for a command string.
-    
+
     This is a convenience function that combines command string parsing
     with transport creation.
-    
+
     Args:
         command_string: Full command as string (e.g., "python -m magg serve")
         env: Environment variables
-        cwd: Working directory  
+        cwd: Working directory
         transport_config: Transport-specific configuration
-        
+
     Returns:
         Configured ClientTransport instance
-        
+
     Examples:
         >>> transport = get_transport_for_command_string("python -m magg serve")
         >>> transport = get_transport_for_command_string("npx @playwright/mcp@latest")

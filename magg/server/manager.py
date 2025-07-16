@@ -2,10 +2,8 @@
 """
 import asyncio
 import logging
-import os
 from functools import cached_property
-from pathlib import Path
-from typing import TYPE_CHECKING, Annotated
+from typing import Annotated
 
 from fastmcp import FastMCP, Client
 from pydantic import Field
@@ -14,11 +12,11 @@ from .defaults import MAGG_INSTRUCTIONS
 from .response import MaggResponse
 from ..auth import BearerAuthManager
 from ..kit import KitManager
-from ..reload import ConfigChange, ServerChange
 from ..proxy.server import ProxyFastMCP
+from ..reload import ConfigChange, ServerChange
 from ..settings import ConfigManager, MaggConfig, ServerConfig
-from ..util.transport import get_transport_for_command, get_transport_for_uri
 from ..util.stdio_patch import patch_stdio_transport_stderr
+from ..util.transport import get_transport_for_command, get_transport_for_uri
 
 logger = logging.getLogger(__name__)
 
@@ -135,13 +133,13 @@ class ServerManager:
     # noinspection PyProtectedMember
     def _unmount_from_fastmcp(self, server_name: str) -> bool:
         """Remove a mounted server from FastMCP's internal structures.
-        
+
         This is a workaround until FastMCP provides an official unmount method.
         Returns True if server was found and removed.
         """
         # We need to find and remove the MountedServer object from all managers
         found = False
-        
+
         # Check tool manager
         if hasattr(self.mcp, '_tool_manager') and hasattr(self.mcp._tool_manager, '_mounted_servers'):
             mounted_servers = self.mcp._tool_manager._mounted_servers
@@ -151,7 +149,7 @@ class ServerManager:
                     found = True
                     logger.debug("Removed server %s from tool manager", server_name)
                     break
-        
+
         # Check resource manager
         if hasattr(self.mcp, '_resource_manager') and hasattr(self.mcp._resource_manager, '_mounted_servers'):
             mounted_servers = self.mcp._resource_manager._mounted_servers
@@ -160,7 +158,7 @@ class ServerManager:
                     mounted_servers.pop(i)
                     logger.debug("Removed server %s from resource manager", server_name)
                     break
-                    
+
         # Check prompt manager
         if hasattr(self.mcp, '_prompt_manager') and hasattr(self.mcp._prompt_manager, '_mounted_servers'):
             mounted_servers = self.mcp._prompt_manager._mounted_servers
@@ -169,7 +167,7 @@ class ServerManager:
                     mounted_servers.pop(i)
                     logger.debug("Removed server %s from prompt manager", server_name)
                     break
-                    
+
         return found
 
     async def unmount_server(self, name: str) -> bool:
@@ -564,14 +562,14 @@ class ManagedServer:
 
     async def get_kit_metadata(self, name: str) -> dict:
         """Expose kit metadata as an MCP resource suitable for saving as a kit file.
-        
+
         Only returns kits that are currently loaded in memory.
         """
         loaded_kits = self.kit_manager.kits
-        
+
         if name not in loaded_kits:
             raise ValueError(f"Kit '{name}' not found in loaded kits")
-        
+
         kit_config = loaded_kits[name]
 
         return kit_config.model_dump(
@@ -581,10 +579,10 @@ class ManagedServer:
             exclude_unset=True,
             by_alias=True
         )
-    
+
     async def get_all_kits_metadata(self) -> dict[str, dict]:
         """Expose all loaded kits metadata as an MCP resource.
-        
+
         Only returns kits that are currently loaded in memory.
         """
         result = {}
@@ -597,7 +595,7 @@ class ManagedServer:
                 exclude_unset=True,
                 by_alias=True
             )
-        
+
         return result
 
     # ============================================================================

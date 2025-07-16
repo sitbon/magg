@@ -376,10 +376,10 @@ def annotate_content(
 
 def json_to_dict(value: Any) -> dict[str, Any] | Any:
     """Convert a JSON string to a dict, or pass through if not a string.
-    
+
     Args:
         value: A JSON string, dict, or any other value
-        
+
     Returns:
         If value is a string containing valid JSON that decodes to a dict, returns the dict.
         Otherwise, returns the original value unchanged.
@@ -396,10 +396,10 @@ def json_to_dict(value: Any) -> dict[str, Any] | Any:
 
 def json_to_list(value: Any) -> list[Any] | Any:
     """Convert a JSON string to a list, or pass through if not a string.
-    
+
     Args:
         value: A JSON string, list, or any other value
-        
+
     Returns:
         If value is a string containing valid JSON that decodes to a list, returns the list.
         Otherwise, returns the original value unchanged.

@@ -172,7 +172,7 @@ class ServerManager:
         if name in self.mounted_servers:
             unmounted = self._unmount_from_fastmcp(name)
             if unmounted:
-                logger.info("Unmounted server %s from FastMCP", name)
+                logger.debug("Unmounted server %s from FastMCP", name)
             else:
                 logger.debug("Server %s was not found in FastMCP's mounted servers", name)
 

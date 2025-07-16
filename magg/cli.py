@@ -255,6 +255,208 @@ async def cmd_export(args) -> None:
         print(json.dumps(export_data, indent=2))
 
 
+async def cmd_kit(args) -> None:
+    """Manage kits."""
+    from .kit import KitManager
+    
+    config_manager = ConfigManager(args.config)
+    config = config_manager.load_config()
+    kit_manager = KitManager(config_manager)
+    
+    if args.kit_action == 'list':
+        # List available kits
+        discovered = kit_manager.discover_kits()
+        if not discovered:
+            print_warning("No kits found in kit.d directories")
+            print_info(f"Search paths: {', '.join(str(p) for p in kit_manager.kitd_paths)}")
+            return
+            
+        print_info(f"Available kits ({len(discovered)}):")
+        for kit_name, kit_path in discovered.items():
+            # Try to load to get description
+            kit_config = kit_manager.load_kit(kit_path)
+            if kit_config and kit_config.description:
+                print(f"  • {kit_name}: {kit_config.description}")
+            else:
+                print(f"  • {kit_name}")
+                
+    elif args.kit_action == 'load':
+        # Load a kit into configuration
+        discovered = kit_manager.discover_kits()
+        if args.name not in discovered:
+            print_error(f"Kit '{args.name}' not found")
+            print_info(f"Available kits: {', '.join(discovered.keys())}")
+            sys.exit(1)
+            
+        kit_path = discovered[args.name]
+        kit_config = kit_manager.load_kit(kit_path)
+        if not kit_config:
+            print_error(f"Failed to load kit '{args.name}'")
+            sys.exit(1)
+            
+        # Add kit to config's kits list if not already there
+        if args.name not in config.kits:
+            config.kits.append(args.name)
+            
+        # Add servers from kit to configuration
+        added_servers = []
+        skipped_servers = []
+        for server_name, server_config in kit_config.servers.items():
+            if server_name in config.servers:
+                skipped_servers.append(server_name)
+                continue
+                
+            # Set enabled state based on flag
+            server_config.enabled = args.enable
+            config.servers[server_name] = server_config
+            added_servers.append(server_name)
+            
+        # Save configuration
+        if config_manager.save_config(config):
+            if added_servers:
+                print_success(f"Added {len(added_servers)} servers from kit '{args.name}':")
+                for name in added_servers:
+                    status = "enabled" if args.enable else "disabled"
+                    print(f"  • {name} ({status})")
+            if skipped_servers:
+                print_warning(f"Skipped {len(skipped_servers)} servers already in configuration:")
+                for name in skipped_servers:
+                    print(f"  • {name}")
+            if not added_servers and not skipped_servers:
+                print_warning(f"Kit '{args.name}' contains no servers")
+        else:
+            print_error("Failed to save configuration")
+            sys.exit(1)
+            
+    elif args.kit_action == 'info':
+        # Show information about a kit
+        discovered = kit_manager.discover_kits()
+        if args.name not in discovered:
+            print_error(f"Kit '{args.name}' not found")
+            print_info(f"Available kits: {', '.join(discovered.keys())}")
+            sys.exit(1)
+            
+        kit_path = discovered[args.name]
+        kit_config = kit_manager.load_kit(kit_path)
+        if not kit_config:
+            print_error(f"Failed to load kit '{args.name}'")
+            sys.exit(1)
+            
+        print_info(f"Kit: {kit_config.name}")
+        if kit_config.description:
+            print(f"Description: {kit_config.description}")
+        if kit_config.author:
+            print(f"Author: {kit_config.author}")
+        if kit_config.version:
+            print(f"Version: {kit_config.version}")
+        if kit_config.keywords:
+            print(f"Keywords: {', '.join(kit_config.keywords)}")
+        if kit_config.links:
+            print("Links:")
+            for key, url in kit_config.links.items():
+                print(f"  • {key}: {url}")
+                
+        if kit_config.servers:
+            print(f"\nServers ({len(kit_config.servers)}):")
+            for server_name, server in kit_config.servers.items():
+                prefix_info = f" (prefix: {server.prefix})" if server.prefix else ""
+                print(f"  • {server_name}{prefix_info}")
+                if server.notes:
+                    print(f"    {server.notes}")
+        else:
+            print("\nNo servers in this kit")
+    else:
+        print_error(f"Unknown kit action: {args.kit_action}")
+        sys.exit(1)
+
+
+async def cmd_server(args) -> None:
+    """Manage servers."""
+    if args.server_action == 'list':
+        await cmd_list_servers(args)
+    elif args.server_action == 'add':
+        await cmd_add_server(args)
+    elif args.server_action == 'remove':
+        await cmd_remove_server(args)
+    elif args.server_action == 'enable':
+        await cmd_enable_server(args)
+    elif args.server_action == 'disable':
+        await cmd_disable_server(args)
+    elif args.server_action == 'info':
+        await cmd_server_info(args)
+    else:
+        print_error(f"Unknown server action: {args.server_action}")
+        sys.exit(1)
+
+
+async def cmd_server_info(args) -> None:
+    """Show detailed information about a server."""
+    config_manager = ConfigManager(args.config)
+    config = config_manager.load_config()
+    
+    if args.name not in config.servers:
+        print_error(f"Server '{args.name}' not found")
+        sys.exit(1)
+    
+    server = config.servers[args.name]
+    
+    print_info(f"Server: {server.name}")
+    print(f"Source: {server.source}")
+    print(f"Enabled: {'Yes' if server.enabled else 'No'}")
+    print(f"Prefix: {server.prefix if server.prefix else '(none)'}")
+    
+    if server.command:
+        print(f"Command: {server.command}")
+        if server.args:
+            print(f"Arguments: {' '.join(server.args)}")
+    
+    if server.uri:
+        print(f"URI: {server.uri}")
+    
+    if server.cwd:
+        print(f"Working Directory: {server.cwd}")
+    
+    if server.env:
+        print("Environment Variables:")
+        for key, value in server.env.items():
+            print(f"  {key}={value}")
+    
+    if server.transport:
+        print("Transport Configuration:")
+        import json
+        print(f"  {json.dumps(server.transport, indent=2)}")
+    
+    if server.notes:
+        print(f"\nNotes: {server.notes}")
+    
+    if server.kits:
+        print(f"\nIncluded in kits: {', '.join(server.kits)}")
+
+
+async def cmd_config(args) -> None:
+    """Manage configuration."""
+    if args.config_action == 'show':
+        await cmd_status(args)
+    elif args.config_action == 'export':
+        await cmd_export(args)
+    elif args.config_action == 'path':
+        await cmd_config_path(args)
+    else:
+        print_error(f"Unknown config action: {args.config_action}")
+        sys.exit(1)
+
+
+async def cmd_config_path(args) -> None:
+    """Show configuration file path."""
+    config_manager = ConfigManager(args.config)
+    print_info("Configuration file path:")
+    print(f"  {config_manager.config_path}")
+    if config_manager.config_path.exists():
+        print_success("File exists")
+    else:
+        print_warning("File does not exist (using defaults)")
+
+
 async def cmd_auth(args) -> None:
     """Manage authentication."""
     from .auth import BearerAuthManager
@@ -441,38 +643,100 @@ def create_parser() -> argparse.ArgumentParser:
     )
     cmd_serve_args(serve_parser)
 
-    # Add server command
-    add_parser = subparsers.add_parser('add-server', help='Add a new server')
-    add_parser.add_argument('name', help='Server name')
-    add_parser.add_argument('source', help='URL of the server package/repository')
-    add_parser.add_argument('--prefix', help='Tool prefix (defaults to server name)')
-    add_parser.add_argument('--command', help='Command to run the server')
-    add_parser.add_argument('--uri', help='URI for HTTP servers')
-    add_parser.add_argument('--env', nargs='*', help='Environment variables (KEY=VALUE)')
-    add_parser.add_argument('--working-dir', help='Working directory')
-    add_parser.add_argument('--notes', help='Setup notes')
+    # Server command
+    server_parser = subparsers.add_parser('server', help='Manage servers')
+    server_subparsers = server_parser.add_subparsers(dest='server_action', help='Server actions')
+    
+    # Server list
+    server_subparsers.add_parser('list', help='List configured servers')
+    
+    # Server add
+    server_add = server_subparsers.add_parser('add', help='Add a new server')
+    server_add.add_argument('name', help='Server name')
+    server_add.add_argument('source', help='URL of the server package/repository')
+    server_add.add_argument('--prefix', help='Tool prefix (defaults to None)')
+    server_add.add_argument('--command', help='Command to run the server')
+    server_add.add_argument('--uri', help='URI for HTTP servers')
+    server_add.add_argument('--env', nargs='*', help='Environment variables (KEY=VALUE)')
+    server_add.add_argument('--cwd', dest='cwd', help='Working directory')
+    server_add.add_argument('--notes', help='Setup notes')
+    
+    # Server remove
+    server_remove = server_subparsers.add_parser('remove', help='Remove a server')
+    server_remove.add_argument('name', help='Server name')
+    server_remove.add_argument('--force', '-f', action='store_true', help='Remove without confirmation')
+    
+    # Server enable
+    server_enable = server_subparsers.add_parser('enable', help='Enable a server')
+    server_enable.add_argument('name', help='Server name')
+    
+    # Server disable
+    server_disable = server_subparsers.add_parser('disable', help='Disable a server')
+    server_disable.add_argument('name', help='Server name')
+    
+    # Server info (new)
+    server_info = server_subparsers.add_parser('info', help='Show detailed information about a server')
+    server_info.add_argument('name', help='Server name')
 
-    # List servers
-    subparsers.add_parser('list-servers', help='List configured servers')
+    # Config command
+    config_parser = subparsers.add_parser('config', help='Manage configuration')
+    config_subparsers = config_parser.add_subparsers(dest='config_action', help='Config actions')
+    
+    # Config show (status)
+    config_subparsers.add_parser('show', help='Show current configuration status')
+    
+    # Config export
+    config_export = config_subparsers.add_parser('export', help='Export configuration')
+    config_export.add_argument('--output', '-o', help='Output file (default: stdout)')
+    
+    # Config path
+    config_subparsers.add_parser('path', help='Show configuration file path')
 
-    # Remove server
-    remove_parser = subparsers.add_parser('remove-server', help='Remove a server')
-    remove_parser.add_argument('name', help='Server name')
-    remove_parser.add_argument('--force', '-f', action='store_true', help='Remove without confirmation')
+    # Backward compatibility - deprecated commands
+    # Create them only if environment variable is set or we're not showing help
+    if os.environ.get('MAGG_SHOW_DEPRECATED') or (len(sys.argv) > 1 and sys.argv[1] not in ['--help', '-h']):
+        add_parser = subparsers.add_parser('add-server', help=argparse.SUPPRESS)
+        add_parser.add_argument('name', help='Server name')
+        add_parser.add_argument('source', help='URL of the server package/repository')
+        add_parser.add_argument('--prefix', help='Tool prefix')
+        add_parser.add_argument('--command', help='Command to run the server')
+        add_parser.add_argument('--uri', help='URI for HTTP servers')
+        add_parser.add_argument('--env', nargs='*', help='Environment variables (KEY=VALUE)')
+        add_parser.add_argument('--cwd', dest='cwd', help='Working directory')
+        add_parser.add_argument('--notes', help='Setup notes')
 
-    # Enable/disable server
-    enable_parser = subparsers.add_parser('enable-server', help='Enable a server')
-    enable_parser.add_argument('name', help='Server name')
+        subparsers.add_parser('list-servers', help=argparse.SUPPRESS)
 
-    disable_parser = subparsers.add_parser('disable-server', help='Disable a server')
-    disable_parser.add_argument('name', help='Server name')
+        remove_parser = subparsers.add_parser('remove-server', help=argparse.SUPPRESS)
+        remove_parser.add_argument('name', help='Server name')
+        remove_parser.add_argument('--force', '-f', action='store_true', help='Remove without confirmation')
 
-    # Status command
-    subparsers.add_parser('status', help='Show Magg status')
+        enable_parser = subparsers.add_parser('enable-server', help=argparse.SUPPRESS)
+        enable_parser.add_argument('name', help='Server name')
 
-    # Export command
-    export_parser = subparsers.add_parser('export', help='Export configuration')
-    export_parser.add_argument('--output', '-o', help='Output file (default: stdout)')
+        disable_parser = subparsers.add_parser('disable-server', help=argparse.SUPPRESS)
+        disable_parser.add_argument('name', help='Server name')
+
+        subparsers.add_parser('status', help=argparse.SUPPRESS)
+        export_parser = subparsers.add_parser('export', help=argparse.SUPPRESS)
+        export_parser.add_argument('--output', '-o', help='Output file (default: stdout)')
+
+    # Kit command
+    kit_parser = subparsers.add_parser('kit', help='Manage kits')
+    kit_subparsers = kit_parser.add_subparsers(dest='kit_action', help='Kit actions')
+    
+    # Kit list
+    kit_subparsers.add_parser('list', help='List available kits')
+    
+    # Kit load
+    kit_load = kit_subparsers.add_parser('load', help='Load a kit into configuration')
+    kit_load.add_argument('name', help='Kit name to load')
+    kit_load.add_argument('--enable', action='store_true', default=True, help='Enable servers after loading (default: True)')
+    kit_load.add_argument('--no-enable', dest='enable', action='store_false', help='Do not enable servers after loading')
+    
+    # Kit info
+    kit_info = kit_subparsers.add_parser('info', help='Show information about a kit')
+    kit_info.add_argument('name', help='Kit name')
 
     # Auth command
     auth_parser = subparsers.add_parser('auth', help='Manage authentication')
@@ -506,7 +770,14 @@ def create_parser() -> argparse.ArgumentParser:
     output_group.add_argument('--quiet', '-q', action='store_true', help='Only output the token')
     output_group.add_argument('--export', '-e', action='store_true', help='Output as export command for eval')
 
+
     return parser
+
+
+async def _deprecated_redirect(old_cmd: str, new_cmd: str, func, args):
+    """Helper to show deprecation warning and call the original function."""
+    print_warning(f"'{old_cmd}' is deprecated. Please use 'magg {new_cmd}' instead.")
+    return await func(args)
 
 
 async def run():
@@ -521,14 +792,18 @@ async def run():
     # Map commands to functions
     commands = {
         'serve': cmd_serve,
-        'add-server': cmd_add_server,
-        'list-servers': cmd_list_servers,
-        'remove-server': cmd_remove_server,
-        'enable-server': cmd_enable_server,
-        'disable-server': cmd_disable_server,
-        'status': cmd_status,
-        'export': cmd_export,
+        'server': cmd_server,
+        'config': cmd_config,
+        'kit': cmd_kit,
         'auth': cmd_auth,
+        # Deprecated commands - show warning and redirect
+        'add-server': lambda a: _deprecated_redirect('add-server', 'server add', cmd_add_server, a),
+        'list-servers': lambda a: _deprecated_redirect('list-servers', 'server list', cmd_list_servers, a),
+        'remove-server': lambda a: _deprecated_redirect('remove-server', 'server remove', cmd_remove_server, a),
+        'enable-server': lambda a: _deprecated_redirect('enable-server', 'server enable', cmd_enable_server, a),
+        'disable-server': lambda a: _deprecated_redirect('disable-server', 'server disable', cmd_disable_server, a),
+        'status': lambda a: _deprecated_redirect('status', 'config show', cmd_status, a),
+        'export': lambda a: _deprecated_redirect('export', 'config export', cmd_export, a),
     }
 
     cmd_func = commands.get(args.subcommand)

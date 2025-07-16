@@ -48,9 +48,10 @@ class TestMaggBasicFunctionality:
         async with server:
             async with Client(server.mcp) as client:
                 result = await client.call_tool("magg_list_servers", {})
-                assert len(result) > 0
-                assert hasattr(result[0], 'text')
-                assert isinstance(result[0].text, str)
+                assert hasattr(result, 'content')
+                assert len(result.content) > 0
+                assert hasattr(result.content[0], 'text')
+                assert isinstance(result.content[0].text, str)
 
 
 class TestMaggServerManagement:
@@ -76,11 +77,15 @@ class TestMaggServerManagement:
                     "enable": False  # Don't try to mount it
                 })
 
-                assert len(result) > 0
-                assert hasattr(result[0], 'text')
+                assert hasattr(result, 'content')
+                assert len(result.content) > 0
+                assert hasattr(result.content[0], 'text')
 
-                result = await client.call_tool("magg_list_servers", {})
-                assert server_name in result[0].text
+                list_result = await client.call_tool("magg_list_servers", {})
+                assert hasattr(list_result, 'content')
+                assert len(list_result.content) > 0
+                assert hasattr(list_result.content[0], 'text')
+                assert server_name in list_result.content[0].text
 
 
 class TestMaggServerSearch:
@@ -100,7 +105,8 @@ class TestMaggServerSearch:
                         "query": "filesystem",
                         "limit": 3
                     })
-                    assert len(result) > 0
-                    assert hasattr(result[0], 'text')
+                    assert hasattr(result, 'content')
+                    assert len(result.content) > 0
+                    assert hasattr(result.content[0], 'text')
                 except Exception as e:
                     pytest.skip(f"Search test failed (requires internet): {e}")

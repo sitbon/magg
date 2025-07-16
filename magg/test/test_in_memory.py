@@ -35,9 +35,10 @@ async def test_in_memory_basic_tools(tmp_path):
 
         # Test listing servers (should be empty)
         result = await client.call_tool("magg_list_servers", {})
-        assert len(result) == 1
-        assert result[0].type == "text"
-        assert "[]" in result[0].text  # Empty list
+        assert hasattr(result, 'content')
+        assert len(result.content) == 1
+        assert result.content[0].type == "text"
+        assert "[]" in result.content[0].text  # Empty list
 
 
 @pytest.mark.asyncio
@@ -60,13 +61,15 @@ async def test_in_memory_server_management(tmp_path):
             "enable": False  # Don't try to actually mount
         })
 
-        assert len(result) == 1
-        assert "server_added" in result[0].text
+        assert hasattr(result, 'content')
+        assert len(result.content) == 1
+        assert "server_added" in result.content[0].text
 
         # List servers
         result = await client.call_tool("magg_list_servers", {})
-        assert len(result) == 1
-        response = json.loads(result[0].text)
+        assert hasattr(result, 'content')
+        assert len(result.content) == 1
+        response = json.loads(result.content[0].text)
         assert response["errors"] is None
         servers = response["output"]
         assert len(servers) == 1
@@ -77,7 +80,7 @@ async def test_in_memory_server_management(tmp_path):
         result = await client.call_tool("magg_remove_server", {
             "name": "test-server"
         })
-        assert "server_removed" in result[0].text
+        assert "server_removed" in result.content[0].text
 
 
 @pytest.mark.asyncio
@@ -99,14 +102,15 @@ async def test_in_memory_proxy_tool(tmp_path):
         })
 
         # Should return embedded resource with tool list
-        assert len(result) == 1
-        assert result[0].type == "resource"
-        assert result[0].resource.mimeType == "application/json"
+        assert hasattr(result, 'content')
+        assert len(result.content) == 1
+        assert result.content[0].type == "resource"
+        assert result.content[0].resource.mimeType == "application/json"
 
         # Check annotations
-        assert hasattr(result[0], "annotations")
-        assert result[0].annotations.proxyAction == "list"
-        assert result[0].annotations.proxyType == "tool"
+        assert hasattr(result.content[0], "annotations")
+        assert result.content[0].annotations.proxyAction == "list"
+        assert result.content[0].annotations.proxyType == "tool"
 
 
 @pytest.mark.asyncio
@@ -175,5 +179,6 @@ if __name__ == "__main__":
 
         # Call the tool - should work
         result = await client_after.call_tool("test_test_add", {"a": 5, "b": 3})
-        assert len(result) == 1
-        assert result[0].text == "Result: 8"
+        assert hasattr(result, 'content')
+        assert len(result.content) == 1
+        assert result.content[0].text == "Result: 8"

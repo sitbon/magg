@@ -17,6 +17,7 @@ from prompt_toolkit.completion import WordCompleter
 from prompt_toolkit.history import FileHistory
 from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
 from prompt_toolkit.key_binding import KeyBindings
+from prompt_toolkit.filters import completion_is_selected, has_completions
 from prompt_toolkit.shortcuts import CompleteStyle
 from prompt_toolkit.styles import Style
 from prompt_toolkit.validation import Validator, ValidationError
@@ -141,9 +142,12 @@ class MCPBrowserCLI:
         
         @kb.add('c-c')
         def _(event):
-            """Handle Ctrl+C - cancel multiline input or interrupt."""
+            """Handle Ctrl+C - cancel completion or multiline input or interrupt."""
             buffer = event.app.current_buffer
-            if buffer.text.strip():
+            # First priority: cancel completion if open
+            if buffer.complete_state:
+                buffer.cancel_completion()
+            elif buffer.text.strip():
                 # Clear the buffer and cancel current input
                 buffer.reset()
             else:
@@ -182,6 +186,41 @@ class MCPBrowserCLI:
             buffer = event.app.current_buffer
             buffer.validate_and_handle()
         
+        @kb.add('tab')
+        def _(event):
+            """Custom TAB handling for completion control."""
+            buffer = event.app.current_buffer
+            
+            # If completion menu is already open, navigate through it
+            if buffer.complete_state:
+                buffer.complete_next()
+            else:
+                # Start completion (always show menu, even for single items)
+                buffer.start_completion(select_first=False)
+        
+        @kb.add('s-tab')  # Shift+Tab
+        def _(event):
+            """Navigate backward through completions."""
+            buffer = event.app.current_buffer
+            if buffer.complete_state:
+                buffer.complete_previous()
+        
+        @kb.add('enter', filter=completion_is_selected)  # Enter when completion is active
+        def _(event):
+            """Apply selected completion and close menu."""
+            buffer = event.app.current_buffer
+            if buffer.complete_state and buffer.complete_state.current_completion:
+                # Apply the completion
+                buffer.apply_completion(buffer.complete_state.current_completion)
+                # Close the completion menu
+                buffer.cancel_completion()
+        
+        @kb.add('escape', filter=has_completions, eager=True)
+        def _(event):
+            """Cancel completion menu without applying (ESC when menu is open)."""
+            buffer = event.app.current_buffer
+            buffer.cancel_completion()
+        
         return kb
     
     def _create_smart_auto_suggest(self):
@@ -193,7 +232,7 @@ class MCPBrowserCLI:
         if self.use_enhanced:
             conn = self.browser.current_connection
             if conn:
-                return f" Connected: {conn} | TAB: complete | Ctrl+C: cancel "
+                return f" Connected: {conn} | TAB: complete | Shift+TAB: navigate | Enter: apply | ESC/Ctrl+C: cancel "
             else:
                 return " No connection | TAB: complete | Type 'connect <name> <connection>' to start "
         return ""

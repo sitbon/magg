@@ -2,6 +2,7 @@
 """
 import asyncio
 import logging
+import os
 from functools import cached_property
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated
@@ -17,6 +18,7 @@ from ..reload import ConfigChange, ServerChange
 from ..proxy.server import ProxyFastMCP
 from ..settings import ConfigManager, MaggConfig, ServerConfig
 from ..util.transport import get_transport_for_command, get_transport_for_uri
+from ..util.stdio_patch import patch_stdio_transport_stderr
 
 logger = logging.getLogger(__name__)
 
@@ -98,6 +100,9 @@ class ServerManager:
                     cwd=server.cwd,
                     transport_config=server.transport
                 )
+                # Suppress stderr from subprocess servers by default
+                if not self.config.stderr_show:
+                    transport = patch_stdio_transport_stderr(transport)
                 client = Client(transport, message_handler=message_handler)
 
             elif server.uri:
@@ -425,12 +430,12 @@ class ManagedServer:
     async def run_stdio(self):
         """Run Magg in stdio mode."""
         await self.setup()
-        await self.mcp.run_stdio_async()
+        await self.mcp.run_stdio_async(show_banner=False)
 
     async def run_http(self, host: str = "localhost", port: int = 8000, log_level: str = "CRITICAL"):
         """Run Magg in HTTP mode."""
         await self.setup()
-        await self.mcp.run_http_async(host=host, port=port, log_level=log_level)
+        await self.mcp.run_http_async(host=host, port=port, log_level=log_level, show_banner=False)
 
     async def reload_config(self) -> bool:
         """Manually trigger a configuration reload.

@@ -39,8 +39,9 @@ class TestToolDelegation:
             assert tools[0].name == "delegate_test"
 
             result = await client.call_tool("delegate_test", {"query": "test"})
-            assert len(result) > 0
-            assert "Delegated result: test" in result[0].text
+            assert hasattr(result, 'content')
+            assert len(result.content) > 0
+            assert "Delegated result: test" in result.content[0].text
 
     def test_tool_prefix_handling(self):
         """Test that tool prefixes are handled correctly."""

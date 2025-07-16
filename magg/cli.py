@@ -206,7 +206,7 @@ async def cmd_disable_server(args) -> None:
 
     if config_manager.save_config(config):
         print_success(f"Disabled server '{args.name}'")
-        print_warning("The server will remain mounted until Magg is restarted")
+        print_info("If Magg is running, the server will be automatically unmounted")
     else:
         print_error("Failed to save configuration")
         sys.exit(1)

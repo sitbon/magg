@@ -125,10 +125,22 @@ Parameters:
   path (string | null) (optional)
     Name or URI of the specific tool/resource/prompt (with FastMCP prefixing).
     Not allowed for 'list' and 'info' actions.
+  limit (integer | null) (optional)
+    Maximum number of items to return (for 'list' action only). Default: 100, Max: 1000
+  offset (integer | null) (optional)
+    Number of items to skip (for 'list' action only). Default: 0
+  filter_server (string | null) (optional)
+    Filter results by server name prefix (for 'list' action only)
 
 Example usage (MBRO commands):
   - List all tools:
     -  `call proxy {"action": "list", "type": "tool"}`
+    
+  - List tools with pagination:
+    -  `call proxy {"action": "list", "type": "tool", "limit": 50, "offset": 0}`
+    
+  - List tools from a specific server:
+    -  `call proxy {"action": "list", "type": "tool", "filter_server": "serena_"}`
 
   - Get info about a specific tool:
     -  `call proxy {"action": "info", "type": "tool", "path": "calc:add"}`

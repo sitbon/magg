@@ -122,7 +122,10 @@ asyncio.run(main())
                 print(f"\nResult: {result}")
 
                 # Parse the JSON response
-                response_text = result[0].text if result else "{}"
+                if hasattr(result, 'content') and result.content:
+                    response_text = result.content[0].text
+                else:
+                    response_text = "{}"
                 servers_data = json.loads(response_text)
                 print(f"Parsed servers data: {servers_data}")
 

@@ -8,6 +8,7 @@ from fastmcp import Client
 from fastmcp.client import BearerAuth
 from mcp.types import TextContent, ImageContent, EmbeddedResource, BlobResourceContents, TextResourceContents, Tool, \
     Resource, ResourceTemplate, Prompt, GetPromptResult
+from magg.util.transport import get_transport_for_command_string
 
 logger = logging.getLogger(__name__)
 
@@ -82,9 +83,9 @@ class MCPConnection:
                 url = url.rstrip("/") + "/mcp/"
             client = Client(url, auth=auth)  # type: ignore[call-arg]
         else:
-            # For command connections, pass the string directly
-            # FastMCP Client will handle the parsing
-            client = Client(self.connection_string, auth=auth)  # type: ignore[call-arg]
+            # For command connections, use Magg's transport inference
+            transport = get_transport_for_command_string(self.connection_string)
+            client = Client(transport, auth=auth)  # type: ignore[call-arg]
 
         try:
             async with client as conn:

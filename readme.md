@@ -271,6 +271,18 @@ Configuration reload is enabled by default. You can control it with:
 
 See [Configuration Reload Documentation](docs/config-reload.md) for detailed information.
 
+#### Environment Variables
+
+Magg supports several environment variables for configuration:
+- `MAGG_CONFIG_PATH` - Path to config file (default: `.magg/config.json`)
+- `MAGG_LOG_LEVEL` - Logging level: DEBUG, INFO, WARNING, ERROR, CRITICAL (default: INFO)
+- `MAGG_STDERR_SHOW=1` - Show stderr output from subprocess MCP servers (default: suppressed)
+- `MAGG_AUTO_RELOAD` - Enable/disable config auto-reload (default: true)
+- `MAGG_RELOAD_POLL_INTERVAL` - Config polling interval in seconds (default: 1.0)
+- `MAGG_READ_ONLY=true` - Run in read-only mode
+- `MAGG_QUIET=true` - Suppress output unless errors occur
+- `MAGG_SELF_PREFIX` - Prefix for Magg tools (default: "magg")
+
 Example configuration:
 ```json
 {

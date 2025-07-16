@@ -84,8 +84,11 @@ mbro:memory> tools
 # Get detailed information about a tool
 mbro:memory> tool create_memory
 
-# Call a tool with arguments (no quotes needed in interactive mode)
+# Call a tool with JSON arguments
 mbro:memory> call create_memory {"content": "Remember this important note"}
+
+# Call a tool with shell-style arguments
+mbro:memory> call create_memory content="Remember this important note"
 
 # List resources
 mbro:memory> resources
@@ -96,8 +99,8 @@ mbro:memory> read memory://notes/123
 # List prompts
 mbro:memory> prompts
 
-# Use a prompt
-mbro:memory> prompt summarize {"topic": "recent_memories"}
+# Use a prompt with shell-style arguments
+mbro:memory> prompt summarize topic="recent_memories"
 ```
 
 ## Commands Reference
@@ -148,68 +151,56 @@ mbro:memory> prompt summarize {"topic": "recent_memories"}
 
 ## Advanced Features
 
-### Enhanced Mode Features (New!)
+### Modern CLI Features
 
-mbro includes advanced features that make it easier and more intuitive to use:
+mbro includes modern command-line features for better usability:
 
-#### 🗣️ Natural Language Commands
-Instead of memorizing exact syntax, use natural language:
+#### 📝 Shell-Style Argument Parsing
+Supports key=value syntax with automatic type conversion:
 ```bash
-# Traditional commands
-mbro> tools
-mbro> call add {"a": 5, "b": 3}
-
-# Natural language alternatives
-mbro> show me all tools
-mbro> call add with a=5 and b=3
-mbro> what tools are available?
-```
-
-#### 📝 Smart Argument Parsing
-Multiple ways to specify arguments:
-```bash
-# JSON format (traditional)
+# Traditional JSON format
 mbro> call weather {"location": "London", "units": "celsius"}
 
-# Key=value format
-mbro> call weather location=London units=celsius
+# Shell-style key=value format
+mbro> call weather location="London" units="celsius"
 
-# Natural language
-mbro> call weather with location as London and units as celsius
+# Mixed types with automatic conversion
+mbro> call search query="python" limit=10 include_examples=true
 ```
 
-#### 📄 Multiline JSON Editor
-Press `Ctrl+M` to open a multiline JSON editor with:
-- Syntax highlighting
-- Real-time validation
-- Auto-indentation
-- Template generation from tool schemas
-
-Example workflow:
+#### 📄 Python REPL-Style Multiline Input
+Natural multiline command editing:
 ```bash
-mbro> call complex_tool
-This tool requires arguments. Press Ctrl+M to enter them.
-mbro> <Ctrl+M>
-Enter JSON arguments for 'complex_tool':
-Expected properties:
-  data: object (required) - Complex data structure
-  options: array - Configuration options
+# Press Enter to continue on next line
+mbro> call complex_tool {
+...   "data": {
+...     "key": "value"
+...   }
+... }
 
-{
-  "data": {
-    "key": "value"
-  },
-  "options": ["opt1", "opt2"]
-}
-<Ctrl+D to submit>
+# Use backslash for explicit line continuation
+mbro> call tool arg1="value1" \
+...          arg2="value2"
 ```
 
-#### 🔍 Context-Aware Completions
-Tab completion now includes:
-- Tool names with descriptions
-- Connection names with status (active/inactive)
-- Parameter suggestions based on tool schemas
-- Smart filtering as you type
+#### 🔍 Rich Tab Completion
+Intelligent parameter completion with documentation:
+```bash
+# Press Tab after tool name to see parameters
+mbro> call magg_server_enable <TAB>
+┌─────────────────────────────────────────────────────┐
+│ server=     │ string │ required │ Name of server... │
+│ force=      │ boolean │ optional │ Force enable...   │
+└─────────────────────────────────────────────────────┘
+```
+
+#### 🔍 Enhanced Tab Completion
+Tab completion provides rich parameter information:
+- **Parameter names with types**: `server=` | `string` | `required` | `Name of server to enable`
+- **Type-aware value suggestions**: Enum values, boolean `true/false`, examples
+- **Browse-then-apply behavior**: Browse options with Tab, press Enter to select
+- **ESC to cancel**: Exit completion without selecting
+- **Smart parsing**: Detects existing parameters to avoid duplicates
 
 #### 💡 Intelligent Error Suggestions
 When errors occur, get helpful suggestions:
@@ -228,17 +219,19 @@ Did you mean: weather, whether_tool?
 
 | Shortcut | Action | Context |
 |----------|--------|---------|
-| `Ctrl+M` | Open multiline JSON editor | Any prompt |
-| `Ctrl+R` | Repeat last command | Empty prompt |
-| `Ctrl+L` | Clear screen | Any time |
-| `Tab` | Autocomplete with descriptions | While typing |
+| `Tab` | Smart completion with parameter hints | While typing |
+| `Escape` | Cancel current completion | During completion |
+| `Enter` | Submit command or continue multiline | Command prompt |
 | `↑/↓` | Navigate command history | Any prompt |
-| `Ctrl+D` | Exit mbro or submit in multiline | Depends on context |
+| `Ctrl+C` | Cancel current command | Any time |
+| `Ctrl+D` | Exit mbro | Empty prompt |
+| `Ctrl+L` | Clear screen | Any time |
 
 ### Tool Argument Formatting
 
 mbro supports multiple ways to provide tool arguments:
 
+#### JSON Format (Traditional)
 ```bash
 # In interactive mode, use JSON directly (no surrounding quotes)
 call search {"query": "python tutorials", "limit": 10}
@@ -255,6 +248,32 @@ call create_task {
 
 # From command line, quotes may be needed for shell parsing
 mbro --call-tool search '{"query": "python tutorials"}'
+```
+
+#### Shell-Style Key=Value Format (New!)
+```bash
+# Simple key=value pairs
+call weather location="London" units="celsius"
+
+# Mixed types with automatic conversion
+call search query="python tutorials" limit=10 include_examples=true
+
+# Works with nested structures when combined with JSON
+call create_task title="Review PR" details='{"repo": "myproject", "pr_number": 123}'
+```
+
+#### Multiline Support
+```bash
+# Press Enter to continue on next line
+call complex_tool {
+  "data": {
+    "key": "value"
+  }
+}
+
+# Use backslash for explicit line continuation
+call tool arg1="value1" \
+         arg2="value2"
 ```
 
 ### Server Connection Strings
@@ -482,12 +501,10 @@ echo $result | jq '.'
 
 ### Command Line Options 
    - `--connect NAME CONNECTION` - Connect to a server on startup
-   - `--json` - Output only JSON (machine-readable, disables enhanced features)
-   - `--no-rich` - Disable Rich formatting
-   - `--no-enhanced` - Disable enhanced features (natural language, multiline, etc.)
+   - `--json` - Output only JSON (machine-readable)
+   - `--no-enhanced` - Disable enhanced features (shell-style args, multiline, etc.)
    - `--indent N` - Set JSON indent level (0 for compact)
-   - `--repl` - Start in async Python REPL mode instead of command shell
-   - `--list-connections` - List all available connections
+   - `--verbose` / `-v` - Enable verbose output
    - `--list-tools` - List available tools
    - `--list-resources` - List available resources  
    - `--list-prompts` - List available prompts

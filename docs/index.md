@@ -208,11 +208,11 @@ Add a new MCP server to the configuration.
 - `command` (str, optional): Full command to run (e.g., "npx @playwright/mcp@latest")
 - `prefix` (str, optional): Tool prefix (defaults to server name)
 - `uri` (str, optional): URI for HTTP servers
-- `env_vars` (dict, optional): Environment variables
+- `env` (dict|str, optional): Environment variables (can be a dict or JSON string)
 - `cwd` (str, optional): Working directory
 - `notes` (str, optional): Setup notes
 - `enable` (bool, optional): Whether to enable immediately (default: true)
-- `transport` (dict, optional): Transport-specific configuration
+- `transport` (dict|str, optional): Transport-specific configuration (can be a dict or JSON string)
 
 **Example:**
 ```json
@@ -281,6 +281,72 @@ Reload configuration from disk and apply changes dynamically.
     "message": "Configuration reloaded successfully",
     "config_path": "/path/to/.magg/config.json",
     "read_only": false
+}
+```
+
+#### `magg_status`
+Get server and tool statistics for monitoring and debugging.
+
+**Returns:**
+```json
+{
+    "servers": {
+        "total": 5,
+        "enabled": 4,
+        "mounted": 3,
+        "disabled": 1
+    },
+    "tools": {
+        "total": 47
+    },
+    "prefixes": {
+        "calculator": "calc",
+        "playwright": "pw",
+        "filesystem": "fs"
+    }
+}
+```
+
+#### `magg_check`
+Perform health checks on configured servers with optional remediation actions.
+
+**Parameters:**
+- `action` (str, optional): Action to perform - "report" (default), "remount", "unmount", or "disable"
+- `timeout` (float, optional): Health check timeout in seconds (default: 0.5)
+
+**Actions:**
+- `report`: Check server health and return status report
+- `remount`: Attempt to remount failed servers
+- `unmount`: Unmount failed servers
+- `disable`: Disable failed servers in configuration
+
+**Returns:**
+```json
+{
+    "action": "report",
+    "servers": {
+        "calculator": {
+            "name": "calculator",
+            "enabled": true,
+            "mounted": true,
+            "healthy": true,
+            "prefix": "calc"
+        },
+        "broken-server": {
+            "name": "broken-server", 
+            "enabled": true,
+            "mounted": false,
+            "healthy": false,
+            "prefix": "broken",
+            "error": "Connection timeout"
+        }
+    },
+    "summary": {
+        "total": 2,
+        "healthy": 1,
+        "unhealthy": 1,
+        "actions_taken": 0
+    }
 }
 ```
 
@@ -631,6 +697,9 @@ When configuration changes are detected, Magg:
 - `MAGG_AUTO_RELOAD` (default: `true`) - Enable/disable automatic configuration reloading
 - `MAGG_RELOAD_POLL_INTERVAL` (default: `1.0`) - Polling interval in seconds when watchdog unavailable
 - `MAGG_RELOAD_USE_WATCHDOG` (default: auto-detect) - Force watchdog on/off or let it auto-detect
+- `MAGG_STDERR_SHOW` (default: `false`) - Show stderr output from subprocess MCP servers
+- `MAGG_PREFIX_SEP` (default: `_`) - Separator between prefix and tool name
+- `MAGG_SELF_PREFIX` (default: `magg`) - Prefix for Magg's own tools
 
 ### Usage Examples
 

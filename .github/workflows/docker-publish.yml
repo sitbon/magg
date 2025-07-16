@@ -8,16 +8,14 @@ on:
       - 'magg/**'
       - 'pyproject.toml'
       - 'uv.lock'
-      - 'magg.dockerfile'
-      - 'compose.yaml'
+      - 'dockerfile'
   pull_request:
     branches: [ main, beta ]
     paths:
       - 'magg/**'
       - 'pyproject.toml'
       - 'uv.lock'
-      - 'magg.dockerfile'
-      - 'compose.yaml'
+      - 'dockerfile'
   workflow_dispatch:
 
 env:

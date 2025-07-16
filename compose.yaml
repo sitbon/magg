@@ -17,6 +17,8 @@ services:
       MAGG_AUTO_RELOAD: ${MAGG_AUTO_RELOAD:-false}
       MAGG_RELOAD_POLL_INTERVAL: ${MAGG_RELOAD_POLL_INTERVAL:-}
       MAGG_RELOAD_USE_WATCHDOG: ${MAGG_RELOAD_USE_WATCHDOG:-}
+      MAGG_STDERR_SHOW: ${MAGG_STDERR_SHOW:-}
+      MAGG_PREFIX_SEP: ${MAGG_PREFIX_SEP:-}
     volumes:
       - ${MAGG_CONFIG_VOLUME:-magg-config}:/home/magg/.magg
     networks:
@@ -55,7 +57,6 @@ services:
     ports:
       - "8008:8000"
     volumes:
-      - ${MAGG_CONFIG_VOLUME:-magg-config}:/home/magg/.magg
       - ./.magg:/home/magg/.magg:rw
 
 volumes:

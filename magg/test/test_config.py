@@ -104,27 +104,27 @@ class TestMaggConfig:
         # Create test directory structure
         test_dir = tmp_path / "test"
         test_dir.mkdir()
-        
+
         # Create some .mbro files
         (test_dir / "script1.mbro").write_text("# Script 1")
         subdir = test_dir / "subdir"
         subdir.mkdir()
         (subdir / "script2.mbro").write_text("# Script 2")
-        
+
         # Create non-.mbro file
         (test_dir / "notscript.py").write_text("# Not a script")
-        
+
         # Test with custom MAGG_PATH
         with patch.dict(os.environ, {"MAGG_PATH": str(test_dir)}):
             config = MaggConfig()
             scripts = config.get_script_paths()
-            
+
             # Should find both .mbro files
             script_names = [s.name for s in scripts]
             assert "script1.mbro" in script_names
             assert "script2.mbro" in script_names
             assert len(scripts) == 2
-            
+
             # Should not include .py file
             assert "notscript.py" not in script_names
 

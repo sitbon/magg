@@ -128,7 +128,8 @@ def confirm_action(prompt: str) -> bool:
 
 
 def print_startup_banner():
-    """Print a beautiful startup banner using pyfiglet with solid characters."""
+    """Print a beautiful startup banner.
+    """
     if os.environ.get("MAGG_QUIET", "").lower() in ("1", "true", "yes"):
         return
 
@@ -149,8 +150,6 @@ def print_startup_banner():
         try:
             console = initterm()
             if console:
-                # console.print()
-
                 # Apply gradient colors to each line
                 lines = ascii_art.split('\n')
                 colors = ['#4796E4', '#5B8FE6', '#7087E8', '#847ACE', '#9B72B8', '#B26BA2', '#C3677F']

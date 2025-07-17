@@ -42,13 +42,13 @@ class MCPBrowserCLI:
     running: bool
     formatter: OutputFormatter
     verbose: bool
-    
+
     COMMANDS = frozenset({
         "help", "quit", "connect", "connections", "switch", "disconnect",
         "tools", "resources", "prompts", "call", "resource", "prompt",
         "status", "search", "info", "script"
     })
-    
+
     ALIASES = {
         "exit": "quit",
         "conns": "connections"
@@ -367,34 +367,34 @@ class MCPBrowserCLI:
     async def handle_command(self, command: str):
         """Handle a CLI command."""
         parts = CommandParser.parse_command_line(command)
-        
+
         if not parts:
             return
-        
+
         cmd = parts[0].lower()
         args = parts[1:]
-        
+
         if args and any('{' in arg for arg in args):
             json_start_idx = None
             for i, arg in enumerate(args):
                 if '{' in arg:
                     json_start_idx = i
                     break
-            
+
             if json_start_idx is not None:
                 json_part = ' '.join(args[json_start_idx:])
-                
+
                 if json_part.count('{') == json_part.count('}'):
                     if cmd in ['call', 'prompt', 'get-prompt']:
                         args = args[:json_start_idx] + [json_part]
 
         cmd = self.ALIASES.get(cmd, cmd)
-        
+
         if cmd not in self.COMMANDS:
             self.formatter.format_error(f"Unknown command: {cmd}")
             self.formatter.format_info("Type 'help' for available commands")
             return
-        
+
         match cmd:
             case "help":
                 self.show_help()
@@ -415,26 +415,26 @@ class MCPBrowserCLI:
 
 async def handle_commands(cli: MCPBrowserCLI, args) -> bool:
     """Handle command line commands from args or stdin.
-    
+
     Returns:
         True if any commands were executed
     """
     commands_to_run = []
-    
+
     if args.commands and args.commands[0] == '-':
         stdin_text = sys.stdin.read()
         commands_to_run = CommandParser.split_commands(stdin_text)
     elif args.commands:
         command_text = ' '.join(args.commands)
         commands_to_run = CommandParser.split_commands(command_text)
-    
+
     if not commands_to_run:
         return False
-    
+
     for command in commands_to_run:
         if command.strip():
             await cli.handle_command(command)
-    
+
     return True
 
 
@@ -450,7 +450,7 @@ async def main_async():
     parser.add_argument("--no-enhanced", action="store_true", help="Disable enhanced features (natural language, multiline, etc.)")
     parser.add_argument("-n", "--no-interactive", action="store_true", help="Don't drop into interactive mode after commands")
     parser.add_argument("-x", "--execute-script", action="append", metavar="SCRIPT", help="Execute script file (can be used multiple times)")
-    
+
     parser.add_argument("commands", nargs="*", help="Commands to execute (use ';' to separate multiple commands or '-' to read from stdin)")
 
     args = parser.parse_args()
@@ -476,7 +476,7 @@ async def main_async():
         commands_executed = False
         if args.commands:
             commands_executed = await handle_commands(cli, args)
-        
+
         if not commands_executed and not args.no_interactive:
             await cli.start(repl=args.repl)
         elif not commands_executed and args.no_interactive:

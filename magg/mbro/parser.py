@@ -121,20 +121,20 @@ class JsonArgParser:
 
 class CommandParser:
     """Parse and prepare commands for execution."""
-    
+
     @staticmethod
     def parse_command_line(line: str) -> list[str]:
         """Parse a single command line, handling comments and continuations."""
         cleaned = CommandParser._remove_comments(line)
-        
+
         if not cleaned.strip():
             return []
-        
+
         try:
             return shlex.split(cleaned)
         except ValueError:
             return cleaned.split()
-    
+
     @staticmethod
     def _remove_comments(line: str) -> str:
         """Remove comments from a line, preserving quoted strings."""
@@ -142,18 +142,18 @@ class CommandParser:
         in_single_quote = False
         in_double_quote = False
         escaped = False
-        
+
         for char in line:
             if escaped:
                 result.append(char)
                 escaped = False
                 continue
-                
+
             if char == '\\':
                 escaped = True
                 result.append(char)
                 continue
-                
+
             if char == '"' and not in_single_quote:
                 in_double_quote = not in_double_quote
                 result.append(char)
@@ -164,16 +164,16 @@ class CommandParser:
                 break
             else:
                 result.append(char)
-                
+
         return ''.join(result).rstrip()
-    
+
     @staticmethod
     def split_commands(text: str) -> list[str]:
         """Split text into individual commands by semicolon or newline."""
         lines = text.split('\n')
         merged_lines = []
         i = 0
-        
+
         while i < len(lines):
             line = lines[i]
             while line.rstrip().endswith('\\') and i + 1 < len(lines):
@@ -186,18 +186,18 @@ class CommandParser:
                 i += 1
             merged_lines.append(line)
             i += 1
-        
+
         commands = []
         for line in merged_lines:
             line = CommandParser._remove_comments(line)
             if not line.strip():
                 continue
-                
+
             parts = CommandParser._split_by_semicolon(line)
             commands.extend(parts)
-        
+
         return [cmd.strip() for cmd in commands if cmd.strip()]
-    
+
     @staticmethod
     def _split_by_semicolon(text: str) -> list[str]:
         """Split text by semicolons that aren't in quotes."""
@@ -206,13 +206,13 @@ class CommandParser:
         in_single_quote = False
         in_double_quote = False
         escaped = False
-        
+
         for char in text:
             if escaped:
                 current.append(char)
                 escaped = False
                 continue
-                
+
             if char == '\\':
                 escaped = True
                 current.append(char)
@@ -227,19 +227,19 @@ class CommandParser:
                 current = []
             else:
                 current.append(char)
-        
+
         if current:
             parts.append(''.join(current))
-            
+
         return parts
-    
+
     @staticmethod
     def parse_connect_args(args: list[str]) -> tuple[str, str]:
         """Parse connect command arguments: name and connection string."""
         if len(args) < 2:
             raise ValueError("Usage: connect <name> <connection_string>")
-        
+
         name = args[0]
         connection = ' '.join(args[1:])
-        
+
         return name, connection

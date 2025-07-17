@@ -127,7 +127,7 @@ class TestKitManager:
         custom_dir = tmp_path / "custom"
         custom_kitd = custom_dir / "kit.d"
         custom_kitd.mkdir(parents=True)
-        
+
         another_dir = tmp_path / "another"
         another_kitd = another_dir / "kit.d"
         another_kitd.mkdir(parents=True)

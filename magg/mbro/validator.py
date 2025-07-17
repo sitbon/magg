@@ -6,7 +6,7 @@ from prompt_toolkit.validation import Validator, ValidationError
 
 class InputValidator(Validator):
     """Validator that detects incomplete input for multiline support."""
-    
+
     def __init__(self, cli_instance):
         self.cli = cli_instance
 

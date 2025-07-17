@@ -26,7 +26,7 @@ class KitInfo(BaseModel):
         "extra": "allow",
         "validate_assignment": True,
     }
-    
+
     name: str = Field(..., description="Kit name")
     description: str | None = Field(None, description="Kit description")
     path: str | None = Field(None, description="Path to kit file (if file-based)")
@@ -192,7 +192,7 @@ class MaggConfig(BaseSettings):
     path: str | list[Path] = Field(
         default_factory=lambda: [
             get_project_root() / ".magg",
-            Path.home() / ".magg", 
+            Path.home() / ".magg",
             *get_contrib_paths()
         ],
         description="Multi-path search list for config.json and kit.d directories (env: MAGG_PATH, colon-separated)"
@@ -233,7 +233,7 @@ class MaggConfig(BaseSettings):
         else:
             return [
                 get_project_root() / ".magg",
-                Path.home() / ".magg", 
+                Path.home() / ".magg",
                 *get_contrib_paths()
             ]
 
@@ -241,12 +241,12 @@ class MaggConfig(BaseSettings):
         """Get the actual config path, either explicit or searched from path list."""
         if self.config_path:
             return self.config_path
-        
+
         for search_path in self.path:
             config_file = search_path / "config.json"
             if config_file.exists():
                 return config_file
-        
+
         # Return first path location for new config creation
         return self.path[0] / "config.json"
 

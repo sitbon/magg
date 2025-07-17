@@ -68,8 +68,8 @@ class TestKitCLI:
         """Test kit list command."""
         mock_args.kit_action = 'list'
 
-        # Since KitManager is imported inside the function, patch at the module level
-        with patch('magg.kit.KitManager', return_value=mock_kit_manager):
+        # Patch KitManager at the cli module level where it's used
+        with patch('magg.cli.KitManager', return_value=mock_kit_manager):
             with patch('magg.cli.ConfigManager'):
                 await cmd_kit(mock_args)
 
@@ -88,7 +88,7 @@ class TestKitCLI:
         manager.discover_kits.return_value = {}
         manager.kitd_paths = [Path('/mock/kit.d')]
 
-        with patch('magg.kit.KitManager', return_value=manager):
+        with patch('magg.cli.KitManager', return_value=manager):
             with patch('magg.cli.ConfigManager'):
                 await cmd_kit(mock_args)
 
@@ -105,14 +105,14 @@ class TestKitCLI:
 
         # Mock config
         config = MaggConfig()
-        config.kits = []
+        config.kits = {}
         config.servers = {}
 
         mock_config_instance = MagicMock()
         mock_config_instance.load_config.return_value = config
         mock_config_instance.save_config.return_value = True
 
-        with patch('magg.kit.KitManager', return_value=mock_kit_manager):
+        with patch('magg.cli.KitManager', return_value=mock_kit_manager):
             with patch('magg.cli.ConfigManager', return_value=mock_config_instance):
                 await cmd_kit(mock_args)
 
@@ -135,14 +135,14 @@ class TestKitCLI:
 
         # Mock config
         config = MaggConfig()
-        config.kits = []
+        config.kits = {}
         config.servers = {}
 
         mock_config_instance = MagicMock()
         mock_config_instance.load_config.return_value = config
         mock_config_instance.save_config.return_value = True
 
-        with patch('magg.kit.KitManager', return_value=mock_kit_manager):
+        with patch('magg.cli.KitManager', return_value=mock_kit_manager):
             with patch('magg.cli.ConfigManager', return_value=mock_config_instance):
                 await cmd_kit(mock_args)
 
@@ -160,7 +160,7 @@ class TestKitCLI:
         mock_args.kit_action = 'load'
         mock_args.name = 'nonexistent-kit'
 
-        with patch('magg.kit.KitManager', return_value=mock_kit_manager):
+        with patch('magg.cli.KitManager', return_value=mock_kit_manager):
             with patch('magg.cli.ConfigManager'):
                 with patch('sys.exit', side_effect=SystemExit(1)) as mock_exit:
                     with pytest.raises(SystemExit):
@@ -180,7 +180,7 @@ class TestKitCLI:
 
         # Mock config with existing server
         config = MaggConfig()
-        config.kits = []
+        config.kits = {}
         config.servers = {
             'test-server': ServerConfig(
                 name='test-server',
@@ -193,7 +193,7 @@ class TestKitCLI:
         mock_config_instance.load_config.return_value = config
         mock_config_instance.save_config.return_value = True
 
-        with patch('magg.kit.KitManager', return_value=mock_kit_manager):
+        with patch('magg.cli.KitManager', return_value=mock_kit_manager):
             with patch('magg.cli.ConfigManager', return_value=mock_config_instance):
                 await cmd_kit(mock_args)
 
@@ -212,7 +212,7 @@ class TestKitCLI:
         mock_args.name = 'test-kit'
 
         # Since KitManager is imported inside the function, patch at the module level
-        with patch('magg.kit.KitManager', return_value=mock_kit_manager):
+        with patch('magg.cli.KitManager', return_value=mock_kit_manager):
             with patch('magg.cli.ConfigManager'):
                 await cmd_kit(mock_args)
 
@@ -233,7 +233,7 @@ class TestKitCLI:
         mock_args.kit_action = 'info'
         mock_args.name = 'nonexistent-kit'
 
-        with patch('magg.kit.KitManager', return_value=mock_kit_manager):
+        with patch('magg.cli.KitManager', return_value=mock_kit_manager):
             with patch('magg.cli.ConfigManager'):
                 with patch('sys.exit', side_effect=SystemExit(1)) as mock_exit:
                     with pytest.raises(SystemExit):
@@ -252,14 +252,14 @@ class TestKitCLI:
 
         # Mock config
         config = MaggConfig()
-        config.kits = []
+        config.kits = {}
         config.servers = {}
 
         mock_config_instance = MagicMock()
         mock_config_instance.load_config.return_value = config
         mock_config_instance.save_config.return_value = True
 
-        with patch('magg.kit.KitManager', return_value=mock_kit_manager):
+        with patch('magg.cli.KitManager', return_value=mock_kit_manager):
             with patch('magg.cli.ConfigManager', return_value=mock_config_instance):
                 await cmd_kit(mock_args)
 
@@ -276,14 +276,14 @@ class TestKitCLI:
 
         # Mock config
         config = MaggConfig()
-        config.kits = []
+        config.kits = {}
         config.servers = {}
 
         mock_config_instance = MagicMock()
         mock_config_instance.load_config.return_value = config
         mock_config_instance.save_config.return_value = False  # Simulate save failure
 
-        with patch('magg.kit.KitManager', return_value=mock_kit_manager):
+        with patch('magg.cli.KitManager', return_value=mock_kit_manager):
             with patch('magg.cli.ConfigManager', return_value=mock_config_instance):
                 with patch('sys.exit', side_effect=SystemExit(1)) as mock_exit:
                     with pytest.raises(SystemExit):

@@ -607,11 +607,11 @@ Enhanced Features:
   • Auto-suggestions from command history
 
 Quick Start:
-  1. connect local stdio://magg  (REQUIRED for tab completion)
-  2. call magg_<TAB>  (shows available tools)
-  3. call <tool_name> <TAB>  (shows parameters with docs)
-  4. Use: call tool param1=value1 param2=value2
-  5. Or JSON: call tool {"param1": "value1"}
+  1. `connect magg magg serve` (connect to magg server in stdio mode)
+  2. `call magg_<TAB>`  (shows available tools)
+  3. `call <tool_name> <TAB>`  (shows parameters with docs)
+  4. Use: `call tool param1=value1 param2=value2`
+  5. Or JSON: `call tool {"param1": "value1"}`
 
 Note: Tab completion shows rich parameter info after connecting"""
 

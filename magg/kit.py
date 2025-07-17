@@ -1,16 +1,15 @@
 """Kit management for Magg - bundling related MCP servers."""
 import json
 import logging
-import os
 from pathlib import Path
 from typing import Any, TYPE_CHECKING
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from .settings import ConfigManager, ServerConfig
+from .settings import ConfigManager, ServerConfig, MaggConfig, KitInfo
 
 if TYPE_CHECKING:
-    from .settings import MaggConfig
+    pass
 
 logger = logging.getLogger(__name__)
 
@@ -72,25 +71,14 @@ class KitManager:
     def __init__(self, config_manager: ConfigManager, kitd_paths: list[Path] | None = None):
         """Initialize kit manager with search paths."""
         self.config_manager = config_manager
-        self.kitd_paths = kitd_paths or self._get_default_paths(config_manager.config_path)
+        if kitd_paths:
+            self.kitd_paths = kitd_paths
+        else:
+            # Use MaggConfig's path system to find kit.d directories
+            config = MaggConfig()
+            self.kitd_paths = config.get_kitd_paths()
         self._kits: dict[str, KitConfig] = {}
 
-    @staticmethod
-    def _get_default_paths(config_path: Path) -> list[Path]:
-        """Get default kit.d search paths."""
-        paths = []
-
-        env_path = Path.expanduser(Path(os.environ.get('MAGG_KITD_PATH', '~/.magg/kit.d')))
-        if env_path.exists() and env_path.is_dir():
-            paths.append(env_path)
-
-        # Path next to config.json
-        config_dir = config_path.parent
-        local_kitd = config_dir / 'kit.d'
-        if local_kitd.exists() and local_kitd.is_dir():
-            paths.append(local_kitd)
-
-        return paths
 
     def discover_kits(self) -> dict[str, Path]:
         """Discover all available kit files."""
@@ -179,7 +167,7 @@ class KitManager:
         """
         available_kits = self.discover_kits()
 
-        for kit_name in config.kits:
+        for kit_name in config.kits.keys():
             if kit_name in available_kits:
                 kit_path = available_kits[kit_name]
                 kit_config = self.load_kit(kit_path)
@@ -233,8 +221,13 @@ class KitManager:
                 config.servers[server_name] = server_config
                 servers_added.append(server_name)
 
-        # Add kit to config's kit list
-        config.kits.append(kit_name)
+        # Add kit to config's kit list with metadata
+        config.kits[kit_name] = KitInfo(
+            name=kit_name,
+            description=kit_config.description,
+            path=str(kit_path),
+            source="file"
+        )
 
         msg_parts = [f"Kit '{kit_name}' loaded successfully"]
         if servers_added:
@@ -275,7 +268,7 @@ class KitManager:
             del config.servers[server_name]
 
         # Remove kit from config
-        config.kits.remove(kit_name)
+        del config.kits[kit_name]
         self.remove_kit(kit_name)
 
         msg_parts = [f"Kit '{kit_name}' unloaded successfully"]

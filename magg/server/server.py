@@ -5,6 +5,7 @@ import json
 import logging
 import os
 import re
+import shlex
 from functools import wraps
 from pathlib import Path
 from typing import Any, Annotated, Literal
@@ -270,7 +271,6 @@ Documentation for proxy tool:
             actual_command = command
             actual_args = None
             if command:
-                import shlex
                 parts = shlex.split(command)
                 if len(parts) > 1:
                     actual_command = parts[0]

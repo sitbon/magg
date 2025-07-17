@@ -9,14 +9,28 @@ from typing import Any, Callable, Coroutine, TYPE_CHECKING
 if TYPE_CHECKING:
     from .reload import ConfigChange
 
-from pydantic import field_validator, Field, model_validator, AnyUrl
+from pydantic import field_validator, Field, model_validator, AnyUrl, BaseModel
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from .util.system import get_project_root
+from .util.paths import get_contrib_paths
 
-__all__ = "ServerConfig", "MaggConfig", "ConfigManager", "AuthConfig", "BearerAuthConfig", "ClientSettings"
+__all__ = "ServerConfig", "MaggConfig", "ConfigManager", "AuthConfig", "BearerAuthConfig", "ClientSettings", "KitInfo"
 
 logger = logging.getLogger(__name__)
+
+
+class KitInfo(BaseModel):
+    """Information about a loaded kit."""
+    model_config = {
+        "extra": "allow",
+        "validate_assignment": True,
+    }
+    
+    name: str = Field(..., description="Kit name")
+    description: str | None = Field(None, description="Kit description")
+    path: str | None = Field(None, description="Path to kit file (if file-based)")
+    source: str | None = Field(None, description="Source of the kit (file, inline, etc)")
 
 
 class ClientSettings(BaseSettings):
@@ -175,9 +189,17 @@ class MaggConfig(BaseSettings):
         env_ignore_empty=True,
     )
 
-    config_path: Path = Field(
-        default_factory=lambda: get_project_root() / ".magg" / "config.json",
-        description="Configuration file path (can be overridden by MAGG_CONFIG_PATH)"
+    path: str | list[Path] = Field(
+        default_factory=lambda: [
+            get_project_root() / ".magg",
+            Path.home() / ".magg", 
+            *get_contrib_paths()
+        ],
+        description="Multi-path search list for config.json and kit.d directories (env: MAGG_PATH, colon-separated)"
+    )
+    config_path: Path | None = Field(
+        default=None,
+        description="Explicit configuration file path (overrides path search) (env: MAGG_CONFIG_PATH)"
     )
     read_only: bool = Field(default=False, description="Run in read-only mode (env: MAGG_READ_ONLY)")
     quiet: bool = Field(default=False, description="Suppress output unless errors occur (env: MAGG_QUIET)")
@@ -196,7 +218,60 @@ class MaggConfig(BaseSettings):
     reload_use_watchdog: bool | None = Field(default=None, description="Use file system notifications if available, None=auto-detect (env: MAGG_RELOAD_USE_WATCHDOG)")
     stderr_show: bool = Field(default=False, description="Show stderr output from subprocess MCP servers (env: MAGG_STDERR_SHOW)")
     servers: dict[str, ServerConfig] = Field(default_factory=dict, description="Servers configuration (loaded from config_path)")
-    kits: list[str] = Field(default_factory=list, description="List of loaded kits")
+    kits: dict[str, KitInfo] = Field(default_factory=dict, description="Loaded kits with metadata")
+
+    @field_validator('path', mode='after')
+    @classmethod
+    def parse_path(cls, v) -> list[Path]:
+        """Parse MAGG_PATH environment variable or return default."""
+        if isinstance(v, str):
+            # Parse colon-separated path string from environment
+            return [Path(p.strip()).expanduser() for p in v.split(':') if p.strip()]
+        elif isinstance(v, list) and v and not isinstance(v[0], Path):
+            # Convert to Path objects and expand user paths
+            return [Path(p).expanduser() for p in v]
+        elif isinstance(v, list):
+            # Already Path objects or use as-is
+            return v
+        else:
+            # Use default factory
+            return [
+                get_project_root() / ".magg",
+                Path.home() / ".magg", 
+                *get_contrib_paths()
+            ]
+
+    def get_config_path(self) -> Path:
+        """Get the actual config path, either explicit or searched from path list."""
+        if self.config_path:
+            return self.config_path
+        
+        # Search for config.json in path list
+        for search_path in self.path:
+            config_file = search_path / "config.json"
+            if config_file.exists():
+                return config_file
+        
+        # Return first path location for new config creation
+        return self.path[0] / "config.json"
+
+    def get_kitd_paths(self) -> list[Path]:
+        """Get all kit.d directories from the path list."""
+        kitd_paths = []
+        for search_path in self.path:
+            kitd_path = search_path / "kit.d"
+            if kitd_path.exists() and kitd_path.is_dir():
+                kitd_paths.append(kitd_path)
+        return kitd_paths
+
+    def get_script_paths(self) -> list[Path]:
+        """Get all *.mbro script files recursively from the path list."""
+        script_files = []
+        for search_path in self.path:
+            if search_path.exists() and search_path.is_dir():
+                # Recursively search for *.mbro files
+                script_files.extend(search_path.rglob("*.mbro"))
+        return script_files
 
     @model_validator(mode='after')
     def export_environment_variables(self) -> 'MaggConfig':
@@ -252,7 +327,7 @@ class ConfigManager:
         if config_path:
             self.config_path = Path(config_path)
         else:
-            self.config_path = config.config_path
+            self.config_path = config.get_config_path()
 
         self.auth_config_path = self.config_path.parent / "auth.json"
 
@@ -294,7 +369,20 @@ class ConfigManager:
             config.servers = servers
 
             if 'kits' in data:
-                config.kits = data.pop('kits', [])
+                # Handle both old format (list of strings) and new format (dict)
+                kits_data = data.pop('kits', {})
+                if isinstance(kits_data, list):
+                    # Convert old format to new format
+                    config.kits = {
+                        kit_name: KitInfo(name=kit_name, source="legacy")
+                        for kit_name in kits_data
+                    }
+                else:
+                    # Load new format
+                    config.kits = {
+                        name: KitInfo.model_validate(kit_data) if isinstance(kit_data, dict) else KitInfo(name=name)
+                        for name, kit_data in kits_data.items()
+                    }
 
             for key, value in data.items():
                 if not hasattr(config, key):
@@ -333,7 +421,13 @@ class ConfigManager:
             }
 
             if config.kits:
-                data['kits'] = config.kits
+                data['kits'] = {
+                    name: kit_info.model_dump(
+                        mode="json",
+                        exclude_unset=True, exclude_none=True, exclude_defaults=True
+                    )
+                    for name, kit_info in config.kits.items()
+                }
 
             if not self.config_path.parent.exists():
                 self.logger.warning(f"Creating new directory: {self.config_path.parent}")

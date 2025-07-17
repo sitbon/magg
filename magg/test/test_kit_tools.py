@@ -1,6 +1,7 @@
 """Tests for kit management tools in MaggServer."""
 
 import json
+import os
 import pytest
 import pytest_asyncio
 from pathlib import Path
@@ -74,7 +75,8 @@ class TestKitTools:
     async def test_load_kit_already_loaded(self, server):
         """Test loading a kit that's already loaded."""
         # Mock config with existing kit
-        server.config.kits = ["existing-kit"]
+        from magg.settings import KitInfo
+        server.config.kits = {"existing-kit": KitInfo(name="existing-kit", source="file")}
 
         # Mock the kit manager to return the already loaded error
         server.kit_manager.load_kit_to_config = MagicMock(
@@ -102,7 +104,8 @@ class TestKitTools:
         """Test successfully unloading a kit."""
         # Create a persistent config object
         mock_config = MagicMock()
-        mock_config.kits = ["test-kit"]
+        from magg.settings import KitInfo
+        mock_config.kits = {"test-kit": KitInfo(name="test-kit", source="file")}
         mock_config.servers = {
             "server1": ServerConfig(
                 name="server1",
@@ -135,7 +138,7 @@ class TestKitTools:
             if "server2" in config.servers:
                 config.servers["server2"].kits = ["other-kit"]
             if kit_name in config.kits:
-                config.kits.remove(kit_name)
+                del config.kits[kit_name]
             return True, "Kit 'test-kit' unloaded successfully. Removed servers: server1"
 
         server.kit_manager.unload_kit_from_config = MagicMock(side_effect=mock_unload_kit)
@@ -153,7 +156,7 @@ class TestKitTools:
     @pytest.mark.asyncio
     async def test_unload_kit_not_loaded(self, server):
         """Test unloading a kit that's not loaded."""
-        server.config.kits = []
+        server.config.kits = {}
         server.kit_manager.unload_kit_from_config = MagicMock(
             return_value=(False, "Kit 'nonexistent' is not loaded")
         )
@@ -299,10 +302,8 @@ class TestKitManagerWithServer:
             "servers": {}
         }))
 
-        # Mock kit manager paths
-        with patch("magg.kit.KitManager._get_default_paths") as mock_paths:
-            mock_paths.return_value = [kitd_path]
-
+        # Use MAGG_PATH environment variable to set kit search path
+        with patch.dict(os.environ, {"MAGG_PATH": str(tmp_path)}):
             server = MaggServer(str(config_path), enable_config_reload=False)
 
             # Verify kit manager exists

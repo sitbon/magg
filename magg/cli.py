@@ -7,12 +7,18 @@ import json
 import logging
 import os
 import sys
+import traceback
 from pathlib import Path
 
 from . import __version__, process
 from .auth import BearerAuthManager
 from .kit import KitManager
-from .settings import ConfigManager, ServerConfig, BearerAuthConfig, AuthConfig
+from .settings import ConfigManager, ServerConfig, BearerAuthConfig, AuthConfig, KitInfo
+
+try:
+    from cryptography.hazmat.primitives import serialization
+except ImportError:
+    serialization = None
 from .server.runner import MaggRunner
 from .util.terminal import (
     print_success, print_error, print_warning, print_startup_banner,
@@ -296,7 +302,12 @@ async def cmd_kit(args) -> None:
 
         # Add kit to config's kits list if not already there
         if args.name not in config.kits:
-            config.kits.append(args.name)
+            config.kits[args.name] = KitInfo(
+                name=args.name,
+                description=kit_config.description,
+                path=str(kit_path),
+                source="file"
+            )
 
         # Add servers from kit to configuration
         added_servers = []
@@ -429,7 +440,6 @@ async def cmd_server_info(args) -> None:
 
     if server.transport:
         print("Transport Configuration:")
-        import json
         print(f"  {json.dumps(server.transport, indent=2)}")
 
     if server.notes:
@@ -590,7 +600,9 @@ async def cmd_auth(args) -> None:
 
         private_key = auth_manager.get_private_key()
         if private_key:
-            from cryptography.hazmat.primitives import serialization
+            if serialization is None:
+                print_error("cryptography package not available")
+                sys.exit(1)
             pem = private_key.private_bytes(
                 encoding=serialization.Encoding.PEM,
                 format=serialization.PrivateFormat.TraditionalOpenSSL,
@@ -832,7 +844,6 @@ def main():
     except Exception as e:
         print_error(f"Unexpected error: {e}")
         if os.getenv('MAGG_DEBUG', '').lower() in {'1', 'true', 'yes'}:
-            import traceback
             traceback.print_exc()
         sys.exit(1)
 

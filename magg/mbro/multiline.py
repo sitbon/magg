@@ -16,6 +16,41 @@ except ImportError:
     PYGMENTS_AVAILABLE = False
 
 
+class PropertyTypeValidator(Validator):
+    """Validator for property types in multiline input."""
+    
+    def __init__(self, prop_type: str, prop_info: Dict[str, Any]):
+        self.prop_type = prop_type
+        self.prop_info = prop_info
+    
+    def validate(self, document):
+        text = document.text.strip()
+        
+        if not text:
+            return  # Empty is validated elsewhere
+        
+        if self.prop_type == 'integer':
+            try:
+                int(text)
+            except ValueError:
+                raise ValidationError(message="Must be an integer")
+        
+        elif self.prop_type == 'number':
+            try:
+                float(text)
+            except ValueError:
+                raise ValidationError(message="Must be a number")
+        
+        elif self.prop_type == 'boolean':
+            if text.lower() not in ('true', 'false', 'yes', 'no', '1', '0', 'y', 'n'):
+                raise ValidationError(message="Must be true/false")
+        
+        # Check enum values
+        if 'enum' in self.prop_info and text not in map(str, self.prop_info['enum']):
+            valid = ', '.join(str(v) for v in self.prop_info['enum'])
+            raise ValidationError(message=f"Must be one of: {valid}")
+
+
 class JSONValidator(Validator):
     """Validate JSON input."""
 
@@ -339,33 +374,4 @@ class InteractiveArgumentBuilder:
 
     def _create_type_validator(self, prop_type: str, prop_info: Dict[str, Any]) -> Optional[Validator]:
         """Create a validator for the property type."""
-
-        class TypeValidator(Validator):
-            def validate(self, document):
-                text = document.text.strip()
-
-                if not text:
-                    return  # Empty is validated elsewhere
-
-                if prop_type == 'integer':
-                    try:
-                        int(text)
-                    except ValueError:
-                        raise ValidationError(message="Must be an integer")
-
-                elif prop_type == 'number':
-                    try:
-                        float(text)
-                    except ValueError:
-                        raise ValidationError(message="Must be a number")
-
-                elif prop_type == 'boolean':
-                    if text.lower() not in ('true', 'false', 'yes', 'no', '1', '0', 'y', 'n'):
-                        raise ValidationError(message="Must be true/false")
-
-                # Check enum values
-                if 'enum' in prop_info and text not in map(str, prop_info['enum']):
-                    valid = ', '.join(str(v) for v in prop_info['enum'])
-                    raise ValidationError(message=f"Must be one of: {valid}")
-
-        return TypeValidator()
+        return PropertyTypeValidator(prop_type, prop_info)

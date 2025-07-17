@@ -2,6 +2,8 @@
 
 Modified from Python 3.13.5's `asyncio.__main__` module to provide
 an interact() function that uses the current event loop.
+
+This file is not under the project's license - it maintains the original PSF license from Python's source code.
 """
 import ast
 import asyncio
@@ -9,8 +11,11 @@ import concurrent.futures
 import contextvars
 import inspect
 import os
+import readline
+import rlcompleter
 import site
 import sys
+import tokenize
 import threading
 import types
 import warnings
@@ -116,7 +121,6 @@ class REPLThread(threading.Thread):
             if startup_path := os.getenv("PYTHONSTARTUP"):
                 sys.audit("cpython.run_startup", startup_path)
 
-                import tokenize
                 with tokenize.open(startup_path) as f:
                     startup_code = compile(f.read(), startup_path, "exec")
                     exec(startup_code, self.console.locals)
@@ -192,7 +196,6 @@ async def interact(banner=None, locals=None, *, use_pyrepl=None):
 
     # Set up locals dictionary
     if locals is None:
-        import inspect
         frame = inspect.currentframe()
         if frame and frame.f_back:
             locals = frame.f_back.f_locals.copy()
@@ -210,11 +213,7 @@ async def interact(banner=None, locals=None, *, use_pyrepl=None):
     # Create console
     console = AsyncIOInteractiveConsole(repl_locals, loop)
 
-    # Handle readline setup
-    try:
-        import readline  # NoQA
-    except ImportError:
-        readline = None
+    # Handle readline setup (already imported at top)
 
     interactive_hook = getattr(sys, "__interactivehook__", None)
 
@@ -224,14 +223,9 @@ async def interact(banner=None, locals=None, *, use_pyrepl=None):
 
     if interactive_hook is site.register_readline:
         # Fix the completer function to use the interactive console locals
-        try:
-            import rlcompleter
-        except:
-            pass
-        else:
-            if readline is not None:
-                completer = rlcompleter.Completer(console.locals)
-                readline.set_completer(completer.complete)
+        if readline is not None:
+            completer = rlcompleter.Completer(console.locals)
+            readline.set_completer(completer.complete)
 
     # Create a future to track when the REPL is done
     repl_done = asyncio.Future()

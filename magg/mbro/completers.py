@@ -30,7 +30,6 @@ class ImprovedMCPCommandCompleter(Completer):
             'search': "Search tools, resources, and prompts",
             'info': "Show detailed info about a tool/resource/prompt"
         }
-        # Cache for async data
         self._tools_cache = {}
         self._resources_cache = {}
         self._prompts_cache = {}
@@ -39,23 +38,14 @@ class ImprovedMCPCommandCompleter(Completer):
         """Get completions based on current context."""
         text = document.text_before_cursor
 
-        # Parse the current command state
         cmd, args, partial = self._parse_command_state(text)
 
-        # Uncomment for debugging
-        # import sys
-        # print(f"\n[COMPLETER DEBUG] text='{text}', cmd={cmd}, args={args}, partial={partial}", file=sys.stderr)
-
         if cmd is None:
-            # No command yet, show all commands
             if partial is not None:
-                # Partial command typed
                 yield from self._complete_commands(partial)
             else:
-                # Nothing typed
                 yield from self._complete_commands("")
         else:
-            # We have a command, provide context-specific completions
             yield from self._get_context_completions(cmd, args, partial)
 
     def _parse_command_state(self, text: str) -> Tuple[Optional[str], List[str], Optional[str]]:
@@ -70,7 +60,6 @@ class ImprovedMCPCommandCompleter(Completer):
         if not text:
             return None, [], None
 
-        # Split preserving information about spaces
         parts = text.split()
         ends_with_space = text.endswith(' ')
 
@@ -78,22 +67,16 @@ class ImprovedMCPCommandCompleter(Completer):
             return None, [], None
 
         if len(parts) == 1 and not ends_with_space:
-            # Typing first word (command)
             return None, [], parts[0]
 
-        # We have at least one complete part (the command)
         cmd = parts[0].lower()
 
         if len(parts) == 1 and ends_with_space:
-            # Just typed command and space
             return cmd, [], None
 
-        # Parse arguments
         if ends_with_space:
-            # All parts are complete
             return cmd, parts[1:], None
         else:
-            # Last part is partial
             return cmd, parts[1:-1], parts[-1]
 
     def _complete_commands(self, prefix: str) -> Iterable[Completion]:
@@ -110,25 +93,20 @@ class ImprovedMCPCommandCompleter(Completer):
         """Get context-specific completions."""
         if cmd == 'call':
             if len(args) == 0:
-                # Complete tool name
                 yield from self._complete_tool_names(partial or "")
             elif len(args) == 1 and partial is None:
-                # Tool name complete, delegate to argument completion
                 tool_name = args[0]
                 yield from self._complete_tool_arguments(tool_name, [], None)
             elif len(args) >= 1:
-                # Help with arguments
                 tool_name = args[0]
                 yield from self._complete_tool_arguments(tool_name, args[1:], partial)
 
         elif cmd in ('switch', 'disconnect'):
             if len(args) == 0:
-                # Complete connection name
                 yield from self._complete_connection_names(partial or "")
 
         elif cmd == 'info':
             if len(args) == 0:
-                # Complete info type
                 for info_type in ['tool', 'resource', 'prompt']:
                     if partial is None or info_type.startswith(partial):
                         yield Completion(
@@ -137,28 +115,20 @@ class ImprovedMCPCommandCompleter(Completer):
                             display_meta=f"Show {info_type} details"
                         )
             elif len(args) == 1:
-                # Complete item name based on type
                 yield from self._complete_item_names(args[0], partial or "")
 
         elif cmd == 'resource':
             if len(args) == 0:
-                # Complete resource URI
                 yield from self._complete_resource_uris(partial or "")
 
         elif cmd == 'prompt':
             if len(args) == 0:
-                # Complete prompt name
                 yield from self._complete_prompt_names(partial or "")
 
     def _complete_tool_names(self, prefix: str) -> Iterable[Completion]:
         """Complete tool names with enhanced metadata."""
         tools = self._get_cached_tools()
 
-        # Debug: Show cache status
-        # import sys
-        # print(f"\n[COMPLETE_TOOLS] Found {len(tools)} tools, prefix='{prefix}'", file=sys.stderr)
-
-        # If no tools cached, return empty (no completions)
         if not tools:
             return
 
@@ -167,24 +137,19 @@ class ImprovedMCPCommandCompleter(Completer):
             if name.startswith(prefix):
                 description = tool.get('description', '')
 
-                # Build useful metadata
                 schema = tool.get('inputSchema', {})
                 properties = schema.get('properties', {})
                 required = schema.get('required', [])
 
-                # Show description and key parameters
                 meta_parts = []
                 if description:
-                    # Truncate long descriptions
                     if len(description) > 60:
                         description = description[:57] + '...'
                     meta_parts.append(description)
 
-                # Show required parameters inline if few
                 if required and len(required) <= 3:
                     meta_parts.append(f"requires: {', '.join(required)}")
                 elif properties:
-                    # Show count if many parameters
                     param_count = len(properties)
                     required_count = len(required)
                     if required_count > 0:
@@ -192,7 +157,6 @@ class ImprovedMCPCommandCompleter(Completer):
                     else:
                         meta_parts.append(f"{param_count} optional")
 
-                # Return the full name and let prompt-toolkit handle replacement
                 yield Completion(
                     name,
                     start_position=-len(prefix) if prefix else 0,
@@ -267,7 +231,6 @@ class ImprovedMCPCommandCompleter(Completer):
         tool = next((t for t in tools if t.get('name') == tool_name), None)
 
         if not tool:
-            # No tool found, suggest JSON start
             yield Completion(
                 '{',
                 start_position=0,
@@ -280,15 +243,12 @@ class ImprovedMCPCommandCompleter(Completer):
         required = schema.get('required', [])
 
         if not args and partial is None:
-            # Just typed tool name + space, show parameter options
             if properties:
-                # Show individual parameters with Python-style completion
                 for param_name, param_info in properties.items():
                     param_type = param_info.get('type', 'any')
                     description = param_info.get('description', '')
                     is_required = param_name in required
 
-                    # Build rich metadata
                     meta_parts = []
                     if param_type:
                         meta_parts.append(f"{param_type}")
@@ -297,7 +257,6 @@ class ImprovedMCPCommandCompleter(Completer):
                     else:
                         meta_parts.append("optional")
                     if description:
-                        # Truncate long descriptions
                         desc = description[:50] + '...' if len(description) > 50 else description
                         meta_parts.append(desc)
 
@@ -308,7 +267,6 @@ class ImprovedMCPCommandCompleter(Completer):
                         style='fg:ansicyan'
                     )
             else:
-                # No parameters defined - show helpful message in popup
                 yield Completion(
                     "",
                     start_position=0,
@@ -318,8 +276,6 @@ class ImprovedMCPCommandCompleter(Completer):
                 )
 
         elif args and not partial:
-            # User has typed some arguments, suggest remaining parameters
-            # Parse existing arguments to see what's already provided
             provided_params = self._parse_existing_params(args)
 
             for param_name, param_info in properties.items():
@@ -328,7 +284,6 @@ class ImprovedMCPCommandCompleter(Completer):
                     description = param_info.get('description', '')
                     is_required = param_name in required
 
-                    # Build metadata
                     meta_parts = [param_type]
                     if is_required:
                         meta_parts.append("required")
@@ -344,7 +299,6 @@ class ImprovedMCPCommandCompleter(Completer):
                     )
 
         elif partial and '=' not in partial:
-            # User is typing a parameter name
             for param_name, param_info in properties.items():
                 if param_name.startswith(partial):
                     param_type = param_info.get('type', 'any')
@@ -366,7 +320,6 @@ class ImprovedMCPCommandCompleter(Completer):
                     )
 
         elif partial and '=' in partial:
-            # User is typing a parameter value, offer type-specific suggestions
             param_name, value_part = partial.split('=', 1)
             param_info = properties.get(param_name, {})
             yield from self._complete_parameter_value(param_name, param_info, value_part)
@@ -387,7 +340,6 @@ class ImprovedMCPCommandCompleter(Completer):
         param_type = param_info.get('type', 'string')
         enum_values = param_info.get('enum', [])
 
-        # Handle enum values
         if enum_values:
             for enum_val in enum_values:
                 enum_str = str(enum_val)
@@ -398,7 +350,6 @@ class ImprovedMCPCommandCompleter(Completer):
                         display_meta=f"Valid option for {param_name}"
                     )
 
-        # Handle boolean values
         elif param_type == 'boolean':
             for bool_val in ['true', 'false']:
                 if bool_val.startswith(value_part.lower()):
@@ -408,11 +359,10 @@ class ImprovedMCPCommandCompleter(Completer):
                         display_meta=f"Boolean value for {param_name}"
                     )
 
-        # Handle string values with examples
         elif param_type == 'string':
             examples = param_info.get('examples', [])
             if examples:
-                for example in examples[:3]:  # Limit to first 3 examples
+                for example in examples[:3]:
                     example_str = str(example)
                     if example_str.startswith(value_part):
                         yield Completion(
@@ -421,7 +371,6 @@ class ImprovedMCPCommandCompleter(Completer):
                             display_meta=f"Example value for {param_name}"
                         )
 
-        # For other types, show helpful hints
         if not enum_values and not value_part:
             type_hints = {
                 'integer': '123',
@@ -468,7 +417,6 @@ class ImprovedMCPCommandCompleter(Completer):
 
         if conn and conn_name:
             try:
-                # Fetch all data in parallel
                 tools, resources, prompts = await asyncio.gather(
                     conn.get_tools(),
                     conn.get_resources(),
@@ -476,7 +424,6 @@ class ImprovedMCPCommandCompleter(Completer):
                     return_exceptions=True
                 )
 
-                # Update cache only for successful fetches using connection name
                 if not isinstance(tools, Exception):
                     self._tools_cache[conn_name] = tools
 
@@ -485,7 +432,6 @@ class ImprovedMCPCommandCompleter(Completer):
                 if not isinstance(prompts, Exception):
                     self._prompts_cache[conn_name] = prompts
             except Exception:
-                # Silently fail - cache will be empty
                 pass
 
 
@@ -499,7 +445,6 @@ class ImprovedArgumentCompleter(Completer):
         """Get argument completions."""
         text = document.text_before_cursor
 
-        # Simple parsing
         parts = text.split()
         if len(parts) < 2:
             return
@@ -507,7 +452,6 @@ class ImprovedArgumentCompleter(Completer):
         cmd = parts[0].lower()
 
         if cmd == 'connect' and len(parts) == 3 and not text.endswith(' '):
-            # Suggest connection string formats
             prefix = parts[2]
             for conn_type in ['stdio://', 'http://', 'https://', 'npx ', 'node ', 'python ', 'uvx ']:
                 if conn_type.startswith(prefix):
@@ -520,9 +464,7 @@ class ImprovedArgumentCompleter(Completer):
 
 def create_improved_completer(cli_instance) -> Completer:
     """Create an improved completer with popup menu support."""
-    # Create the main completer
     command_completer = ImprovedMCPCommandCompleter(cli_instance)
     argument_completer = ImprovedArgumentCompleter(cli_instance)
 
-    # Merge completers - no threading for better popup display
     return merge_completers([command_completer, argument_completer])

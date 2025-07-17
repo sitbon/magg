@@ -80,10 +80,12 @@ class TestMaggConfig:
 
     def test_config_defaults(self):
         """Test default configuration values."""
-        # Remove MAGG_LOG_LEVEL env var that might be set in container
+        # Remove MAGG env vars that might be set in container
         env = os.environ.copy()
         if 'MAGG_LOG_LEVEL' in env:
             del env['MAGG_LOG_LEVEL']
+        if 'MAGG_CONFIG_PATH' in env:
+            del env['MAGG_CONFIG_PATH']
 
         with patch.dict('os.environ', env, clear=True):
             config = MaggConfig()

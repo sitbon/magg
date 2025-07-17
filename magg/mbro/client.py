@@ -44,14 +44,13 @@ class BrowserConnection:
                 resources_result = await conn.list_resources()
                 resources_data = self.parse_resources_list(resources_result)
             except Exception as e:
-                logger.error(f"Failed to list resources: {e}")
+                logger.debug("Server does not support resources: %s", e)
 
-            # Fetch and store resource templates
             try:
                 resource_templates = await conn.list_resource_templates()
                 resources_data.extend(self.parse_resources_list(resource_templates))
             except Exception as e:
-                logger.error(f"Failed to list resource templates: {e}")
+                logger.debug("Server does not support resource templates: %s", e)
 
         return resources_data
 
@@ -66,26 +65,23 @@ class BrowserConnection:
                 prompts_result = await conn.list_prompts()
                 prompts_data = self.parse_prompts_list(prompts_result)
             except Exception as e:
-                logger.error(f"Failed to list prompts: {e}")
+                logger.debug("Server does not support prompts: %s", e)
 
         return prompts_data
 
     async def connect(self) -> bool:
         """Connect to the MCP server using FastMCP Client."""
-        # Get JWT from environment for authentication
         jwt = os.getenv("MAGG_JWT", os.getenv("MBRO_JWT", os.getenv("MCP_JWT", None)))
         auth = BearerAuth(jwt) if jwt else None
 
         if self.connection_string.startswith("http"):
             url = self.connection_string
-            # TODO: Handle redirects because FastMCP Client does not follow them automatically
-            if not url.endswith("/mcp/"):  # Not sure if the constant redirects are just a FastMCP thing?
+            if not url.endswith("/mcp/"):
                 url = url.rstrip("/") + "/mcp/"
-            client = Client(url, auth=auth)  # type: ignore[call-arg]
+            client = Client(url, auth=auth)
         else:
-            # For command connections, use Magg's transport inference
             transport = get_transport_for_command_string(self.connection_string)
-            client = Client(transport, auth=auth)  # type: ignore[call-arg]
+            client = Client(transport, auth=auth)
 
         try:
             async with client as conn:
@@ -115,7 +111,7 @@ class BrowserConnection:
         try:
             async with self.client as conn:
                 result = await conn.call_tool(tool_name, arguments)
-                return result
+                return result.content
 
         except Exception as e:
             raise RuntimeError(f"Failed to call tool '{tool_name}': {e}")
@@ -153,7 +149,7 @@ class BrowserConnection:
             try:
                 await self.client.__aexit__(None, None, None)
             except Exception as e:
-                logger.debug(f"Error during disconnect: {e}")
+                logger.debug("Error during disconnect: %s", e)
             self.client = None
         self.connected = False
 
@@ -230,7 +226,6 @@ class BrowserClient:
         if name in self.connections:
             return False
 
-        # Determine connection type from the connection string
         if connection_string.startswith("http"):
             connection_type = "http"
         else:
@@ -269,7 +264,6 @@ class BrowserClient:
         if self.current_connection == name:
             self.current_connection = None
             if self.connections:
-                # Switch to first available connection
                 self.current_connection = next(iter(self.connections.keys()))
 
         return True
@@ -290,19 +284,19 @@ class BrowserClient:
                 try:
                     extend["tools"] = await conn.get_tools()
                 except Exception as e:
-                    logger.error(f"Failed to get tools for {name}: {e}")
+                    logger.debug("Failed to get tools for %s: %s", name, e)
                     extend["tools"] = None
 
                 try:
                     extend["resources"] = await conn.get_resources()
                 except Exception as e:
-                    logger.error(f"Failed to get resources for {name}: {e}")
+                    logger.debug("Failed to get resources for %s: %s", name, e)
                     extend["resources"] = None
 
                 try:
                     extend["prompts"] = await conn.get_prompts()
                 except Exception as e:
-                    logger.error(f"Failed to get prompts for {name}: {e}")
+                    logger.debug("Failed to get prompts for %s: %s", name, e)
                     extend["prompts"] = None
 
             result.append({

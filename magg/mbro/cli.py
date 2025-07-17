@@ -29,10 +29,11 @@ from .formatter import OutputFormatter
 from .. import process
 
 from .completers import create_improved_completer
-from .parser import ArgumentParser
+from .parser import JsonArgParser
 from .multiline import MultilineInputHandler
 from .command import Command
 from .validator import InputValidator
+from .parser import CommandParser
 
 
 class MCPBrowserCLI:
@@ -42,14 +43,12 @@ class MCPBrowserCLI:
     formatter: OutputFormatter
     verbose: bool
     
-    # Available commands
     COMMANDS = frozenset({
         "help", "quit", "connect", "connections", "switch", "disconnect",
         "tools", "resources", "prompts", "call", "resource", "prompt",
-        "status", "search", "info"
+        "status", "search", "info", "script"
     })
     
-    # Command aliases
     ALIASES = {
         "exit": "quit",
         "conns": "connections"
@@ -62,12 +61,10 @@ class MCPBrowserCLI:
         self.verbose = verbose
         self.command = Command(self)
 
-        # Enhanced features
         self.use_enhanced = not json_only
         if self.use_enhanced:
-            self.argument_parser = ArgumentParser()
+            self.json_parser = JsonArgParser()
             self.multiline_handler = MultilineInputHandler(self.formatter)
-            # Multiline state
             self._multiline_buffer = []
 
 
@@ -119,13 +116,12 @@ class MCPBrowserCLI:
                 auto_suggest=self._create_smart_auto_suggest(),
                 enable_history_search=True,
                 key_bindings=self._create_key_bindings(),
-                complete_style=CompleteStyle.COLUMN,  # Try single column for popup
-                complete_in_thread=False,  # Keep in main thread for better popup display
+                complete_style=CompleteStyle.COLUMN,
+                complete_in_thread=False,
                 style=self._create_completion_style(),
                 bottom_toolbar=self._create_bottom_toolbar,
                 multiline=True,
                 prompt_continuation=self._create_continuation_prompt,
-                # Validator commented out - multiline mode handles validation internally
             )
 
         return PromptSession(**kwds)
@@ -134,18 +130,13 @@ class MCPBrowserCLI:
     def _create_completion_style(cls):
         """Create enhanced styling for completions."""
         return Style.from_dict({
-            # Completion menu styling
             'completion-menu': 'bg:#2d2d2d fg:#ffffff',
             'completion-menu.completion': 'bg:#2d2d2d fg:#ffffff',
             'completion-menu.completion.current': 'bg:#4a90e2 fg:#ffffff bold',
             'completion-menu.meta': 'bg:#404040 fg:#cccccc italic',
             'completion-menu.meta.current': 'bg:#5ca0f2 fg:#ffffff italic',
-
-            # Command prompt styling
             'prompt': 'fg:#4a90e2 bold',
             'continuation': 'fg:#888888',
-
-            # Bottom toolbar
             'bottom-toolbar': 'bg:#222222 fg:#cccccc',
         })
 
@@ -157,14 +148,11 @@ class MCPBrowserCLI:
         def _(event):
             """Handle Ctrl+C - cancel completion or multiline input or interrupt."""
             buffer = event.app.current_buffer
-            # First priority: cancel completion if open
             if buffer.complete_state:
                 buffer.cancel_completion()
             elif buffer.text.strip():
-                # Clear the buffer and cancel current input
                 buffer.reset()
             else:
-                # If buffer is empty, exit the application
                 raise KeyboardInterrupt()
 
         @kb.add('enter')
@@ -174,23 +162,16 @@ class MCPBrowserCLI:
             document = buffer.document
             text = document.text.strip()
 
-            # Check if the command needs continuation
             validator_instance = self._create_input_validator()
 
-            # For complete single-line commands, submit immediately
             if text and not validator_instance._needs_continuation(text):
-                # Check if this is the first line (no newlines in document)
                 if '\n' not in document.text:
                     buffer.validate_and_handle()
                     return
 
-            # Otherwise follow standard multiline behavior
-            # Insert newline unless it's an empty line after content
             if not buffer.document.current_line.strip() and buffer.text.strip():
-                # Empty line after content - submit
                 buffer.validate_and_handle()
             else:
-                # Continue editing
                 buffer.insert_text('\n')
 
         @kb.add('escape', 'enter')
@@ -204,11 +185,9 @@ class MCPBrowserCLI:
             """Custom TAB handling for completion control."""
             buffer = event.app.current_buffer
 
-            # If completion menu is already open, navigate through it
             if buffer.complete_state:
                 buffer.complete_next()
             else:
-                # Start completion (always show menu, even for single items)
                 buffer.start_completion(select_first=False)
 
         @kb.add('s-tab')  # Shift+Tab
@@ -218,14 +197,12 @@ class MCPBrowserCLI:
             if buffer.complete_state:
                 buffer.complete_previous()
 
-        @kb.add('enter', filter=completion_is_selected)  # Enter when completion is active
+        @kb.add('enter', filter=completion_is_selected)
         def _(event):
             """Apply selected completion and close menu."""
             buffer = event.app.current_buffer
             if buffer.complete_state and buffer.complete_state.current_completion:
-                # Apply the completion
                 buffer.apply_completion(buffer.complete_state.current_completion)
-                # Close the completion menu
                 buffer.cancel_completion()
 
         @kb.add('escape', filter=has_completions, eager=True)
@@ -254,16 +231,12 @@ class MCPBrowserCLI:
     def _create_continuation_prompt(self, width, line_number, wrap_count):
         """Create Python REPL-style continuation prompt aligned with main prompt."""
         if wrap_count > 0:
-            return " " * (width - 3) + "-> "  # Line wrapping
+            return " " * (width - 3) + "-> "
         else:
-            # Calculate padding to align "... " with the input position
             current = self.browser.current_connection if self.browser.current_connection else None
             if current:
-                # "mbro:name> " we want input after "... " to align with input after "> "
-                # So we need len("mbro:name> ") - 4 spaces before "... "
                 padding = len(f"mbro:{current}> ") - 4
             else:
-                # "mbro> " -> similar calculation
                 padding = len("mbro> ") - 4
 
             spaces = " " * padding
@@ -277,7 +250,7 @@ class MCPBrowserCLI:
         return InputValidator(self)
 
     @classmethod
-    def _parse_shell_args(cls, args: list[str]) -> dict:
+    def parse_shell_args(cls, args: list[str]) -> dict:
         """Parse shell-style key=value arguments.
 
         Examples:
@@ -288,20 +261,16 @@ class MCPBrowserCLI:
         """
         result = {}
 
-        # Process each argument individually
         for arg in args:
             if '=' not in arg:
                 continue
 
             key, value = arg.split('=', 1)
-            # Strip whitespace from key to handle cases like ' a=1'
             key = key.strip()
 
-            # Skip empty keys
             if not key:
                 continue
 
-            # Try to parse the value to get proper types
             if value.lower() == 'true':
                 result[key] = True
             elif value.lower() == 'false':
@@ -312,7 +281,6 @@ class MCPBrowserCLI:
                 else:
                     result[key] = int(value)
             else:
-                # String value - remove quotes if present
                 if (value.startswith('"') and value.endswith('"')) or \
                    (value.startswith("'") and value.endswith("'")):
                     result[key] = value[1:-1]
@@ -326,7 +294,6 @@ class MCPBrowserCLI:
         if self.use_enhanced and hasattr(self, '_completer'):
             completer = self._completer
 
-            # Handle merged completer (no more ThreadedCompleter)
             if hasattr(completer, 'completers'):
                 for c in completer.completers:
                     if hasattr(c, 'refresh_cache'):
@@ -363,7 +330,6 @@ class MCPBrowserCLI:
 
         while self.running:
             try:
-                # Show current connection in prompt
                 if not self.formatter.json_only:
                     current = self.browser.current_connection
                     prompt = f"mbro{f':{current}' if current else ''}> "
@@ -383,8 +349,6 @@ class MCPBrowserCLI:
                 if not command:
                     continue
 
-                # With multiline mode enabled, command may contain newlines
-                # Process the command directly
                 await self.handle_command(command)
 
             except KeyboardInterrupt:
@@ -397,79 +361,46 @@ class MCPBrowserCLI:
             except Exception as e:
                 self.formatter.format_error("Unexpected error in command handling", e)
 
-        # Cleanup connections
         for conn in self.browser.connections.values():
             await conn.disconnect()
 
     async def handle_command(self, command: str):
         """Handle a CLI command."""
-        # Handle multiline commands properly
-        # First remove backslash-newline continuations
-        command = command.replace('\\\n', ' ')
-        # Then replace any remaining newlines with spaces
-        command = command.replace('\n', ' ').strip()
-
-        # Special handling for commands with JSON arguments
-        # Initialize args to empty list to avoid uninitialized variable
-        args: list[str] = []
-        cmd = None
+        parts = CommandParser.parse_command_line(command)
         
-        # Check if this looks like a command with JSON (has '{' after first word)
-        if '{' in command:
-            # Find the start of potential JSON
-            json_start = command.find('{')
-            prefix = command[:json_start].strip()
-            json_part = command[json_start:].strip()
-
-            # Check if the JSON part is properly balanced
-            if json_part.count('{') == json_part.count('}'):
-                # Split the prefix to get command and tool name
-                prefix_parts = prefix.split()
-                if prefix_parts:
-                    cmd = prefix_parts[0].lower()
-                    args = prefix_parts[1:] + [json_part] if len(prefix_parts) > 1 else [json_part]
-
-                    # Validate this is a command that accepts JSON
+        if not parts:
+            return
+        
+        cmd = parts[0].lower()
+        args = parts[1:]
+        
+        if args and any('{' in arg for arg in args):
+            json_start_idx = None
+            for i, arg in enumerate(args):
+                if '{' in arg:
+                    json_start_idx = i
+                    break
+            
+            if json_start_idx is not None:
+                json_part = ' '.join(args[json_start_idx:])
+                
+                if json_part.count('{') == json_part.count('}'):
                     if cmd in ['call', 'prompt', 'get-prompt']:
-                        if not args:
-                            return
-                        # Successfully parsed command with JSON
-                    else:
-                        # Not a JSON command, use regular parsing
-                        cmd = None
+                        args = args[:json_start_idx] + [json_part]
 
-        # If special JSON handling didn't work, use regular parsing
-        if cmd is None:
-            # Use shlex to properly handle quoted strings and shell-style parsing
-            try:
-                # shlex handles the actual parsing
-                parts = shlex.split(command)
-            except ValueError:
-                # If shlex fails, fall back to simple split
-                parts = command.split()
-
-            if not parts:
-                return
-            cmd = parts[0].lower()
-            args = parts[1:]
-
-        # Resolve aliases
         cmd = self.ALIASES.get(cmd, cmd)
         
-        # Check if command is valid
         if cmd not in self.COMMANDS:
             self.formatter.format_error(f"Unknown command: {cmd}")
             self.formatter.format_info("Type 'help' for available commands")
             return
         
-        # Handle commands using match statement
         match cmd:
             case "help":
                 self.show_help()
             case "quit":
                 self.running = False
             case _:
-                # Call the appropriate command method
                 await getattr(self.command, cmd)(args)
 
         if not self.formatter.json_only:
@@ -482,47 +413,50 @@ class MCPBrowserCLI:
 
 
 
+async def handle_commands(cli: MCPBrowserCLI, args) -> bool:
+    """Handle command line commands from args or stdin.
+    
+    Returns:
+        True if any commands were executed
+    """
+    commands_to_run = []
+    
+    if args.commands and args.commands[0] == '-':
+        stdin_text = sys.stdin.read()
+        commands_to_run = CommandParser.split_commands(stdin_text)
+    elif args.commands:
+        command_text = ' '.join(args.commands)
+        commands_to_run = CommandParser.split_commands(command_text)
+    
+    if not commands_to_run:
+        return False
+    
+    for command in commands_to_run:
+        if command.strip():
+            await cli.handle_command(command)
+    
+    return True
+
+
 async def main_async():
     """Async main entry point."""
     parser = argparse.ArgumentParser(description="MBRO - MCP Browser")
-    parser.add_argument(
-        "--connect",
-        nargs=2,
-        metavar=("NAME", "CONNECTION"),
-        help="Connect to a server on startup"
-    )
-
-    # Output formatting options
-    parser.add_argument("--json", action="store_true", help="Output only JSON (machine-readable)")
+    parser.add_argument("--json", "-j", action="store_true", help="Output only JSON (machine-readable)")
     parser.add_argument("--no-rich", action="store_true", default=None, help="Disable Rich formatting")
     parser.add_argument("--indent", type=int, default=2, help="JSON indent level (0 for compact)")
     parser.add_argument("-v", "--verbose", action="count", default=0, help="Increase verbosity (can be used multiple times)")
 
-    # Behavior options
     parser.add_argument("--repl", action="store_true", default=None, help="Drop into REPL mode on startup")
     parser.add_argument("--no-enhanced", action="store_true", help="Disable enhanced features (natural language, multiline, etc.)")
-
-    # Non-interactive commands
-    parser.add_argument("--list-connections", action="store_true", help="List all connections")
-    parser.add_argument("--list-tools", action="store_true", help="List available tools")
-    parser.add_argument("--list-resources", action="store_true", help="List available resources")
-    parser.add_argument("--list-prompts", action="store_true", help="List available prompts")
-    parser.add_argument("--call-tool", nargs="+", metavar=("TOOL", "ARGS"), help="Call a tool (supports key=value or JSON args)")
-    parser.add_argument("--get-resource", metavar="URI", help="Get a resource")
-    parser.add_argument("--get-prompt", nargs="+", metavar=("NAME", "ARGS"), help="Get a prompt (supports key=value or JSON args)")
-    parser.add_argument("--search", metavar="TERM", help="Search tools, resources, and prompts")
-    parser.add_argument("--info", nargs=2, metavar=("TYPE", "NAME"), help="Show info about tool/resource/prompt")
+    parser.add_argument("-n", "--no-interactive", action="store_true", help="Don't drop into interactive mode after commands")
+    parser.add_argument("-x", "--execute-script", action="append", metavar="SCRIPT", help="Execute script file (can be used multiple times)")
     
-    # Additional commands
-    parser.add_argument("--status", action="store_true", help="Show connection status")
-    parser.add_argument("--connections", action="store_true", help="List all connections")
-    parser.add_argument("--switch", metavar="NAME", help="Switch to a different connection")
-    parser.add_argument("--disconnect", action="store_true", help="Disconnect from current server")
+    parser.add_argument("commands", nargs="*", help="Commands to execute (use ';' to separate multiple commands or '-' to read from stdin)")
 
     args = parser.parse_args()
 
     if args.no_rich is None and args.json:
-        args.no_rich = not sys.stdout.isatty()  # Disable rich if output is not a TTY
+        args.no_rich = not sys.stdout.isatty()
 
     cli = MCPBrowserCLI(
         json_only=args.json,
@@ -531,68 +465,23 @@ async def main_async():
         verbose=args.verbose,
     )
 
-    # Disable enhanced features if requested
     if args.no_enhanced:
         cli.use_enhanced = False
 
     try:
+        if args.execute_script:
+            for script_path in args.execute_script:
+                await cli.handle_command(f"script run {script_path}")
 
-        # Auto-connect if specified
-        if args.connect:
-            name, connection = args.connect
-            success = await cli.browser.add_connection(name, connection)
-            if not success:
-                sys.exit(1)
-            # Refresh completer cache after auto-connect
-            await cli.refresh_completer_cache()
-
-        # Handle non-interactive commands
-        if args.list_connections:
-            await cli.command.connections(['-x'])
-            return
-        elif args.list_tools:
-            await cli.command.tools([])
-            return
-        elif args.list_resources:
-            await cli.command.resources([])
-            return
-        elif args.list_prompts:
-            await cli.command.prompts([])
-            return
-        elif args.call_tool:
-            tool_name = args.call_tool[0]
-            tool_args = args.call_tool[1:] if len(args.call_tool) > 1 else []
-            await cli.command.call([tool_name] + tool_args)
-            return
-        elif args.get_resource:
-            await cli.command.resource([args.get_resource])
-            return
-        elif args.get_prompt:
-            prompt_name = args.get_prompt[0]
-            prompt_args = args.get_prompt[1:] if len(args.get_prompt) > 1 else []
-            await cli.command.prompt([prompt_name] + prompt_args)
-            return
-        elif args.search:
-            await cli.command.search([args.search])
-            return
-        elif args.info:
-            await cli.command.info(args.info)
-            return
-        elif args.status:
-            await cli.command.status()
-            return
-        elif args.connections:
-            await cli.command.connections([])
-            return
-        elif args.switch:
-            await cli.command.switch([args.switch])
-            return
-        elif args.disconnect:
-            await cli.command.disconnect([])
-            return
-
-        # If no non-interactive commands, start interactive mode
-        await cli.start(repl=args.repl)
+        commands_executed = False
+        if args.commands:
+            commands_executed = await handle_commands(cli, args)
+        
+        if not commands_executed and not args.no_interactive:
+            await cli.start(repl=args.repl)
+        elif not commands_executed and args.no_interactive:
+            parser.print_help()
+            sys.exit(1)
 
     except KeyboardInterrupt:
         pass

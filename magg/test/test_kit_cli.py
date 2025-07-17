@@ -218,10 +218,10 @@ class TestKitCLI:
 
         captured = capsys.readouterr()
         assert 'Kit: test-kit' in captured.err
-        assert 'Description: Test kit for unit tests' in captured.out
-        assert 'Author: Test Author' in captured.out
-        assert 'Version: 1.0.0' in captured.out
-        assert 'Keywords: test, example' in captured.out
+        assert 'Description: Test kit for unit tests' in captured.err
+        assert 'Author: Test Author' in captured.err
+        assert 'Version: 1.0.0' in captured.err
+        assert 'Keywords: test, example' in captured.err
         assert 'homepage: https://example.com' in captured.out
         assert 'Servers (1):' in captured.out
         assert 'test-server' in captured.out

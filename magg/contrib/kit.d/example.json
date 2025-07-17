@@ -1,0 +1,21 @@
+{
+  "name": "example",
+  "description": "Example kit with common MCP servers",
+  "author": "Magg Contributors",
+  "version": "1.0.0",
+  "keywords": ["example", "demo"],
+  "servers": {
+    "filesystem": {
+      "source": "npx @modelcontextprotocol/server-filesystem",
+      "command": "npx",
+      "args": ["@modelcontextprotocol/server-filesystem", "/tmp"],
+      "notes": "File system access server with /tmp as root"
+    },
+    "memory": {
+      "source": "npx @modelcontextprotocol/server-memory",
+      "command": "npx",
+      "args": ["@modelcontextprotocol/server-memory"],
+      "notes": "In-memory key-value store"
+    }
+  }
+}

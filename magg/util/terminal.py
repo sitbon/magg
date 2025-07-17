@@ -3,6 +3,8 @@ import os
 import sys
 from typing import Optional, List, Dict, Any
 
+import art
+
 from .system import initterm
 
 
@@ -136,8 +138,7 @@ def print_startup_banner():
     # ascii_art = pyfiglet.figlet_format("MAGG", font="isometric3")
     # ascii_art = pyfiglet.figlet_format("MAGG", font="whimsy")
 
-    import art
-    # ascii_art = art.text2art("MAGG", font="cricket")
+        # ascii_art = art.text2art("MAGG", font="cricket")
     # ascii_art = art.text2art("MAGG", font="diamond")
     # ascii_art = art.text2art("MAGG", font="tarty1")
     ascii_art = art.text2art("MAGG", font="isometric3")

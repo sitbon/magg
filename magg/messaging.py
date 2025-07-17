@@ -83,7 +83,6 @@ class MessageRouter:
             if server_id and server_id in self._handlers:
                 handlers_to_call.extend(self._handlers[server_id])
 
-        # Call handlers concurrently
         if handlers_to_call:
             await asyncio.gather(
                 *[handler(message) for handler in handlers_to_call],
@@ -106,7 +105,6 @@ class ServerMessageCoordinator:
     ) -> None:
         """Handle tool list change from a specific server."""
         async with self._lock:
-            # Track which servers have changed their tool lists
             self._notification_state.setdefault("tool_changes", set()).add(server_id)
 
             # Wrap in ServerNotification for proper MessageHandler dispatch
@@ -206,7 +204,7 @@ class MaggMessageHandler(MessageHandler):
                 if asyncio.iscoroutine(result):
                     await result
             except Exception as e:
-                logger.error(f"Error in message handler: {e}")
+                logger.error("Error in message handler: %s", e)
 
     async def on_tool_list_changed(
         self,
@@ -219,7 +217,7 @@ class MaggMessageHandler(MessageHandler):
                 if asyncio.iscoroutine(result):
                     await result
             except Exception as e:
-                logger.error(f"Error in tool list changed handler: {e}")
+                logger.error("Error in tool list changed handler: %s", e)
 
     async def on_resource_list_changed(
         self,
@@ -232,7 +230,7 @@ class MaggMessageHandler(MessageHandler):
                 if asyncio.iscoroutine(result):
                     await result
             except Exception as e:
-                logger.error(f"Error in resource list changed handler: {e}")
+                logger.error("Error in resource list changed handler: %s", e)
 
     async def on_prompt_list_changed(
         self,
@@ -245,7 +243,7 @@ class MaggMessageHandler(MessageHandler):
                 if asyncio.iscoroutine(result):
                     await result
             except Exception as e:
-                logger.error(f"Error in prompt list changed handler: {e}")
+                logger.error("Error in prompt list changed handler: %s", e)
 
     async def on_progress(
         self,
@@ -258,7 +256,7 @@ class MaggMessageHandler(MessageHandler):
                 if asyncio.iscoroutine(result):
                     await result
             except Exception as e:
-                logger.error(f"Error in progress handler: {e}")
+                logger.error("Error in progress handler: %s", e)
 
     async def on_logging_message(
         self,
@@ -271,4 +269,4 @@ class MaggMessageHandler(MessageHandler):
                 if asyncio.iscoroutine(result):
                     await result
             except Exception as e:
-                logger.error(f"Error in logging message handler: {e}")
+                logger.error("Error in logging message handler: %s", e)

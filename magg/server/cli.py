@@ -3,13 +3,13 @@
 import argparse
 import asyncio
 
+from ..cli import __version__, cmd_serve_args, cmd_serve
+
 
 def main():
     """Run the Magg server."""
     parser = create_parser()
     args = parser.parse_args()
-
-    from ..cli import cmd_serve
 
     asyncio.run(cmd_serve(args))
 
@@ -17,7 +17,6 @@ def main():
 def create_parser():
     """Create the command line argument parser."""
     parser = argparse.ArgumentParser(description="Run the Magg server.")
-    from ..cli import __version__, cmd_serve_args
     parser.add_argument(
         "-V", "--version",
         action="version",

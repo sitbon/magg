@@ -16,7 +16,8 @@ class OutputFormatter:
 
     def __init__(self, json_only: bool = False, use_rich: bool | None = True, indent: int = 2):
         self.use_rich = use_rich if use_rich is not None else True
-        self.console = Console() if self.use_rich else None
+        self.console = Console(file=sys.stderr) if self.use_rich else None
+        self.console_stdout = Console(file=sys.stdout) if self.use_rich else None
         self.json_only = json_only
         self.indent = indent if indent > 0 else None
 
@@ -24,7 +25,7 @@ class OutputFormatter:
         """Format and print JSON data."""
         if self.use_rich:
             output = JSON.from_data(data, indent=self.indent, default=str)
-            self.console.print(output)
+            self.console_stdout.print(output)
         else:
             output = json.dumps(data, indent=self.indent, default=str)
             print(output)
@@ -34,7 +35,6 @@ class OutputFormatter:
         if self.json_only:
             error_data = {"error": message}
             if exception:
-                # noinspection PyTypeChecker
                 error_data["exception"] = {
                     "type": type(exception).__name__,
                     "message": str(exception),
@@ -69,9 +69,19 @@ class OutputFormatter:
         else:
             self.print(message)
 
+    def format_warning(self, message: str) -> None:
+        """Format and print a warning message."""
+        if self.json_only:
+            self.format_json({"warning": message})
+        else:
+            self.print(
+                message if not self.use_rich else
+                f"[yellow]{message}[/yellow]"
+            )
+
     def print(self, *objects, **kwds) -> None:
-        """Print a message using the console or standard output."""
-        file = kwds.pop('file', sys.stdout)
+        """Print a message using the console or standard error."""
+        file = kwds.pop('file', sys.stderr)
 
         if self.use_rich:
             self.console.print(*objects, **kwds)
@@ -163,11 +173,9 @@ class OutputFormatter:
                 except json.JSONDecodeError:
                     return resource.text
 
-            # TODO: Find a way to indicate the mime type when it is not None?
             return resource.text
 
         elif hasattr(resource, 'blob'):
-            # TODO: Find a way to indicate the mime type and/or base64 encoding?
             return resource.blob
 
         return resource.model_dump(mode="json", exclude_defaults=True, exclude_none=True, exclude_unset=True)
@@ -234,7 +242,6 @@ class OutputFormatter:
 
             self.console.print(table)
         else:
-            # Plain text table
             output_lines = ["Connections:"]
             for conn in connections:
                 status = "Connected" if conn["connected"] else "Disconnected"
@@ -483,7 +490,6 @@ class OutputFormatter:
                     f"  [cyan]{tool['name']}[/cyan]"
                 )
                 if tool.get('description'):
-                    # Show first line of description
                     desc_first_line = tool['description'].strip().split('\n')[0]
                     if len(desc_first_line) > 60:
                         desc_first_line = desc_first_line[:57] + "..."
@@ -501,7 +507,6 @@ class OutputFormatter:
                     f"  [cyan]{resource['name']}[/cyan]"
                 )
                 if resource.get('description'):
-                    # Show first line of description
                     desc_first_line = resource['description'].strip().split('\n')[0]
                     if len(desc_first_line) > 60:
                         desc_first_line = desc_first_line[:57] + "..."
@@ -519,7 +524,6 @@ class OutputFormatter:
                     f"  [cyan]{prompt['name']}[/cyan]"
                 )
                 if prompt.get('description'):
-                    # Show first line of description
                     desc_first_line = prompt['description'].strip().split('\n')[0]
                     if len(desc_first_line) > 60:
                         desc_first_line = desc_first_line[:57] + "..."
@@ -665,7 +669,7 @@ Note: Tab completion shows rich parameter info after connecting"""
                 else:
                     output_lines.append("  No parameters required")
 
-            output_lines.append("")  # Blank line between tools
+            output_lines.append("")
 
         # Single print call with joined lines
         self.print('\n'.join(output_lines))

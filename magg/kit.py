@@ -21,7 +21,6 @@ class KitConfig(BaseSettings):
         validate_assignment=True,
     )
 
-    # Kit metadata
     name: str = Field(..., description="Unique kit name")
     description: str = Field("", description="What this kit provides")
     author: str | None = Field(None, description="Kit author/maintainer")
@@ -29,7 +28,6 @@ class KitConfig(BaseSettings):
     keywords: list[str] = Field(default_factory=list, description="Keywords for discovery")
     links: dict[str, str] = Field(default_factory=dict, description="Related links (homepage, docs, etc)")
 
-    # Server definitions
     servers: dict[str, ServerConfig] = Field(
         default_factory=dict,
         description="Servers included in this kit"
@@ -47,15 +45,14 @@ class KitConfig(BaseSettings):
                 if isinstance(server_data, ServerConfig):
                     servers[name] = server_data
                 else:
-                    # Ensure kit files cannot define the 'kits' field
                     if isinstance(server_data, dict):
                         server_data = server_data.copy()
-                        server_data.pop('kits', None)  # Remove any kits field
+                        server_data.pop('kits', None)  # Remove any kits field, only allowed in config.json
 
                     server_data['name'] = name
                     servers[name] = ServerConfig(**server_data)
             except Exception as e:
-                logger.error(f"Error loading server '{name}' in kit: {e}")
+                logger.error("Error loading server %r in kit: %s", name, e)
                 continue
 
         return servers
@@ -74,7 +71,6 @@ class KitManager:
         if kitd_paths:
             self.kitd_paths = kitd_paths
         else:
-            # Use MaggConfig's path system to find kit.d directories
             config = MaggConfig()
             self.kitd_paths = config.get_kitd_paths()
         self._kits: dict[str, KitConfig] = {}
@@ -90,12 +86,12 @@ class KitManager:
 
             for file_path in kitd_path.glob('*.json'):
                 if file_path.is_file():
-                    # Use filename without extension as kit key
                     kit_name = file_path.stem
                     if kit_name in kits:
                         logger.warning(
-                            f"Duplicate kit '{kit_name}' found at {file_path}, "
-                            f"keeping {kits[kit_name]}"
+                            "Duplicate kit %r found at %s, "
+                            "keeping %s",
+                            kit_name, file_path, kits[kit_name]
                         )
                     else:
                         kits[kit_name] = file_path
@@ -105,7 +101,6 @@ class KitManager:
     def load_kit(self, kit_path: Path) -> KitConfig | None:
         """Load a kit from a JSON file."""
         try:
-            # Parse JSON and set default name if needed
             data = json.loads(kit_path.read_text())
             if 'name' not in data:
                 data['name'] = kit_path.stem
@@ -113,7 +108,7 @@ class KitManager:
             return KitConfig.model_validate(data)
 
         except Exception as e:
-            logger.error(f"Error loading kit from {kit_path}: {e}")
+            logger.error("Error loading kit from %s: %s", kit_path, e)
             return None
 
     @property
@@ -124,7 +119,7 @@ class KitManager:
     def add_kit(self, name: str, kit: KitConfig) -> bool:
         """Add a kit to the loaded set."""
         if name in self._kits:
-            logger.warning(f"Kit '{name}' already loaded")
+            logger.warning("Kit %r already loaded", name)
             return False
 
         self._kits[name] = kit
@@ -152,7 +147,6 @@ class KitManager:
         for kit_name, kit in self._kits.items():
             for server_name, server_config in kit.servers.items():
                 if server_name in servers:
-                    # Server exists in multiple kits
                     _, kits = servers[server_name]
                     kits.append(kit_name)
                 else:
@@ -173,12 +167,11 @@ class KitManager:
                 kit_config = self.load_kit(kit_path)
                 if kit_config:
                     self.add_kit(kit_name, kit_config)
-                    logger.info(f"Loaded kit '{kit_name}' from {kit_path}")
+                    logger.info("Loaded kit %r from %s", kit_name, kit_path)
                 else:
-                    logger.error(f"Failed to load kit '{kit_name}' from {kit_path}")
+                    logger.error("Failed to load kit %r from %s", kit_name, kit_path)
             else:
-                # Create kit in memory if not found on disk
-                logger.info(f"Kit '{kit_name}' not found in any kit.d directory - creating in memory")
+                logger.info("Kit %r not found in any kit.d directory - creating in memory", kit_name)
                 kit_config = KitConfig(name=kit_name)
                 self.add_kit(kit_name, kit_config)
 
@@ -188,11 +181,9 @@ class KitManager:
         Returns:
             Tuple of (success, message)
         """
-        # Check if kit is already loaded
         if kit_name in config.kits:
             return False, f"Kit '{kit_name}' is already loaded"
 
-        # Discover and load the kit
         available_kits = self.discover_kits()
         if kit_name not in available_kits:
             return False, f"Kit '{kit_name}' not found in any kit.d directory"
@@ -202,26 +193,21 @@ class KitManager:
         if not kit_config:
             return False, f"Failed to load kit '{kit_name}' from {kit_path}"
 
-        # Add kit to manager
         self.add_kit(kit_name, kit_config)
 
-        # Add servers from kit to config
         servers_added = []
         servers_updated = []
 
         for server_name, server_config in kit_config.servers.items():
             if server_name in config.servers:
-                # Server already exists - add kit to its kit list
                 if kit_name not in config.servers[server_name].kits:
                     config.servers[server_name].kits.append(kit_name)
                     servers_updated.append(server_name)
             else:
-                # New server - add with kit reference
                 server_config.kits = [kit_name]
                 config.servers[server_name] = server_config
                 servers_added.append(server_name)
 
-        # Add kit to config's kit list with metadata
         config.kits[kit_name] = KitInfo(
             name=kit_name,
             description=kit_config.description,
@@ -242,32 +228,25 @@ class KitManager:
         Returns:
             Tuple of (success, message)
         """
-        # Check if kit is loaded
         if kit_name not in config.kits:
             return False, f"Kit '{kit_name}' is not loaded"
 
-        # Find servers that would be affected
         servers_to_remove = []
         servers_to_update = []
 
         for server_name, server_config in config.servers.items():
             if kit_name in server_config.kits:
                 if len(server_config.kits) == 1:
-                    # This server only belongs to this kit
                     servers_to_remove.append(server_name)
                 else:
-                    # This server belongs to multiple kits
                     servers_to_update.append(server_name)
 
-        # Remove kit from servers that have multiple kits
         for server_name in servers_to_update:
             config.servers[server_name].kits.remove(kit_name)
 
-        # Remove servers that only belong to this kit
         for server_name in servers_to_remove:
             del config.servers[server_name]
 
-        # Remove kit from config
         del config.kits[kit_name]
         self.remove_kit(kit_name)
 
@@ -289,7 +268,6 @@ class KitManager:
 
         result = {}
 
-        # Add loaded kits
         for kit_name, kit_config in loaded_kits.items():
             result[kit_name] = {
                 'loaded': True,
@@ -301,10 +279,8 @@ class KitManager:
                 'servers': list(kit_config.servers.keys())
             }
 
-        # Add available but not loaded kits
         for kit_name, kit_path in available_kits.items():
             if kit_name not in result:
-                # Try to load to get metadata
                 kit_config = self.load_kit(kit_path)
                 if kit_config:
                     result[kit_name] = {
@@ -335,7 +311,6 @@ class KitManager:
         Returns:
             Kit information dict or None if not found
         """
-        # Check if loaded
         loaded_kits = self.kits
         if kit_name in loaded_kits:
             kit_config = loaded_kits[kit_name]
@@ -353,7 +328,6 @@ class KitManager:
                 }
             }
 
-        # Try to find and load temporarily
         available_kits = self.discover_kits()
         if kit_name in available_kits:
             kit_path = available_kits[kit_name]

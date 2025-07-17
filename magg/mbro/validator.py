@@ -15,12 +15,9 @@ class InputValidator(Validator):
         if not text:
             return
 
-        # Check for incomplete input patterns
         if self._needs_continuation(text):
-            # Don't raise error - allow multiline continuation
             return
 
-        # Check for obvious syntax errors in Python-style arguments
         if self._has_syntax_errors(text):
             raise ValidationError(
                 message="Incomplete input - press Enter to continue or fix syntax",
@@ -29,44 +26,31 @@ class InputValidator(Validator):
 
     def _needs_continuation(self, text: str) -> bool:
         """Check if input needs continuation like Python REPL."""
-        # Empty input or whitespace-only should not continue
         if not text.strip():
             return False
 
-        # Backslash continuation
         if text.endswith('\\'):
             return True
 
-        # Unclosed quotes
         if self._has_unclosed_quotes(text):
             return True
 
-        # Unclosed brackets/braces
         if self._has_unclosed_brackets(text):
             return True
 
-        # For mbro commands, we're done if quotes/brackets are balanced
-        # Don't use _is_complete_mbro_command check here since it doesn't
-        # consider quotes/brackets properly
-
-        # Try Python compilation check for complex cases
-        # This is mainly for Python-style dict/list arguments
         try:
-            # First check if it's an mbro command
             words = text.strip().split(maxsplit=1)
             if words and words[0] in {
                 'help', 'quit', 'exit', 'connect', 'connections', 'conns', 'switch',
                 'disconnect', 'tools', 'resources', 'prompts', 'call', 'resource',
                 'prompt', 'status', 'search', 'info'
             }:
-                # For mbro commands, if quotes/brackets are balanced, we're done
                 return False
 
-            # For other input, use Python compilation check
             result = codeop.compile_command(text, '<input>', 'exec')
-            return result is None  # None means incomplete
+            return result is None
         except SyntaxError:
-            return False  # Syntax error, don't continue
+            return False
 
         return False
 
@@ -77,40 +61,32 @@ class InputValidator(Validator):
         if not text:
             return False
 
-        # All known mbro commands
         mbro_commands = {
             'help', 'quit', 'exit', 'connect', 'connections', 'conns', 'switch',
             'disconnect', 'tools', 'resources', 'prompts', 'call', 'resource',
             'prompt', 'status', 'search', 'info'
         }
 
-        # Commands that are complete with just the command word
         standalone_commands = {
             'help', 'quit', 'exit', 'connections', 'conns', 'disconnect',
             'tools', 'resources', 'prompts', 'status'
         }
 
-        # Split and check first word
         words = text.split()
         if not words or words[0] not in mbro_commands:
-            return False  # Not a recognized mbro command
+            return False
 
         command = words[0]
 
-        # Check standalone commands
         if command in standalone_commands:
             return True
 
-        # For commands that need arguments, check if they look complete
         if command == 'call':
-            # call command needs tool name, args are optional
-            # call tool_name {...} or call tool_name key=value
             return len(words) >= 2
         elif command in ['connect', 'switch', 'resource', 'prompt', 'search', 'info']:
-            # These commands need at least one argument
             return len(words) >= 2
 
-        return True  # Default to complete for other commands
+        return True
 
     @staticmethod
     def _has_unclosed_quotes(text: str) -> bool:
@@ -159,11 +135,11 @@ class InputValidator(Validator):
                     stack.append(char)
                 elif char in pairs.values():
                     if not stack:
-                        return False  # Closing without opening
+                        return False
                     if pairs[stack[-1]] == char:
                         stack.pop()
                     else:
-                        return False  # Mismatched
+                        return False
             else:
                 if char == string_char:
                     in_string = False
@@ -173,15 +149,11 @@ class InputValidator(Validator):
 
     def _has_syntax_errors(self, text: str) -> bool:
         """Check for obvious syntax errors."""
-        # Very basic syntax error detection
-        # This is mainly to catch malformed key=value pairs
         if 'call ' in text and '=' in text:
-            # Check for malformed key=value syntax
             parts = text.split()
-            if len(parts) >= 3:  # call tool_name params...
+            if len(parts) >= 3:
                 params = ' '.join(parts[2:])
                 if not params.startswith('{') and '=' in params:
-                    # Check each key=value pair
                     pairs = params.split()
                     for pair in pairs:
                         if '=' in pair and not self._is_valid_pair(pair):

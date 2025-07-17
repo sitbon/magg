@@ -1,2 +1,2 @@
 # A simple MBro script to load up a Magg stdio server.
-connect name=magg magg serve
+connect magg magg serve

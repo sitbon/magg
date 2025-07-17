@@ -77,12 +77,12 @@ class BearerAuthManager:
                 backend=default_backend()
             )
         except Exception as e:
-            logger.error(f"Failed to load private key: {e}")
+            logger.error("Failed to load private key: %s", e)
             return None
 
     def _generate_keypair(self) -> Optional[rsa.RSAPrivateKey]:
         """Generate new RSA keypair and save to files."""
-        logger.debug(f"Generating new RSA keypair for audience '{self.bearer_config.audience}'")
+        logger.debug("Generating new RSA keypair for audience %r", self.bearer_config.audience)
 
         try:
             private_key = rsa.generate_private_key(
@@ -111,11 +111,11 @@ class BearerAuthManager:
                     format=serialization.PublicFormat.OpenSSH
                 ))
 
-            logger.info(f"Generated new RSA keypair in {self.bearer_config.key_path}")
+            logger.info("Generated new RSA keypair in %s", self.bearer_config.key_path)
             return private_key
 
         except Exception as e:
-            logger.error(f"Failed to generate keypair: {e}")
+            logger.error("Failed to generate keypair: %s", e)
             return None
 
     @classmethod
@@ -191,5 +191,5 @@ class BearerAuthManager:
             return jwt.encode(claims, self._private_key, algorithm="RS256")
 
         except Exception as e:
-            logger.error(f"Failed to create token: {e}")
+            logger.error("Failed to create token: %s", e)
             return None

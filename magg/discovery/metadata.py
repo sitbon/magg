@@ -2,9 +2,11 @@
 
 import asyncio
 import aiohttp
+import base64
 import json
 import logging
 import re
+import tomllib
 from datetime import datetime
 from pathlib import Path
 from urllib.parse import urlparse
@@ -47,7 +49,7 @@ class SourceMetadataCollector:
             if isinstance(result, dict) and result:
                 metadata.append(result)
             elif isinstance(result, Exception):
-                self.logger.debug(f"Metadata collection error: {result}")
+                self.logger.debug("Metadata collection error: %s", result)
 
         return metadata
 
@@ -212,7 +214,7 @@ class SourceMetadataCollector:
                 }
 
         except Exception as e:
-            self.logger.debug(f"Search metadata collection failed: {e}")
+            self.logger.debug("Search metadata collection failed: %s", e)
 
         return {}
 
@@ -261,7 +263,7 @@ class SourceMetadataCollector:
                         }
 
         except Exception as e:
-            self.logger.debug(f"GitHub metadata collection failed: {e}")
+            self.logger.debug("GitHub metadata collection failed: %s", e)
 
         return {}
 
@@ -276,7 +278,6 @@ class SourceMetadataCollector:
                     if response.status == 200:
                         data = await response.json()
                         if data.get("content"):
-                            import base64
                             content = base64.b64decode(data["content"]).decode('utf-8')
                             return content
             except:
@@ -338,7 +339,6 @@ class SourceMetadataCollector:
         try:
             # Handle file:// URLs and local paths
             if url.startswith('file://'):
-                from urllib.parse import urlparse
                 parsed = urlparse(url)
                 local_path = Path(parsed.path)
             else:
@@ -565,7 +565,6 @@ class SourceMetadataCollector:
     async def _analyze_pyproject_toml(self, pyproject_path: Path) -> dict[str, Any]:
         """Analyze pyproject.toml for Python projects."""
         try:
-            import tomllib
             with open(pyproject_path, 'rb') as f:
                 pyproject_data = tomllib.load(f)
 

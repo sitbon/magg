@@ -154,7 +154,7 @@ class ServerConfig(BaseSettings):
     @field_validator('prefix')
     def validate_prefix(cls, v: str | None) -> str | None:
         """Validate that prefix is a valid Python identifier without underscores."""
-        if v:  # Only validate if non-empty
+        if v:
             if not v.isidentifier():
                 raise ValueError(
                     f"Server prefix {v!r} must be a valid Python identifier (letters and numbers only, not starting with a number)"
@@ -174,7 +174,7 @@ class ServerConfig(BaseSettings):
     @field_validator('uri')
     def validate_uri(cls, v: str | None) -> str | None:
         if v:
-            AnyUrl(v)  # Validate as URL
+            AnyUrl(v)
         return v
 
 
@@ -225,16 +225,12 @@ class MaggConfig(BaseSettings):
     def parse_path(cls, v) -> list[Path]:
         """Parse MAGG_PATH environment variable or return default."""
         if isinstance(v, str):
-            # Parse colon-separated path string from environment
             return [Path(p.strip()).expanduser() for p in v.split(':') if p.strip()]
         elif isinstance(v, list) and v and not isinstance(v[0], Path):
-            # Convert to Path objects and expand user paths
             return [Path(p).expanduser() for p in v]
         elif isinstance(v, list):
-            # Already Path objects or use as-is
             return v
         else:
-            # Use default factory
             return [
                 get_project_root() / ".magg",
                 Path.home() / ".magg", 
@@ -246,7 +242,6 @@ class MaggConfig(BaseSettings):
         if self.config_path:
             return self.config_path
         
-        # Search for config.json in path list
         for search_path in self.path:
             config_file = search_path / "config.json"
             if config_file.exists():
@@ -269,7 +264,6 @@ class MaggConfig(BaseSettings):
         script_files = []
         for search_path in self.path:
             if search_path.exists() and search_path.is_dir():
-                # Recursively search for *.mbro files
                 script_files.extend(search_path.rglob("*.mbro"))
         return script_files
 
@@ -288,7 +282,7 @@ class MaggConfig(BaseSettings):
     @field_validator('self_prefix')
     def validate_self_prefix(cls, v: str) -> str:
         """Validate that self_prefix is a valid Python identifier without underscores."""
-        if v:  # Only validate if non-empty
+        if v:
             if not v.isidentifier():
                 raise ValueError(f"Server prefix '{v}' must be a valid Python identifier (letters and numbers only, not starting with a number)")
             if '_' in v:
@@ -341,7 +335,6 @@ class ConfigManager:
 
         Note: The only dynamic part of the config is the servers.
         """
-        # If reload manager is active and has a cached config, return it
         if self._reload_manager:
             cached = self._reload_manager.cached_config
             if cached:
@@ -363,7 +356,7 @@ class ConfigManager:
                     server_data['name'] = name
                     servers[name] = ServerConfig.model_validate(server_data)
                 except Exception as e:
-                    self.logger.error(f"Error loading server '{name}': {e}")
+                    self.logger.error("Error loading server %r: %s", name, e)
                     continue
 
             config.servers = servers
@@ -386,13 +379,13 @@ class ConfigManager:
 
             for key, value in data.items():
                 if not hasattr(config, key):
-                    self.logger.warning(f"Setting unknown config key '{key}' in {self.config_path}.")
+                    self.logger.warning("Setting unknown config key %r in %s.", key, self.config_path)
                 setattr(config, key, value)
 
             return config
 
         except Exception as e:
-            self.logger.error(f"Error loading config: {e}")
+            self.logger.error("Error loading config: %s", e)
             return config
 
     def save_config(self, config: MaggConfig) -> bool:
@@ -430,7 +423,7 @@ class ConfigManager:
                 }
 
             if not self.config_path.parent.exists():
-                self.logger.warning(f"Creating new directory: {self.config_path.parent}")
+                self.logger.warning("Creating new directory: %s", self.config_path.parent)
                 self.config_path.parent.mkdir(parents=True, exist_ok=True)
 
             with self.config_path.open("w") as f:
@@ -443,7 +436,7 @@ class ConfigManager:
             return True
 
         except Exception as e:
-            self.logger.error(f"Error saving config: {e}")
+            self.logger.error("Error saving config: %s", e)
             return False
 
     async def setup_config_reload(self, reload_callback: Callable[['ConfigChange'], Coroutine[None, None, None]]) -> None:
@@ -484,7 +477,7 @@ class ConfigManager:
             return self.auth_config
 
         if not self.auth_config_path.exists():
-            self.logger.debug(f"No auth.json found, using default auth config")
+            self.logger.debug("No auth.json found, using default auth config")
             return AuthConfig()
 
         try:
@@ -495,7 +488,7 @@ class ConfigManager:
             return self.auth_config
 
         except Exception as e:
-            self.logger.error(f"Error loading auth config: {e}")
+            self.logger.error("Error loading auth config: %s", e)
             return AuthConfig()
 
     def save_auth_config(self, auth_config: AuthConfig) -> bool:
@@ -506,7 +499,7 @@ class ConfigManager:
 
         try:
             if not self.auth_config_path.parent.exists():
-                self.logger.warning(f"Creating new directory: {self.auth_config_path.parent}")
+                self.logger.warning("Creating new directory: %s", self.auth_config_path.parent)
                 self.auth_config_path.parent.mkdir(parents=True, exist_ok=True)
 
             data = auth_config.model_dump(
@@ -521,5 +514,5 @@ class ConfigManager:
             return True
 
         except Exception as e:
-            self.logger.error(f"Error saving auth config: {e}")
+            self.logger.error("Error saving auth config: %s", e)
             return False

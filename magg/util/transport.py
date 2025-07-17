@@ -16,7 +16,41 @@ from fastmcp.client.transports import (
 )
 from .transports import NoValidatePythonStdioTransport, NoValidateNodeStdioTransport
 
-__all__ = "get_transport_for_command", "get_transport_for_command_string", "get_transport_for_uri", "parse_command_string", "TRANSPORT_DOCS"
+__all__ = (
+    "get_transport_for_input",
+    "get_transport_for_command", "get_transport_for_command_string", "get_transport_for_uri",
+    "parse_command_string", "TRANSPORT_DOCS"
+)
+
+
+def get_transport_for_input(connect_string: str) -> ClientTransport:
+    """
+    Get appropriate transport based on input string.
+
+    This function determines the type of transport to use based on the input string.
+    It can handle command strings, URIs, and other formats.
+
+    Args:
+        connect_string: Input string that can be a command, URI, or other format
+
+    Returns:
+        Configured ClientTransport instance
+
+    Examples:
+        >>> transport = get_transport_for_input("python -m magg serve")
+        >>> transport = get_transport_for_input("http://localhost:8000")
+    """
+    connect_string = connect_string.strip()
+
+    if not connect_string:
+        raise ValueError("Input cannot be empty")
+
+    # Check if it's a URI (HTTP/SSE)
+    if connect_string.startswith(("http://", "https://")) or "/sse" in connect_string:
+        return get_transport_for_uri(connect_string)
+
+    # Otherwise, treat it as a command string
+    return get_transport_for_command_string(connect_string)
 
 
 def parse_command_string(command_string: str) -> tuple[str, list[str]]:

@@ -42,8 +42,6 @@ class ProxyMCP:
 
     @property
     def _proxy_backend_client(self) -> Client:
-        """Get the backend (proxied server) client for this proxy.
-        """
         raise NotImplementedError("This method should be implemented by the host class.")
 
     async def _get_proxy_backend_client(self) -> Client:
@@ -131,11 +129,9 @@ class ProxyMCP:
         if action == "list":
             result, result_type = await self._proxy_list(a_type)
 
-            # Apply filtering if requested
             if filter_server and result:
                 result = [item for item in result if hasattr(item, 'name') and item.name.startswith(filter_server)]
 
-            # Apply pagination
             total_count = len(result) if result else 0
             if result and (limit or offset):
                 offset_val = offset or 0
@@ -143,7 +139,6 @@ class ProxyMCP:
                 result = result[offset_val:offset_val + limit_val]
 
             if result:
-                # Send results as a single json/object-encoded EmbeddedResource result
                 result = embed_python_object_list_in_resource(
                     typ=result_type,
                     obj=result,
@@ -159,7 +154,6 @@ class ProxyMCP:
             result = await self._proxy_info(a_type, path)
 
             if result:
-                # Send results as a json/object-encoded EmbeddedResource result
                 result = embed_python_object_in_resource(
                     obj=result,
                     uri=f"{self.PROXY_TOOL_NAME}:{action}/{a_type}/{path}",
@@ -177,13 +171,10 @@ class ProxyMCP:
 
         return result
 
-    # noinspection PyShadowingBuiltins
     async def _proxy_list(
             self,
             capability_type: str
     ) -> tuple[list[Tool] | list[Resource | ResourceTemplate] | list[Prompt], type[BaseModel]]:
-        """List capabilities by connecting to ourselves as a client.
-        """
         client = await self._get_proxy_backend_client()
 
         async with client:

@@ -6,6 +6,8 @@ from typing import TYPE_CHECKING
 from mcp.types import TextContent, ImageContent, EmbeddedResource
 from ..proxy import ProxyMCP
 from .client import BrowserConnection
+from .parser import CommandParser
+from .scripts import ScriptManager
 
 if TYPE_CHECKING:
     from .cli import MCPBrowserCLI
@@ -18,6 +20,7 @@ class Command:
         self.cli = cli
         self.browser = cli.browser
         self.formatter = cli.formatter
+        self.script_manager = ScriptManager(cli=cli)
     
     async def connections(self, args: list):
         """List all connections."""
@@ -38,28 +41,34 @@ class Command:
         self.formatter.format_connections_table(connections, extended=extended)
     
     async def connect(self, args: list):
-        """Connect to an MCP server."""
-        if len(args) < 2:
+        """Connect to an MCP server with optional name."""
+        if not args:
             self.formatter.format_error("Usage: connect <name> <connection_string>")
+            self.formatter.format_info(
+                "Examples:\n"
+                "  connect myserver python server.py\n"
+                "  connect calc python calculator.py\n"
+                "  connect webserver http://localhost:8000/mcp"
+            )
             return
 
-        name = args[0]
-        connection_string = " ".join(args[1:])
+        try:
+            name, connection_string = CommandParser.parse_connect_args(args)
+        except ValueError as e:
+            self.formatter.format_error(str(e))
+            return
 
-        # Remove quotes if present
         if connection_string.startswith('"') and connection_string.endswith('"'):
             connection_string = connection_string[1:-1]
 
         success = await self.browser.add_connection(name, connection_string)
         if success:
             conn = self.browser.connections[name]
-            # Get counts for display
             tools = await conn.get_tools()
             resources = await conn.get_resources()
             prompts = await conn.get_prompts()
             self.formatter.format_success(f"Connected to '{name}' (Tools: {len(tools)}, Resources: {len(resources)}, Prompts: {len(prompts)})")
 
-            # Refresh completer cache if using enhanced mode
             await self.cli.refresh_completer_cache()
         else:
             self.formatter.format_error(f"Failed to connect to '{name}'")
@@ -73,8 +82,6 @@ class Command:
         name = args[0]
         success = await self.browser.switch_connection(name)
         if success:
-            self.formatter.format_success(f"Switched to connection '{name}'")
-            # Refresh completer cache for new connection
             await self.cli.refresh_completer_cache()
         else:
             self.formatter.format_error(f"Failed to switch to '{name}'")
@@ -87,9 +94,7 @@ class Command:
 
         name = args[0]
         success = await self.browser.remove_connection(name)
-        if success:
-            self.formatter.format_success(f"Disconnected from '{name}'")
-        else:
+        if not success:
             self.formatter.format_error(f"Connection '{name}' not found")
     
     async def status(self):
@@ -189,7 +194,6 @@ class Command:
         if len(args) > 1:
             args_str = " ".join(args[1:])
 
-            # Try to parse as JSON first
             if args_str.strip().startswith('{'):
                 try:
                     arguments = json.loads(args_str)
@@ -206,7 +210,6 @@ class Command:
                         )
                     return
             else:
-                # Check for positional arguments (no '=' sign)
                 has_positional = False
                 for arg in args[1:]:
                     if '=' not in arg and not arg.startswith('{'):
@@ -218,10 +221,8 @@ class Command:
                     self.formatter.format_info(f"Example: call {tool_name} a=1 b=2")
                     return
 
-                # Parse shell-like key=value syntax
-                arguments = self.cli._parse_shell_args(args[1:])
+                arguments = self.cli.parse_shell_args(args[1:])
 
-        # Validate required parameters
         tools = await conn.get_tools()
         tool = next((t for t in tools if t['name'] == tool_name), None)
         if tool:
@@ -232,7 +233,6 @@ class Command:
                 if missing:
                     self.formatter.format_error(f"Tool '{tool_name}' missing required parameters: {missing}")
 
-                    # Show parameter details if available
                     properties = schema.get('properties', {})
                     if properties and not self.formatter.json_only:
                         self.formatter.format_info("\nRequired parameters:")
@@ -243,7 +243,6 @@ class Command:
                                 desc = prop.get('description', 'No description')
                                 self.formatter.format_info(f"  {param}: {param_type} - {desc}")
 
-                    # Show example
                     example_args = " ".join([f"{p}=<value>" for p in required])
                     self.formatter.format_info(f"\nExample: call {tool_name} {example_args}")
                     return
@@ -252,10 +251,7 @@ class Command:
             result = await conn.call_tool(tool_name, arguments)
 
             if result:
-                # Proxy queries are always done through tool calls,
-                # but proxied tool calls will still get passed through
-                # to the normal formatting below.
-                if await self.handle_proxy_query_result(tool_name, result):
+                if await self._handle_proxy_query_result(tool_name, result):
                     return
 
                 self.formatter.format_content_list(result)
@@ -331,37 +327,30 @@ class Command:
 
         term = " ".join(args).lower()
 
-        # Get all capabilities
         tools = await conn.get_tools()
         resources = await conn.get_resources()
         prompts = await conn.get_prompts()
 
-        # Enhanced matching function
         def matches_enhanced(item, search_term):
             """Enhanced matching with word splitting."""
             name = item.get("name", "").lower()
             desc = item.get("description", "").lower()
 
-            # Direct substring match
             if search_term in name or search_term in desc:
                 return True
 
-            # For resources, also check URI
             if "uri" in item and search_term in item["uri"].lower():
                 return True
             if "uriTemplate" in item and search_term in item["uriTemplate"].lower():
                 return True
 
-            # Word-based matching for enhanced mode
             if self.cli.use_enhanced:
                 words = search_term.split()
                 combined = f"{name} {desc}"
-                # All words must be present
                 return all(word in combined for word in words)
 
             return False
 
-        # Search with enhanced matching
         matching_tools = [t for t in tools if matches_enhanced(t, term)]
         matching_resources = [r for r in resources if matches_enhanced(r, term)]
         matching_prompts = [p for p in prompts if matches_enhanced(p, term)]
@@ -412,7 +401,11 @@ class Command:
         else:
             self.formatter.format_error("Item type must be 'tool', 'resource', or 'prompt'")
     
-    async def handle_proxy_query_result(self, tool_name: str, result: list) -> bool:
+    async def script(self, args: list):
+        """Handle script commands."""
+        await self.script_manager.handle_script_command(args)
+    
+    async def _handle_proxy_query_result(self, tool_name: str, result: list) -> bool:
         """
         Handle the ProxyMCP tool's [list, info] actions on [tool, resource, prompt].
 

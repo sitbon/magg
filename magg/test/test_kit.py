@@ -121,18 +121,27 @@ class TestKitConfig:
 class TestKitManager:
     """Test KitManager functionality."""
 
-    def test_default_paths(self):
-        """Test default kit.d path discovery."""
-        with patch.dict(os.environ, {"MAGG_KITD_PATH": "/custom/kit.d"}):
-            with patch("magg.kit.Path.exists") as mock_exists:
-                with patch("magg.kit.Path.is_dir") as mock_is_dir:
-                    mock_exists.return_value = True
-                    mock_is_dir.return_value = True
+    def test_magg_path_integration(self, tmp_path):
+        """Test that MAGG_PATH environment variable works with kit manager."""
+        # Create some test directories
+        custom_dir = tmp_path / "custom"
+        custom_kitd = custom_dir / "kit.d"
+        custom_kitd.mkdir(parents=True)
+        
+        another_dir = tmp_path / "another"
+        another_kitd = another_dir / "kit.d"
+        another_kitd.mkdir(parents=True)
 
-                    paths = KitManager._get_default_paths(Path("/tmp/config.json"))
+        # Test with MAGG_PATH environment variable
+        env_path = f"{custom_dir}:{another_dir}"
+        with patch.dict(os.environ, {"MAGG_PATH": env_path}):
+            config_manager = ConfigManager()
+            kit_manager = KitManager(config_manager)
 
-                    # Should include env var path
-                    assert any(str(p).endswith("/custom/kit.d") for p in paths)
+            # Should find kit.d directories from MAGG_PATH
+            kitd_paths_str = [str(p) for p in kit_manager.kitd_paths]
+            assert str(custom_kitd) in kitd_paths_str
+            assert str(another_kitd) in kitd_paths_str
 
     def test_discover_kits(self, tmp_path):
         """Test kit discovery in directories."""
@@ -353,8 +362,13 @@ class TestKitManagerIntegration:
         kit_manager = KitManager(config_manager, [kitd_path])
 
         # Create config with kits
+        from magg.settings import KitInfo
         config = MaggConfig()
-        config.kits = ["kit1", "kit2", "nonexistent"]
+        config.kits = {
+            "kit1": KitInfo(name="kit1", source="file"),
+            "kit2": KitInfo(name="kit2", source="file"),
+            "nonexistent": KitInfo(name="nonexistent", source="file")
+        }
 
         # Load kits
         kit_manager.load_kits_from_config(config)
@@ -454,11 +468,12 @@ class TestKitManagerIntegration:
 
     def test_load_kit_already_loaded(self, tmp_path):
         """Test loading a kit that's already loaded."""
+        from magg.settings import KitInfo
         config_manager = ConfigManager(str(tmp_path / "config.json"))
         kit_manager = KitManager(config_manager)
 
         config = MaggConfig()
-        config.kits = ["existing-kit"]
+        config.kits = {"existing-kit": KitInfo(name="existing-kit", source="file")}
 
         success, message = kit_manager.load_kit_to_config("existing-kit", config)
 
@@ -467,12 +482,13 @@ class TestKitManagerIntegration:
 
     def test_unload_kit_exclusive_servers(self, tmp_path):
         """Test unloading a kit removes servers only in that kit."""
+        from magg.settings import KitInfo
         config_manager = ConfigManager(str(tmp_path / "config.json"))
         kit_manager = KitManager(config_manager)
 
         # Setup config with servers
         config = MaggConfig()
-        config.kits = ["kit1"]
+        config.kits = {"kit1": KitInfo(name="kit1", source="file")}
 
         server1 = ServerConfig(
             name="exclusive-server",
@@ -625,7 +641,11 @@ class TestKitConfigPersistence:
 
         # Create config with kits
         config = MaggConfig()
-        config.kits = ["kit1", "kit2"]
+        from magg.settings import KitInfo
+        config.kits = {
+            "kit1": KitInfo(name="kit1", source="file"),
+            "kit2": KitInfo(name="kit2", source="file")
+        }
 
         # Add a server with kit tracking
         server = ServerConfig(
@@ -640,14 +660,22 @@ class TestKitConfigPersistence:
 
         # Load and verify
         loaded = manager.load_config()
-        assert loaded.kits == ["kit1", "kit2"]
+        assert "kit1" in loaded.kits
+        assert "kit2" in loaded.kits
+        assert loaded.kits["kit1"].name == "kit1"
+        assert loaded.kits["kit1"].source == "file"
+        assert loaded.kits["kit2"].name == "kit2"
+        assert loaded.kits["kit2"].source == "file"
         assert loaded.servers["test-server"].kits == ["kit1"]
 
         # Check raw JSON
         with open(config_path) as f:
             data = json.load(f)
 
-        assert data["kits"] == ["kit1", "kit2"]
+        assert "kit1" in data["kits"]
+        assert "kit2" in data["kits"]
+        assert data["kits"]["kit1"]["name"] == "kit1"
+        assert data["kits"]["kit1"]["source"] == "file"
         assert data["servers"]["test-server"]["kits"] == ["kit1"]
 
     def test_config_without_kits_field(self, tmp_path):
@@ -671,7 +699,7 @@ class TestKitConfigPersistence:
         manager = ConfigManager(str(config_path))
         config = manager.load_config()
 
-        # Should have empty kits list
-        assert config.kits == []
+        # Should have empty kits dict
+        assert config.kits == {}
         assert "server1" in config.servers
         assert config.servers["server1"].kits == []  # Default empty list

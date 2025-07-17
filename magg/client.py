@@ -41,11 +41,9 @@ class MaggClient(ProxyClient):
         """
         self.settings = settings or ClientSettings()
 
-        # If no auth provided and we have a JWT, use bearer auth
         if auth is None and self.settings.jwt:
             auth = BearerAuth(self.settings.jwt)
 
-        # Pass everything to parent ProxyClient with auth, transparent mode, and message handler
         super().__init__(
             transport,
             *args,

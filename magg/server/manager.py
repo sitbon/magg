@@ -38,7 +38,7 @@ class ServerManager:
                 auth_provider = auth_manager.provider
                 logger.info("Authentication enabled (bearer)")
             except RuntimeError as e:
-                logger.warning(f"Authentication disabled: {e}")
+                logger.warning("Authentication disabled: %s", e)
 
         # Create FastMCP instance with optional auth
         self.mcp = ProxyFastMCP(
@@ -80,7 +80,6 @@ class ServerManager:
             return False
 
         try:
-            # Create message handler for this backend server if ProxyFastMCP supports it
             message_handler = None
             if hasattr(self.mcp, 'message_coordinator'):
                 from ..proxy.server import BackendMessageHandler
@@ -90,7 +89,6 @@ class ServerManager:
                 )
 
             if server.command:
-                # Command-based server
                 transport = get_transport_for_command(
                     command=server.command,
                     args=server.args or [],
@@ -104,7 +102,6 @@ class ServerManager:
                 client = Client(transport, message_handler=message_handler)
 
             elif server.uri:
-                # URI-based server
                 transport = get_transport_for_uri(
                     uri=server.uri,
                     transport_config=server.transport
@@ -130,7 +127,6 @@ class ServerManager:
             logger.error("Failed to mount server %s: %s", server.name, e)
             return False
 
-    # noinspection PyProtectedMember
     def _unmount_from_fastmcp(self, server_name: str) -> bool:
         """Remove a mounted server from FastMCP's internal structures.
 
@@ -216,7 +212,6 @@ class ServerManager:
                 logger.error("Error mounting %s: %s", name, e)
                 results.append((name, False))
 
-        # Log results
         successful = [name for name, success in results if success]
         failed = [name for name, success in results if not success]
 
@@ -236,27 +231,22 @@ class ServerManager:
         # Process changes in order: remove, disable, update, enable, add
         # This ensures clean transitions
 
-        # First, remove servers that were deleted
         for change in config_change.server_changes:
             if change.action == 'remove':
                 await self._handle_server_remove(change)
 
-        # Disable servers that were disabled
         for change in config_change.server_changes:
             if change.action == 'disable':
                 await self._handle_server_disable(change)
 
-        # Update servers that changed (requires unmount/remount)
         for change in config_change.server_changes:
             if change.action == 'update':
                 await self._handle_server_update(change)
 
-        # Enable servers that were enabled
         for change in config_change.server_changes:
             if change.action == 'enable':
                 await self._handle_server_enable(change)
 
-        # Finally, add new servers
         for change in config_change.server_changes:
             if change.action == 'add':
                 await self._handle_server_add(change)
@@ -282,13 +272,11 @@ class ServerManager:
         """Handle updating a server (requires unmount and remount)."""
         logger.info("Updating server: %s", change.name)
 
-        # First unmount the old version
         await self.unmount_server(change.name)
 
         # Give transports time to clean up
         await asyncio.sleep(0.1)
 
-        # Mount the new version
         if change.new_config:
             success = await self.mount_server(change.new_config)
             if not success:
@@ -388,10 +376,8 @@ class ManagedServer:
 
     async def __aexit__(self, exc_type, exc_value, traceback):
         """Exit the context manager, performing any necessary cleanup."""
-        # Stop config reloader if running
         await self.server_manager.config_manager.stop_config_reload()
 
-        # Unmount all servers to clean up clients
         mounted_servers = list(self.server_manager.mounted_servers.keys())
         for server_name in mounted_servers:
             await self.server_manager.unmount_server(server_name)
@@ -419,7 +405,6 @@ class ManagedServer:
             self._is_setup = True
             await self.server_manager.mount_all_enabled()
 
-            # Start config file watcher if enabled
             if self._enable_config_reload:
                 await self.server_manager.config_manager.setup_config_reload(
                     self.server_manager.handle_config_reload
@@ -441,7 +426,6 @@ class ManagedServer:
         Returns:
             True if reload was successful, False otherwise
         """
-        # First ensure reload is setup
         if not self._enable_config_reload:
             await self.server_manager.config_manager.setup_config_reload(
                 self.server_manager.handle_config_reload
@@ -494,16 +478,13 @@ class ManagedServer:
         try:
             config = self.config
 
-            # Track servers before removal
             servers_before = set(config.servers.keys())
 
             success, message = self.kit_manager.unload_kit_from_config(name, config)
 
             if success:
-                # Save the config
                 if not self.save_config(config):
                     return MaggResponse.error("Failed to save configuration")
-                # Unmount any removed servers
                 servers_after = set(config.servers.keys())
                 removed_servers = servers_before - servers_after
 

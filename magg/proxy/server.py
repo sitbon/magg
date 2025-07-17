@@ -89,7 +89,6 @@ class ProxyFastMCP(ProxyMCP, FastMCP):
 
         self.add_tool(tool)
 
-
     async def register_client_message_handler(
         self,
         handler: MessageHandler,

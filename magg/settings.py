@@ -9,14 +9,28 @@ from typing import Any, Callable, Coroutine, TYPE_CHECKING
 if TYPE_CHECKING:
     from .reload import ConfigChange
 
-from pydantic import field_validator, Field, model_validator, AnyUrl
+from pydantic import field_validator, Field, model_validator, AnyUrl, BaseModel
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from .util.system import get_project_root
+from .util.paths import get_contrib_paths
 
-__all__ = "ServerConfig", "MaggConfig", "ConfigManager", "AuthConfig", "BearerAuthConfig", "ClientSettings"
+__all__ = "ServerConfig", "MaggConfig", "ConfigManager", "AuthConfig", "BearerAuthConfig", "ClientSettings", "KitInfo"
 
 logger = logging.getLogger(__name__)
+
+
+class KitInfo(BaseModel):
+    """Information about a loaded kit."""
+    model_config = {
+        "extra": "allow",
+        "validate_assignment": True,
+    }
+    
+    name: str = Field(..., description="Kit name")
+    description: str | None = Field(None, description="Kit description")
+    path: str | None = Field(None, description="Path to kit file (if file-based)")
+    source: str | None = Field(None, description="Source of the kit (file, inline, etc)")
 
 
 class ClientSettings(BaseSettings):
@@ -140,7 +154,7 @@ class ServerConfig(BaseSettings):
     @field_validator('prefix')
     def validate_prefix(cls, v: str | None) -> str | None:
         """Validate that prefix is a valid Python identifier without underscores."""
-        if v:  # Only validate if non-empty
+        if v:
             if not v.isidentifier():
                 raise ValueError(
                     f"Server prefix {v!r} must be a valid Python identifier (letters and numbers only, not starting with a number)"
@@ -160,7 +174,7 @@ class ServerConfig(BaseSettings):
     @field_validator('uri')
     def validate_uri(cls, v: str | None) -> str | None:
         if v:
-            AnyUrl(v)  # Validate as URL
+            AnyUrl(v)
         return v
 
 
@@ -175,9 +189,17 @@ class MaggConfig(BaseSettings):
         env_ignore_empty=True,
     )
 
-    config_path: Path = Field(
-        default_factory=lambda: get_project_root() / ".magg" / "config.json",
-        description="Configuration file path (can be overridden by MAGG_CONFIG_PATH)"
+    path: str | list[Path] = Field(
+        default_factory=lambda: [
+            get_project_root() / ".magg",
+            Path.home() / ".magg", 
+            *get_contrib_paths()
+        ],
+        description="Multi-path search list for config.json and kit.d directories (env: MAGG_PATH, colon-separated)"
+    )
+    config_path: Path | None = Field(
+        default=None,
+        description="Explicit configuration file path (overrides path search) (env: MAGG_CONFIG_PATH)"
     )
     read_only: bool = Field(default=False, description="Run in read-only mode (env: MAGG_READ_ONLY)")
     quiet: bool = Field(default=False, description="Suppress output unless errors occur (env: MAGG_QUIET)")
@@ -196,7 +218,54 @@ class MaggConfig(BaseSettings):
     reload_use_watchdog: bool | None = Field(default=None, description="Use file system notifications if available, None=auto-detect (env: MAGG_RELOAD_USE_WATCHDOG)")
     stderr_show: bool = Field(default=False, description="Show stderr output from subprocess MCP servers (env: MAGG_STDERR_SHOW)")
     servers: dict[str, ServerConfig] = Field(default_factory=dict, description="Servers configuration (loaded from config_path)")
-    kits: list[str] = Field(default_factory=list, description="List of loaded kits")
+    kits: dict[str, KitInfo] = Field(default_factory=dict, description="Loaded kits with metadata")
+
+    @field_validator('path', mode='after')
+    @classmethod
+    def parse_path(cls, v) -> list[Path]:
+        """Parse MAGG_PATH environment variable or return default."""
+        if isinstance(v, str):
+            return [Path(p.strip()).expanduser() for p in v.split(':') if p.strip()]
+        elif isinstance(v, list) and v and not isinstance(v[0], Path):
+            return [Path(p).expanduser() for p in v]
+        elif isinstance(v, list):
+            return v
+        else:
+            return [
+                get_project_root() / ".magg",
+                Path.home() / ".magg", 
+                *get_contrib_paths()
+            ]
+
+    def get_config_path(self) -> Path:
+        """Get the actual config path, either explicit or searched from path list."""
+        if self.config_path:
+            return self.config_path
+        
+        for search_path in self.path:
+            config_file = search_path / "config.json"
+            if config_file.exists():
+                return config_file
+        
+        # Return first path location for new config creation
+        return self.path[0] / "config.json"
+
+    def get_kitd_paths(self) -> list[Path]:
+        """Get all kit.d directories from the path list."""
+        kitd_paths = []
+        for search_path in self.path:
+            kitd_path = search_path / "kit.d"
+            if kitd_path.exists() and kitd_path.is_dir():
+                kitd_paths.append(kitd_path)
+        return kitd_paths
+
+    def get_script_paths(self) -> list[Path]:
+        """Get all *.mbro script files recursively from the path list."""
+        script_files = []
+        for search_path in self.path:
+            if search_path.exists() and search_path.is_dir():
+                script_files.extend(search_path.rglob("*.mbro"))
+        return script_files
 
     @model_validator(mode='after')
     def export_environment_variables(self) -> 'MaggConfig':
@@ -213,7 +282,7 @@ class MaggConfig(BaseSettings):
     @field_validator('self_prefix')
     def validate_self_prefix(cls, v: str) -> str:
         """Validate that self_prefix is a valid Python identifier without underscores."""
-        if v:  # Only validate if non-empty
+        if v:
             if not v.isidentifier():
                 raise ValueError(f"Server prefix '{v}' must be a valid Python identifier (letters and numbers only, not starting with a number)")
             if '_' in v:
@@ -252,7 +321,7 @@ class ConfigManager:
         if config_path:
             self.config_path = Path(config_path)
         else:
-            self.config_path = config.config_path
+            self.config_path = config.get_config_path()
 
         self.auth_config_path = self.config_path.parent / "auth.json"
 
@@ -266,7 +335,6 @@ class ConfigManager:
 
         Note: The only dynamic part of the config is the servers.
         """
-        # If reload manager is active and has a cached config, return it
         if self._reload_manager:
             cached = self._reload_manager.cached_config
             if cached:
@@ -288,23 +356,36 @@ class ConfigManager:
                     server_data['name'] = name
                     servers[name] = ServerConfig.model_validate(server_data)
                 except Exception as e:
-                    self.logger.error(f"Error loading server '{name}': {e}")
+                    self.logger.error("Error loading server %r: %s", name, e)
                     continue
 
             config.servers = servers
 
             if 'kits' in data:
-                config.kits = data.pop('kits', [])
+                # Handle both old format (list of strings) and new format (dict)
+                kits_data = data.pop('kits', {})
+                if isinstance(kits_data, list):
+                    # Convert old format to new format
+                    config.kits = {
+                        kit_name: KitInfo(name=kit_name, source="legacy")
+                        for kit_name in kits_data
+                    }
+                else:
+                    # Load new format
+                    config.kits = {
+                        name: KitInfo.model_validate(kit_data) if isinstance(kit_data, dict) else KitInfo(name=name)
+                        for name, kit_data in kits_data.items()
+                    }
 
             for key, value in data.items():
                 if not hasattr(config, key):
-                    self.logger.warning(f"Setting unknown config key '{key}' in {self.config_path}.")
+                    self.logger.warning("Setting unknown config key %r in %s.", key, self.config_path)
                 setattr(config, key, value)
 
             return config
 
         except Exception as e:
-            self.logger.error(f"Error loading config: {e}")
+            self.logger.error("Error loading config: %s", e)
             return config
 
     def save_config(self, config: MaggConfig) -> bool:
@@ -333,10 +414,16 @@ class ConfigManager:
             }
 
             if config.kits:
-                data['kits'] = config.kits
+                data['kits'] = {
+                    name: kit_info.model_dump(
+                        mode="json",
+                        exclude_unset=True, exclude_none=True, exclude_defaults=True
+                    )
+                    for name, kit_info in config.kits.items()
+                }
 
             if not self.config_path.parent.exists():
-                self.logger.warning(f"Creating new directory: {self.config_path.parent}")
+                self.logger.warning("Creating new directory: %s", self.config_path.parent)
                 self.config_path.parent.mkdir(parents=True, exist_ok=True)
 
             with self.config_path.open("w") as f:
@@ -349,7 +436,7 @@ class ConfigManager:
             return True
 
         except Exception as e:
-            self.logger.error(f"Error saving config: {e}")
+            self.logger.error("Error saving config: %s", e)
             return False
 
     async def setup_config_reload(self, reload_callback: Callable[['ConfigChange'], Coroutine[None, None, None]]) -> None:
@@ -390,7 +477,7 @@ class ConfigManager:
             return self.auth_config
 
         if not self.auth_config_path.exists():
-            self.logger.debug(f"No auth.json found, using default auth config")
+            self.logger.debug("No auth.json found, using default auth config")
             return AuthConfig()
 
         try:
@@ -401,7 +488,7 @@ class ConfigManager:
             return self.auth_config
 
         except Exception as e:
-            self.logger.error(f"Error loading auth config: {e}")
+            self.logger.error("Error loading auth config: %s", e)
             return AuthConfig()
 
     def save_auth_config(self, auth_config: AuthConfig) -> bool:
@@ -412,7 +499,7 @@ class ConfigManager:
 
         try:
             if not self.auth_config_path.parent.exists():
-                self.logger.warning(f"Creating new directory: {self.auth_config_path.parent}")
+                self.logger.warning("Creating new directory: %s", self.auth_config_path.parent)
                 self.auth_config_path.parent.mkdir(parents=True, exist_ok=True)
 
             data = auth_config.model_dump(
@@ -427,5 +514,5 @@ class ConfigManager:
             return True
 
         except Exception as e:
-            self.logger.error(f"Error saving auth config: {e}")
+            self.logger.error("Error saving auth config: %s", e)
             return False

@@ -5,6 +5,7 @@ import json
 import logging
 import os
 import re
+import shlex
 from functools import wraps
 from pathlib import Path
 from typing import Any, Annotated, Literal
@@ -30,7 +31,6 @@ class MaggServer(ManagedServer):
     """
 
     def __init__(self, config_path: Path | str | None = None, *, enable_config_reload: bool | None = None):
-        # Keep track of whether config reload should be enabled
         config_manager = ConfigManager(config_path)
         super().__init__(ServerManager(config_manager), enable_config_reload=enable_config_reload)
 
@@ -270,7 +270,6 @@ Documentation for proxy tool:
             actual_command = command
             actual_args = None
             if command:
-                import shlex
                 parts = shlex.split(command)
                 if len(parts) > 1:
                     actual_command = parts[0]
@@ -449,8 +448,6 @@ Documentation for proxy tool:
             if not self.save_config(config):
                 return MaggResponse.error(f"Failed to save configuration for server '{name}'")
 
-            # TODO: Consider calling unmount regardless of suggested state?
-            #       See about race conditions for any case of actions related to config changes when dynamic.
             await self.server_manager.unmount_server(name)
 
             return MaggResponse.success({
@@ -521,11 +518,9 @@ Documentation for proxy tool:
                         project_type = data["project_type"]
                         if project_type == "nodejs_project":
                             config_suggestion["command"] = "npx"
-                            # noinspection PyTypeChecker
                             config_suggestion["args"] = [server_name or Path(source).stem]
                         elif project_type == "python_project":
                             config_suggestion["command"] = "python"
-                            # noinspection PyTypeChecker
                             config_suggestion["args"] = ["-m", server_name or Path(source).stem]
 
                 return MaggResponse.success({
@@ -632,7 +627,6 @@ Documentation for proxy tool:
         except Exception as e:
             return MaggResponse.error(f"Smart configuration failed: {str(e)}")
 
-    # noinspection PyMethodMayBeStatic
     async def search_servers(
         self,
         query: Annotated[str, Field(description="Search query for MCP servers")],
@@ -715,7 +709,6 @@ Please provide:
                 )
 
                 if result and result.text:
-                    # noinspection PyTypeChecker
                     analysis_data["insights"] = result.text
 
             return MaggResponse.success(analysis_data)
@@ -758,13 +751,11 @@ Please provide:
         Note: This operation may briefly interrupt service for affected servers.
         Config reload can also be triggered via SIGHUP signal on Unix systems.
         """
-        # Check if reload is disabled
         if not self.config.auto_reload:
             return MaggResponse.error(
                 "Configuration reload is disabled. Set MAGG_AUTO_RELOAD=true to enable."
             )
 
-        # Check if in read-only mode
         if self.config.read_only:
             return MaggResponse.error(
                 "Configuration reload is not allowed in read-only mode."
@@ -808,7 +799,6 @@ Please provide:
                     continue
 
                 try:
-                    # Use asyncio timeout to prevent hanging
                     async with asyncio.timeout(timeout):
                         async with client:
                             tools = await client.list_tools()
@@ -823,11 +813,9 @@ Please provide:
                     results[server_name] = {"status": "error", "reason": str(e)}
                     unresponsive_servers.append(server_name)
 
-            # Handle unresponsive servers based on action
             actions_taken = []
             if unresponsive_servers and action != "report":
                 if action == "disable":
-                    # Batch disable to avoid multiple config saves
                     config = self.config
                     any_changes = False
 
@@ -847,16 +835,13 @@ Please provide:
                             actions_taken.append(f"Failed to disable {server_name}")
                             results[server_name]["action"] = "disable_failed"
 
-                    # Save config once for all changes
                     if any_changes:
                         if not self.save_config(config):
                             logger.error("Failed to save config after disabling servers")
 
                 else:
-                    # Handle other actions individually
                     for server_name in unresponsive_servers:
                         if action == "remount":
-                            # Unmount then remount
                             await self.server_manager.unmount_server(server_name)
                             server = self.config.servers.get(server_name)
                             if server and server.enabled:

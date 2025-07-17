@@ -40,6 +40,7 @@ Think of Magg as a "package manager for LLM tools" - it lets AI assistants insta
 - **Real-time Messaging**: Full support for MCP notifications and messages - receive tool/resource updates and progress notifications from backend servers.
 - **Python 3.12+ Support**: Fully compatible with Python 3.12 and 3.13.
 - **Kit Management**: Bundle related MCP servers into kits for easy loading/unloading as a group.
+- **MBro CLI**: Included [MCP Browser](docs/mbro.md) for interactive exploration and management of MCP servers.
 
 ## Installation
 
@@ -345,14 +346,23 @@ Magg supports organizing related MCP servers into "kits" - bundles that can be l
 
 ```bash
 # List available kits
-mbro call magg_list_kits
+magg kit list
 
 # Load a kit (adds all its servers)
-mbro call magg_load_kit name="web-tools"
+magg kit load web-tools
 
 # Unload a kit (removes servers only in that kit)
-mbro call magg_unload_kit name="web-tools"
+magg kit unload web-tools
+
+# Get information about a kit
+magg kit info web-tools
 ```
+
+You can also manage kits programmatically through Magg's tools when connected via an MCP client:
+- `magg_list_kits` - List all available kits
+- `magg_load_kit` - Load a kit and its servers
+- `magg_unload_kit` - Unload a kit
+- `magg_kit_info` - Get detailed kit information
 
 Kits are JSON files stored in `~/.magg/kit.d/` or `.magg/kit.d/` that define a collection of related servers. See [Kit Documentation](docs/kits.md) for details on creating and managing kits.
 

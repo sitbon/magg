@@ -58,11 +58,11 @@ class ToolSearchEngine:
                     data = await response.json()
                     return self._parse_glama_results(data)
                 else:
-                    self.logger.warning(f"Glama search failed with status {response.status}")
+                    self.logger.warning("Glama search failed with status %s", response.status)
                     return []
 
         except Exception as e:
-            self.logger.error(f"Error searching glama.ai: {e}")
+            self.logger.error("Error searching glama.ai: %s", e)
             return []
 
     def _parse_glama_results(self, data: dict[str, Any]) -> list[ToolSearchResult]:
@@ -179,11 +179,11 @@ class ToolSearchEngine:
                     data = await response.json()
                     return self._parse_github_results(data)
                 else:
-                    self.logger.warning(f"GitHub search failed with status {response.status}")
+                    self.logger.warning("GitHub search failed with status %s", response.status)
                     return []
 
         except Exception as e:
-            self.logger.error(f"Error searching GitHub: {e}")
+            self.logger.error("Error searching GitHub: %s", e)
             return []
 
     def _parse_github_results(self, data: dict[str, Any]) -> list[ToolSearchResult]:
@@ -233,11 +233,11 @@ class ToolSearchEngine:
                     data = await response.json()
                     return self._parse_npm_results(data)
                 else:
-                    self.logger.warning(f"NPM search failed with status {response.status}")
+                    self.logger.warning("NPM search failed with status %s", response.status)
                     return []
 
         except Exception as e:
-            self.logger.error(f"Error searching NPM: {e}")
+            self.logger.error("Error searching NPM: %s", e)
             return []
 
     def _parse_npm_results(self, data: dict[str, Any]) -> list[ToolSearchResult]:
@@ -277,7 +277,7 @@ class ToolSearchEngine:
             try:
                 results[source] = await task
             except Exception as e:
-                self.logger.error(f"Error searching {source}: {e}")
+                self.logger.error("Error searching %s: %s", source, e)
                 results[source] = []
 
         return results

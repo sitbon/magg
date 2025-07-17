@@ -16,6 +16,40 @@ except ImportError:
     PYGMENTS_AVAILABLE = False
 
 
+class PropertyTypeValidator(Validator):
+    """Validator for property types in multiline input."""
+    
+    def __init__(self, prop_type: str, prop_info: Dict[str, Any]):
+        self.prop_type = prop_type
+        self.prop_info = prop_info
+    
+    def validate(self, document):
+        text = document.text.strip()
+        
+        if not text:
+            return
+        
+        if self.prop_type == 'integer':
+            try:
+                int(text)
+            except ValueError:
+                raise ValidationError(message="Must be an integer")
+        
+        elif self.prop_type == 'number':
+            try:
+                float(text)
+            except ValueError:
+                raise ValidationError(message="Must be a number")
+        
+        elif self.prop_type == 'boolean':
+            if text.lower() not in ('true', 'false', 'yes', 'no', '1', '0', 'y', 'n'):
+                raise ValidationError(message="Must be true/false")
+        
+        if 'enum' in self.prop_info and text not in map(str, self.prop_info['enum']):
+            valid = ', '.join(str(v) for v in self.prop_info['enum'])
+            raise ValidationError(message=f"Must be one of: {valid}")
+
+
 class JSONValidator(Validator):
     """Validate JSON input."""
 
@@ -23,7 +57,7 @@ class JSONValidator(Validator):
         """Validate the JSON document."""
         text = document.text
         if not text.strip():
-            return  # Empty is ok
+            return
 
         try:
             json.loads(text)
@@ -52,20 +86,16 @@ class MultilineInputHandler:
         """Create key bindings for multiline mode."""
         bindings = KeyBindings()
 
-        # Ctrl+J for newline (default in multiline)
-        # Ctrl+D to submit
         @bindings.add('c-d')
         def submit(event):
             """Submit the current buffer."""
             event.app.exit()
 
-        # Ctrl+C to cancel
         @bindings.add('c-c')
         def cancel(event):
             """Cancel input."""
             event.app.exit(exception=KeyboardInterrupt)
 
-        # Tab for indentation in JSON
         @bindings.add('tab')
         def indent(event):
             """Insert 2 spaces for indentation."""
@@ -84,21 +114,17 @@ class MultilineInputHandler:
     ) -> Optional[str]:
         """Get multiline input with syntax highlighting."""
 
-        # Setup lexer
         lexer = None
         if PYGMENTS_AVAILABLE and lexer_type == 'json':
             lexer = PygmentsLexer(JsonLexer)
 
-        # Default validator for JSON
         if validator is None and lexer_type == 'json':
             validator = JSONValidator()
 
-        # Create bottom toolbar if not provided
         if bottom_toolbar is None:
             def bottom_toolbar():
                 return " Ctrl+D: Submit | Ctrl+C: Cancel | Tab: Indent "
 
-        # Create session
         session = PromptSession(
             message=prompt,
             multiline=True,
@@ -118,7 +144,6 @@ class MultilineInputHandler:
         except KeyboardInterrupt:
             return None
         except EOFError:
-            # This shouldn't happen with our bindings, but handle it
             return session.default_buffer.text
 
     async def get_json_input(
@@ -129,7 +154,6 @@ class MultilineInputHandler:
     ) -> Optional[Dict[str, Any]]:
         """Get JSON input with schema awareness."""
 
-        # Build prompt
         prompt_lines = []
         if tool_name:
             prompt_lines.append(f"Enter JSON arguments for '{tool_name}':")
@@ -155,11 +179,9 @@ class MultilineInputHandler:
         prompt_lines.append("\n")
         prompt = '\n'.join(prompt_lines)
 
-        # Initial text
         if initial_value:
             initial_text = json.dumps(initial_value, indent=2)
         elif schema and 'properties' in schema:
-            # Generate template
             template = {}
             for prop, info in schema['properties'].items():
                 prop_type = info.get('type', 'string')
@@ -181,7 +203,6 @@ class MultilineInputHandler:
         else:
             initial_text = "{\n  \n}"
 
-        # Get input
         result = await self.get_multiline_input(
             prompt=prompt,
             initial_text=initial_text,
@@ -239,7 +260,6 @@ class InteractiveArgumentBuilder:
         """Interactively build arguments based on schema."""
 
         if not schema or 'properties' not in schema:
-            # No schema, fall back to JSON input
             handler = MultilineInputHandler(self.formatter)
             return await handler.get_json_input(tool_name)
 
@@ -247,7 +267,6 @@ class InteractiveArgumentBuilder:
         required = schema.get('required', [])
         result = {}
 
-        # Build arguments one by one
         for prop_name, prop_info in properties.items():
             prop_type = prop_info.get('type', 'string')
             description = prop_info.get('description', '')
@@ -255,7 +274,6 @@ class InteractiveArgumentBuilder:
             default = prop_info.get('default')
             enum_values = prop_info.get('enum')
 
-            # Build prompt
             prompt_parts = [prop_name]
             if description:
                 prompt_parts.append(f"({description})")
@@ -276,7 +294,6 @@ class InteractiveArgumentBuilder:
 
             prompt = ' '.join(prompt_parts) + ': '
 
-            # Get value with appropriate validation
             value = await self._get_property_value(
                 session, prompt, prop_type, prop_info,
                 is_required, default
@@ -285,7 +302,6 @@ class InteractiveArgumentBuilder:
             if value is not None:
                 result[prop_name] = value
             elif is_required:
-                # Required field was skipped
                 if self.formatter:
                     self.formatter.format_error(f"Required field '{prop_name}' was not provided")
                 return None
@@ -303,7 +319,6 @@ class InteractiveArgumentBuilder:
     ) -> Any:
         """Get a single property value with validation."""
 
-        # Create validator based on type
         validator = self._create_type_validator(prop_type, prop_info)
 
         while True:
@@ -313,7 +328,6 @@ class InteractiveArgumentBuilder:
                 if not value and not is_required:
                     return default
 
-                # Convert based on type
                 if prop_type == 'integer':
                     return int(value)
                 elif prop_type == 'number':
@@ -321,10 +335,8 @@ class InteractiveArgumentBuilder:
                 elif prop_type == 'boolean':
                     return value.lower() in ('true', 'yes', '1', 'y')
                 elif prop_type == 'array':
-                    # Simple comma-separated for now
                     return [v.strip() for v in value.split(',')]
                 elif prop_type == 'object':
-                    # For objects, use multiline JSON editor
                     handler = MultilineInputHandler(self.formatter)
                     return await handler.get_json_input()
                 else:
@@ -339,33 +351,4 @@ class InteractiveArgumentBuilder:
 
     def _create_type_validator(self, prop_type: str, prop_info: Dict[str, Any]) -> Optional[Validator]:
         """Create a validator for the property type."""
-
-        class TypeValidator(Validator):
-            def validate(self, document):
-                text = document.text.strip()
-
-                if not text:
-                    return  # Empty is validated elsewhere
-
-                if prop_type == 'integer':
-                    try:
-                        int(text)
-                    except ValueError:
-                        raise ValidationError(message="Must be an integer")
-
-                elif prop_type == 'number':
-                    try:
-                        float(text)
-                    except ValueError:
-                        raise ValidationError(message="Must be a number")
-
-                elif prop_type == 'boolean':
-                    if text.lower() not in ('true', 'false', 'yes', 'no', '1', '0', 'y', 'n'):
-                        raise ValidationError(message="Must be true/false")
-
-                # Check enum values
-                if 'enum' in prop_info and text not in map(str, prop_info['enum']):
-                    valid = ', '.join(str(v) for v in prop_info['enum'])
-                    raise ValidationError(message=f"Must be one of: {valid}")
-
-        return TypeValidator()
+        return PropertyTypeValidator(prop_type, prop_info)

@@ -25,7 +25,7 @@ async def demo_config_reload():
 
     logger.setLevel(logging.INFO)
     logger.info("Starting Magg server with config reloading enabled")
-    logger.info(f"Config path: {config_path}")
+    logger.info("Config path: %s", config_path)
     logger.info("You can:")
     logger.info("  1. Modify the config file to see automatic reload")
     logger.info("  2. Send SIGHUP signal to trigger reload: kill -HUP %d", os.getpid())

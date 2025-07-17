@@ -41,21 +41,28 @@ uvx --from magg mbro
 
 ### Basic Usage
 
-Connect to an MCP server using the `--connect` option (requires both a name and connection string):
-```bash
-# Connect to an NPX-based server
-mbro --connect memory "npx -y @modelcontextprotocol/server-memory"
-
-# Connect to an HTTP MCP server
-mbro --connect magg http://localhost:8080
-
-# Connect to a Python-based server
-mbro --connect myserver "python -m mypackage.mcp_server"
-```
-
-Start mbro in interactive mode (without a server):
+Start mbro in interactive mode:
 ```bash
 mbro
+```
+
+Then connect to an MCP server using the `connect` command (requires both a name and connection string):
+```bash
+mbro> connect memory "npx -y @modelcontextprotocol/server-memory"
+mbro> connect magg http://localhost:8080
+mbro> connect myserver "python -m mypackage.mcp_server"
+```
+
+Or execute commands directly from the command line:
+```bash
+# Connect and list tools in one command
+mbro "connect calc npx @modelcontextprotocol/server-calculator; tools"
+
+# Multiple commands separated by semicolons
+mbro "connect magg http://localhost:8080; call magg_status"
+
+# Read commands from stdin
+echo "connect calc npx calculator; tools" | mbro -
 ```
 
 ### Authentication
@@ -70,7 +77,8 @@ When connecting to HTTP servers that require bearer token authentication, mbro a
 export MAGG_JWT=$(magg auth token -q)
 
 # Connect to authenticated server
-mbro --connect magg http://localhost:8080
+mbro
+mbro> connect magg http://localhost:8080
 ```
 
 ### Command Examples
@@ -278,24 +286,21 @@ call tool arg1="value1" \
 
 ### Server Connection Strings
 
-mbro supports various server connection formats with the `--connect` option (format: `--connect NAME CONNECTION`):
+mbro supports various server connection formats with the `connect` command:
 
 ```bash
-# NPX packages
-mbro --connect filesystem "npx -y @modelcontextprotocol/server-filesystem"
+# In interactive mode
+mbro> connect filesystem npx -y @modelcontextprotocol/server-filesystem
+mbro> connect myserver python -m mypackage.mcp_server
+mbro> connect api http://localhost:3000
+mbro> connect remote https://api.example.com/mcp
+mbro> connect local ./my-mcp-server --port 8080
+mbro> connect server uvx myserver
 
-# Python modules
-mbro --connect myserver "python -m mypackage.mcp_server"
-
-# HTTP servers
-mbro --connect api http://localhost:3000
-mbro --connect remote https://api.example.com/mcp
-
-# Local executables
-mbro --connect local "./my-mcp-server --port 8080"
-
-# UV/UVX packages
-mbro --connect server "uvx myserver"
+# Or from command line
+mbro "connect filesystem npx -y @modelcontextprotocol/server-filesystem"
+mbro "connect myserver python -m mypackage.mcp_server"
+mbro "connect api http://localhost:3000"
 ```
 
 ### Async Python REPL
@@ -304,7 +309,9 @@ For advanced users and debugging, mbro includes an async Python REPL mode that p
 
 ```bash
 # Start mbro with Python REPL mode
-mbro --connect myserver "npx some-server" --repl
+mbro --repl
+# Then connect to a server
+>>> await self.handle_command('connect myserver npx some-server')
 ```
 
 In the Python REPL, you have access to:
@@ -355,7 +362,9 @@ This allows you to use mbro to explore all tools from all servers managed by Mag
 ### Example 1: Calculator Operations
 
 ```bash
-$ mbro --connect calc "npx -y @modelcontextprotocol/server-calculator"
+$ mbro
+mbro> connect calc npx -y @modelcontextprotocol/server-calculator
+Connected to 'calc' (Tools: 4, Resources: 0, Prompts: 0)
 
 mbro:calc> tools
 Available tools:
@@ -374,7 +383,9 @@ mbro:calc> call divide {"a": 100, "b": 4}
 ### Example 2: File System Operations
 
 ```bash
-$ mbro --connect fs "npx -y @modelcontextprotocol/server-filesystem -- --readonly /"
+$ mbro
+mbro> connect fs npx -y @modelcontextprotocol/server-filesystem -- --readonly /
+Connected to 'fs' (Tools: 3, Resources: 100+, Prompts: 0)
 
 mbro:fs> resources
 Available resources:
@@ -382,7 +393,7 @@ Available resources:
   - file:///etc/passwd
   - ...
 
-mbro:fs> read file:///etc/hosts
+mbro:fs> resource file:///etc/hosts
 127.0.0.1   localhost
 ::1         localhost
 ...
@@ -395,7 +406,9 @@ mbro:fs> read file:///etc/hosts
 $ magg serve --http
 
 # Terminal 2: Connect mbro to Magg
-$ mbro --connect magg http://localhost:8000
+$ mbro
+mbro> connect magg http://localhost:8000
+Connected to 'magg' (Tools: 11, Resources: 5, Prompts: 2)
 
 mbro:magg> tools
 Tool Groups:
@@ -484,11 +497,14 @@ In JSON mode:
 Example using JSON mode in a script:
 ```bash
 # Get tools list as JSON
-mbro --connect calc "npx calculator" --json --list-tools | jq '.[]'
+mbro --json "connect calc npx calculator; tools" | jq '.'
 
 # Call a tool and parse result
-result=$(mbro --connect calc "npx calculator" --json --call-tool add '{"a": 5, "b": 3}')
+result=$(mbro --json "connect calc npx calculator; call add {\"a\": 5, \"b\": 3}")
 echo $result | jq '.'
+
+# One-liner with shell-style arguments
+mbro --json connect calc 'npx -y @wrtnlabs/calculator-mcp@latest' \; call add a=5 b=3 | jq
 ```
 
 ## Tips and Tricks
@@ -496,24 +512,25 @@ echo $result | jq '.'
 1. **Tab Completion**: mbro supports tab completion for commands (not tool names)
 2. **JSON in Interactive Shell vs Command Line**: In the interactive shell, use JSON directly without surrounding quotes. On the command line, you may need single quotes to protect from shell parsing.
 3. **Multiple Connections**: You can connect to multiple servers and switch between them using the `switch` command.
-4. **Direct Commands**: Use command line options like `--call-tool` to execute operations without entering the interactive shell.
+4. **Direct Commands**: Pass commands as arguments to execute operations without entering the interactive shell.
 5. **Empty Arguments**: When calling tools with no arguments, you can omit the empty `{}` in the interactive shell
 
 ### Command Line Options 
-   - `--connect NAME CONNECTION` - Connect to a server on startup
-   - `--json` - Output only JSON (machine-readable)
+   - `commands` - Commands to execute (positional arguments)
+   - `--json` / `-j` - Output only JSON (machine-readable)
+   - `--no-rich` - Disable Rich formatting
+   - `--indent N` - Set JSON indent level (0 for compact, default: 2)
+   - `--verbose` / `-v` - Enable verbose output (can be used multiple times)
    - `--no-enhanced` - Disable enhanced features (shell-style args, multiline, etc.)
-   - `--indent N` - Set JSON indent level (0 for compact)
-   - `--verbose` / `-v` - Enable verbose output
-   - `--list-tools` - List available tools
-   - `--list-resources` - List available resources  
-   - `--list-prompts` - List available prompts
-   - `--call-tool TOOL [ARGS]` - Call a tool directly (use quotes for JSON args on command line)
-   - `--get-resource URI` - Get a resource directly
-   - `--get-prompt NAME [ARGS]` - Get a prompt directly
-   - `--search TERM` - Search tools, resources, and prompts
-   - `--info TYPE NAME` - Show info about tool/resource/prompt
+   - `--repl` - Drop into REPL mode on startup
+   - `-n` / `--no-interactive` - Don't drop into interactive mode after commands
+   - `-x SCRIPT` / `--execute-script SCRIPT` - Execute script file (can be used multiple times)
    - `--help` - Show help message
+
+Special command line usage:
+   - Use `-` as command to read from stdin
+   - Use `;` to separate multiple commands
+   - Quote commands containing spaces: `mbro "connect calc npx calculator"`
 
 ## Troubleshooting
 

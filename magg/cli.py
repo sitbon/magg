@@ -4,19 +4,27 @@
 import argparse
 import asyncio
 import json
+import logging
 import os
 import sys
-import logging
+import traceback
 from pathlib import Path
 
 from . import __version__, process
-from .settings import ConfigManager, ServerConfig, AuthConfig, BearerAuthConfig
+from .auth import BearerAuthManager
+from .kit import KitManager
+from .settings import ConfigManager, ServerConfig, BearerAuthConfig, AuthConfig, KitInfo
+
+try:
+    from cryptography.hazmat.primitives import serialization
+except ImportError:
+    serialization = None
+from .server.runner import MaggRunner
 from .util.terminal import (
     print_success, print_error, print_warning, print_startup_banner,
     print_info, print_server_list, print_status_summary, confirm_action,
     print_newline
 )
-
 
 process.setup(source=__name__)
 
@@ -25,7 +33,6 @@ logger: logging.Logger | None = logging.getLogger(__name__)
 
 async def cmd_serve(args) -> None:
     """Start Magg server."""
-    from magg.server.runner import MaggRunner
 
     logger.info("Starting Magg server (mode: %s)", 'http' if args.http else 'stdio')
 
@@ -145,9 +152,11 @@ async def cmd_remove_server(args) -> None:
 
     # Show server details before removal
     server = config.servers[args.name]
-    print_info(f"Server to remove: {args.name}")
-    print(f"  Source: {server.source}")
-    print(f"  Prefix: {server.prefix}")
+    print_info(
+        f"Server to remove: {args.name}\n"
+        f"  Source: {server.source}\n"
+        f"  Prefix: {server.prefix}"
+    )
 
     if not args.force and not confirm_action("Are you sure you want to remove this server?"):
         logger.debug("User cancelled removal of server '%s'", args.name)
@@ -181,8 +190,10 @@ async def cmd_enable_server(args) -> None:
     server.enabled = True
 
     if config_manager.save_config(config):
-        print_success(f"Enabled server '{args.name}'")
-        print_info("The server will be mounted on next startup")
+        print_success(
+            f"Enabled server '{args.name}'\n"
+            "The server will be mounted on next startup"
+        )
     else:
         print_error("Failed to save configuration")
         sys.exit(1)
@@ -205,8 +216,10 @@ async def cmd_disable_server(args) -> None:
     server.enabled = False
 
     if config_manager.save_config(config):
-        print_success(f"Disabled server '{args.name}'")
-        print_info("If Magg is running, the server will be automatically unmounted")
+        print_success(
+            f"Disabled server '{args.name}'\n"
+            "If Magg is running, the server will be automatically unmounted"
+        )
     else:
         print_error("Failed to save configuration")
         sys.exit(1)
@@ -257,7 +270,6 @@ async def cmd_export(args) -> None:
 
 async def cmd_kit(args) -> None:
     """Manage kits."""
-    from .kit import KitManager
 
     config_manager = ConfigManager(args.config)
     config = config_manager.load_config()
@@ -296,7 +308,12 @@ async def cmd_kit(args) -> None:
 
         # Add kit to config's kits list if not already there
         if args.name not in config.kits:
-            config.kits.append(args.name)
+            config.kits[args.name] = KitInfo(
+                name=args.name,
+                description=kit_config.description,
+                path=str(kit_path),
+                source="file"
+            )
 
         # Add servers from kit to configuration
         added_servers = []
@@ -306,8 +323,14 @@ async def cmd_kit(args) -> None:
                 skipped_servers.append(server_name)
                 continue
 
-            # Set enabled state based on flag
-            server_config.enabled = args.enable
+            # Only override enabled state if --enable/--no-enable was explicitly set
+            # Default to kit's enabled state if not specified
+            if args.enable is not None:
+                server_config.enabled = args.enable
+            
+            # Track which kit this server came from
+            server_config.kits = [args.name]
+            
             config.servers[server_name] = server_config
             added_servers.append(server_name)
 
@@ -316,7 +339,7 @@ async def cmd_kit(args) -> None:
             if added_servers:
                 print_success(f"Added {len(added_servers)} servers from kit '{args.name}':")
                 for name in added_servers:
-                    status = "enabled" if args.enable else "disabled"
+                    status = "enabled" if config.servers[name].enabled else "disabled"
                     print(f"  • {name} ({status})")
             if skipped_servers:
                 print_warning(f"Skipped {len(skipped_servers)} servers already in configuration:")
@@ -342,15 +365,18 @@ async def cmd_kit(args) -> None:
             print_error(f"Failed to load kit '{args.name}'")
             sys.exit(1)
 
-        print_info(f"Kit: {kit_config.name}")
+        # Build kit info
+        kit_info_lines = [f"Kit: {kit_config.name}"]
         if kit_config.description:
-            print(f"Description: {kit_config.description}")
+            kit_info_lines.append(f"Description: {kit_config.description}")
         if kit_config.author:
-            print(f"Author: {kit_config.author}")
+            kit_info_lines.append(f"Author: {kit_config.author}")
         if kit_config.version:
-            print(f"Version: {kit_config.version}")
+            kit_info_lines.append(f"Version: {kit_config.version}")
         if kit_config.keywords:
-            print(f"Keywords: {', '.join(kit_config.keywords)}")
+            kit_info_lines.append(f"Keywords: {', '.join(kit_config.keywords)}")
+        
+        print_info("\n".join(kit_info_lines))
         if kit_config.links:
             print("Links:")
             for key, url in kit_config.links.items():
@@ -365,6 +391,63 @@ async def cmd_kit(args) -> None:
                     print(f"    {server.notes}")
         else:
             print("\nNo servers in this kit")
+            
+    elif args.kit_action == 'export':
+        # Export servers as a kit
+        if args.kit:
+            # Export a specific loaded kit
+            if args.kit not in config.kits:
+                print_error(f"Kit '{args.kit}' is not loaded")
+                sys.exit(1)
+            
+            # Load the kit to get its servers
+            kit_manager.load_kits_from_config(config)
+            servers_to_export = kit_manager.get_kit_servers(args.kit)
+            
+            # Use existing kit metadata if available
+            kit_info = config.kits[args.kit]
+            export_name = args.name or kit_info.name
+            export_description = args.description or kit_info.description or ""
+        else:
+            # Export current config servers
+            servers_to_export = config.servers
+            export_name = args.name or "exported"
+            export_description = args.description or "Exported from current configuration"
+        
+        # Build kit data
+        kit_data = {
+            "name": export_name,
+            "description": export_description,
+            "servers": {}
+        }
+        
+        if args.author:
+            kit_data["author"] = args.author
+        if args.version:
+            kit_data["version"] = args.version
+        
+        # Add servers
+        for name, server in servers_to_export.items():
+            server_data = server.model_dump(
+                mode="json",
+                exclude_none=True, exclude_unset=True, exclude_defaults=True,
+                by_alias=True,
+                exclude={'name', 'kits'}  # Exclude fields not needed in kit
+            )
+            kit_data["servers"][name] = server_data
+        
+        # Output
+        if args.output:
+            try:
+                with open(args.output, 'w') as f:
+                    json.dump(kit_data, f, indent=2)
+                print_success(f"Exported kit to {args.output}")
+            except IOError as e:
+                print_error(f"Failed to write to {args.output}: {e}")
+                sys.exit(1)
+        else:
+            print(json.dumps(kit_data, indent=2))
+            
     else:
         print_error(f"Unknown kit action: {args.kit_action}")
         sys.exit(1)
@@ -400,21 +483,26 @@ async def cmd_server_info(args) -> None:
 
     server = config.servers[args.name]
 
-    print_info(f"Server: {server.name}")
-    print(f"Source: {server.source}")
-    print(f"Enabled: {'Yes' if server.enabled else 'No'}")
-    print(f"Prefix: {server.prefix if server.prefix else '(none)'}")
-
+    # Build info text
+    info_lines = [
+        f"Server: {server.name}",
+        f"Source: {server.source}",
+        f"Enabled: {'Yes' if server.enabled else 'No'}",
+        f"Prefix: {server.prefix if server.prefix else '(none)'}"
+    ]
+    
     if server.command:
-        print(f"Command: {server.command}")
+        info_lines.append(f"Command: {server.command}")
         if server.args:
-            print(f"Arguments: {' '.join(server.args)}")
-
+            info_lines.append(f"Arguments: {' '.join(server.args)}")
+    
     if server.uri:
-        print(f"URI: {server.uri}")
-
+        info_lines.append(f"URI: {server.uri}")
+    
     if server.cwd:
-        print(f"Working Directory: {server.cwd}")
+        info_lines.append(f"Working Directory: {server.cwd}")
+    
+    print_info("\n".join(info_lines))
 
     if server.env:
         print("Environment Variables:")
@@ -423,7 +511,6 @@ async def cmd_server_info(args) -> None:
 
     if server.transport:
         print("Transport Configuration:")
-        import json
         print(f"  {json.dumps(server.transport, indent=2)}")
 
     if server.notes:
@@ -441,9 +528,6 @@ async def cmd_config(args) -> None:
         await cmd_export(args)
     elif args.config_action == 'path':
         await cmd_config_path(args)
-    else:
-        print_error(f"Unknown config action: {args.config_action}")
-        sys.exit(1)
 
 
 async def cmd_config_path(args) -> None:
@@ -459,8 +543,6 @@ async def cmd_config_path(args) -> None:
 
 async def cmd_auth(args) -> None:
     """Manage authentication."""
-    from .auth import BearerAuthManager
-    from .settings import AuthConfig
 
     config_manager = ConfigManager(args.config)
 
@@ -483,9 +565,11 @@ async def cmd_auth(args) -> None:
         # Try to generate keys - this will fail if they exist
         try:
             auth_manager.generate_keys()
-            print_success(f"Generated new RSA keypair for audience '{auth_config.bearer.audience}'")
-            print_info(f"Private key: {auth_config.bearer.key_path}/{auth_config.bearer.audience}.key")
-            print_info(f"SSH public key: {auth_config.bearer.key_path}/{auth_config.bearer.audience}.key.pub")
+            print_success(
+                f"Generated new RSA keypair for audience '{auth_config.bearer.audience}'\n"
+                f"Private key: {auth_config.bearer.key_path}/{auth_config.bearer.audience}.key\n"
+                f"SSH public key: {auth_config.bearer.key_path}/{auth_config.bearer.audience}.key.pub"
+            )
 
             # Save auth config only if non-default
             default_config = BearerAuthConfig()
@@ -506,10 +590,12 @@ async def cmd_auth(args) -> None:
         # Show auth status
         auth_config = config_manager.load_auth_config()
         if auth_config.bearer.private_key_exists:
-            print_info("Authentication is ENABLED (Bearer Token)")
-            print_info(f"Issuer: {auth_config.bearer.issuer}")
-            print_info(f"Audience: {auth_config.bearer.audience}")
-            print_info(f"Key path: {auth_config.bearer.key_path}")
+            print_info(
+                "Authentication is ENABLED (Bearer Token)\n"
+                f"Issuer: {auth_config.bearer.issuer}\n"
+                f"Audience: {auth_config.bearer.audience}\n"
+                f"Key path: {auth_config.bearer.key_path}"
+            )
 
             if auth_config.bearer.private_key_path.exists():
                 print_success(f"Private key file: {auth_config.bearer.private_key_path}")
@@ -522,8 +608,10 @@ async def cmd_auth(args) -> None:
             if auth_config.bearer.private_key_env:
                 print_info("Private key also available via MAGG_PRIVATE_KEY env var")
         else:
-            print_info("Authentication is DISABLED")
-            print_info("Run 'magg auth init' to enable authentication")
+            print_info(
+                "Authentication is DISABLED\n"
+                "Run 'magg auth init' to enable authentication"
+            )
 
     elif args.auth_action == 'token':
         auth_config = config_manager.load_auth_config()
@@ -589,7 +677,9 @@ async def cmd_auth(args) -> None:
 
         private_key = auth_manager.get_private_key()
         if private_key:
-            from cryptography.hazmat.primitives import serialization
+            if serialization is None:
+                print_error("cryptography package not available")
+                sys.exit(1)
             pem = private_key.private_bytes(
                 encoding=serialization.Encoding.PEM,
                 format=serialization.PrivateFormat.TraditionalOpenSSL,
@@ -645,7 +735,7 @@ def create_parser() -> argparse.ArgumentParser:
 
     # Server command
     server_parser = subparsers.add_parser('server', help='Manage servers')
-    server_subparsers = server_parser.add_subparsers(dest='server_action', help='Server actions')
+    server_subparsers = server_parser.add_subparsers(dest='server_action', help='Server actions', required=True)
 
     # Server list
     server_subparsers.add_parser('list', help='List configured servers')
@@ -680,7 +770,7 @@ def create_parser() -> argparse.ArgumentParser:
 
     # Config command
     config_parser = subparsers.add_parser('config', help='Manage configuration')
-    config_subparsers = config_parser.add_subparsers(dest='config_action', help='Config actions')
+    config_subparsers = config_parser.add_subparsers(dest='config_action', help='Config actions', required=True)
 
     # Config show (status)
     config_subparsers.add_parser('show', help='Show current configuration status')
@@ -693,8 +783,9 @@ def create_parser() -> argparse.ArgumentParser:
     config_subparsers.add_parser('path', help='Show configuration file path')
 
     # Backward compatibility - deprecated commands
-    # Create them only if environment variable is set or we're not showing help
-    if os.environ.get('MAGG_SHOW_DEPRECATED') or (len(sys.argv) > 1 and sys.argv[1] not in ['--help', '-h']):
+    # Only add them if a deprecated command is actually being used
+    deprecated_commands = ['add-server', 'list-servers', 'remove-server', 'enable-server', 'disable-server', 'status', 'export']
+    if len(sys.argv) > 1 and sys.argv[1] in deprecated_commands:
         add_parser = subparsers.add_parser('add-server', help=argparse.SUPPRESS)
         add_parser.add_argument('name', help='Server name')
         add_parser.add_argument('source', help='URL of the server package/repository')
@@ -723,7 +814,7 @@ def create_parser() -> argparse.ArgumentParser:
 
     # Kit command
     kit_parser = subparsers.add_parser('kit', help='Manage kits')
-    kit_subparsers = kit_parser.add_subparsers(dest='kit_action', help='Kit actions')
+    kit_subparsers = kit_parser.add_subparsers(dest='kit_action', help='Kit actions', required=True)
 
     # Kit list
     kit_subparsers.add_parser('list', help='List available kits')
@@ -731,16 +822,25 @@ def create_parser() -> argparse.ArgumentParser:
     # Kit load
     kit_load = kit_subparsers.add_parser('load', help='Load a kit into configuration')
     kit_load.add_argument('name', help='Kit name to load')
-    kit_load.add_argument('--enable', action='store_true', default=True, help='Enable servers after loading (default: True)')
-    kit_load.add_argument('--no-enable', dest='enable', action='store_false', help='Do not enable servers after loading')
+    kit_load.add_argument('--enable', action='store_true', default=None, help='Force enable all servers after loading')
+    kit_load.add_argument('--no-enable', dest='enable', action='store_false', help='Force disable all servers after loading')
 
     # Kit info
     kit_info = kit_subparsers.add_parser('info', help='Show information about a kit')
     kit_info.add_argument('name', help='Kit name')
+    
+    # Kit export
+    kit_export = kit_subparsers.add_parser('export', help='Export servers as a kit')
+    kit_export.add_argument('--name', help='Kit name (optional)')
+    kit_export.add_argument('--description', help='Kit description (optional)')
+    kit_export.add_argument('--author', help='Kit author (optional)')
+    kit_export.add_argument('--version', help='Kit version (optional)')
+    kit_export.add_argument('--kit', help='Export a specific loaded kit instead of current config')
+    kit_export.add_argument('--output', '-o', help='Output file (default: stdout)')
 
     # Auth command
     auth_parser = subparsers.add_parser('auth', help='Manage authentication')
-    auth_subparsers = auth_parser.add_subparsers(dest='auth_action', help='Auth actions')
+    auth_subparsers = auth_parser.add_subparsers(dest='auth_action', help='Auth actions', required=True)
 
     # Initialize auth
     auth_init = auth_subparsers.add_parser('init', help='Initialize authentication')
@@ -830,7 +930,6 @@ def main():
     except Exception as e:
         print_error(f"Unexpected error: {e}")
         if os.getenv('MAGG_DEBUG', '').lower() in {'1', 'true', 'yes'}:
-            import traceback
             traceback.print_exc()
         sys.exit(1)
 

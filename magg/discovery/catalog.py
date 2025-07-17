@@ -35,7 +35,7 @@ class CatalogManager:
                 self.search_catalog.import_catalog(data["search_catalog"])
 
         except Exception as e:
-            self.logger.error(f"Error loading search cache: {e}")
+            self.logger.error("Error loading search cache: %s", e)
 
     def save_search_cache(self) -> None:
         """Save search cache to disk."""
@@ -48,7 +48,7 @@ class CatalogManager:
                 json.dump(data, f, indent=2)
 
         except Exception as e:
-            self.logger.error(f"Error saving search cache: {e}")
+            self.logger.error("Error saving search cache: %s", e)
 
     async def search_only(self, query: str, limit_per_source: int = 5) -> dict[str, list[ToolSearchResult]]:
         """Search for tools without auto-adding to cache."""

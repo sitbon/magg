@@ -40,7 +40,7 @@ Think of Magg as a "package manager for LLM tools" - it lets AI assistants insta
 - **Real-time Messaging**: Full support for MCP notifications and messages - receive tool/resource updates and progress notifications from backend servers.
 - **Python 3.12+ Support**: Fully compatible with Python 3.12 and 3.13.
 - **Kit Management**: Bundle related MCP servers into kits for easy loading/unloading as a group.
-- **MBro CLI**: Included [MCP Browser](docs/mbro.md) for interactive exploration and management of MCP servers.
+- **MBro CLI**: Included [MCP Browser](docs/mbro.md) for interactive exploration and management of MCP servers, with script support for automation.
 
 ## Installation
 
@@ -166,7 +166,7 @@ See `compose.yaml` and `.env.example` for configuration options.
 
 ### Running Magg
 
-Magg can run in two modes:
+Magg can run in three modes:
 
 1. **Stdio Mode** (default) - For integration with Claude Desktop, Cline, Cursor, etc.:
    ```bash
@@ -176,6 +176,29 @@ Magg can run in two modes:
 2. **HTTP Mode** - For system-wide access or web integrations:
    ```bash
    magg serve --http --port 8000
+   ```
+
+3. **Hybrid Mode** - Both stdio and HTTP simultaneously:
+   ```bash
+   magg serve --hybrid
+   magg serve --hybrid --port 8080  # Custom port
+   ```
+   
+   This is particularly useful when you want to use Magg through an MCP client while also allowing HTTP access. For example:
+   
+   **With Claude Code:**
+   ```bash
+   # Configure Claude Code to use Magg in hybrid mode
+   claude mcp add magg -- magg serve --hybrid --port 42000
+   ```
+   
+   **With mbro:**
+   ```bash
+   # mbro hosts Magg and connects via stdio
+   mbro connect magg "magg serve --hybrid --port 8080"
+   
+   # Other mbro instances can connect via HTTP
+   mbro connect magg http://localhost:8080
    ```
 
 ### Available Tools
@@ -197,6 +220,26 @@ Once Magg is running, it exposes the following tools to LLMs:
 - `magg_unload_kit` - Unload a kit and optionally its servers from the configuration
 - `magg_list_kits` - List all available kits with their status
 - `magg_kit_info` - Get detailed information about a specific kit
+
+### Quick Inspection with MBro
+
+Magg includes the `mbro` (MCP Browser) CLI tool for interactive exploration. A unique feature is the ability to connect to Magg in stdio mode for quick inspection:
+
+```bash
+# Connect mbro to a Magg instance via stdio (no HTTP server needed)
+mbro connect local-magg magg serve
+
+# Now inspect your Magg setup from the MCP client perspective
+mbro:local-magg> call magg_status
+mbro:local-magg> call magg_list_servers
+```
+
+MBro also supports:
+- **Scripts**: Create `.mbro` files with commands for automation
+- **Shell-style arguments**: Use `key=value` syntax instead of JSON
+- **Tab completion**: Rich parameter hints after connecting
+
+See the [MBro Documentation](docs/mbro.md) for details.
 
 ### Authentication
 
@@ -366,6 +409,40 @@ You can also manage kits programmatically through Magg's tools when connected vi
 
 Kits are JSON files stored in `~/.magg/kit.d/` or `.magg/kit.d/` that define a collection of related servers. See [Kit Documentation](docs/kits.md) for details on creating and managing kits.
 
+### MBro Scripts
+
+Automate common workflows with MBro scripts:
+
+```bash
+# Create a setup script
+cat > setup.mbro <<EOF
+# Connect to Magg and check status
+connect magg magg serve
+call magg_status
+call magg_list_servers
+
+# Add a new server if needed
+call magg_add_server name=calculator source="npx -y @modelcontextprotocol/server-calculator"
+EOF
+
+# Run the script
+mbro -x setup.mbro
+```
+
 ## Documentation
 
 For more documentation, see [docs/](docs/index.md).
+
+## Appearances
+
+Magg appears in multiple locations. Please feel free to submit a PR to add more appearances below in alphabetical order.
+
+### Listing, Index, and other MCP Sites
+
+* [DeepWiki](https://deepwiki.com/sitbon/magg) - AI-generated documentation
+* [Glama.ai](https://glama.ai/mcp/servers/@sitbon/magg) - MCP server listing and hosting
+
+### Awesome GitHub MCP Lists
+
+* [@punkpeye/awesome-mcp-servers](https://github.com/punkpeye/awesome-mcp-servers)
+* [@wong2/awesome-mcp-servers](https://github.com/wong2/awesome-mcp-servers)

@@ -59,7 +59,7 @@ class MaggRunner:
     def _handle_signal(self, signum, frame):
         """Handle shutdown signals gracefully."""
         signame = signal.Signals(signum).name
-        logger.info("Received signal %s, shutting down gracefully...", signame)
+        logger.debug("Received signal %s, shutting down gracefully...", signame)
         self._shutdown_event.set()
 
         # Prevent multiple signal handlers from firing
@@ -69,7 +69,7 @@ class MaggRunner:
     # noinspection PyUnusedLocal
     def _handle_reload_signal(self, signum, frame):
         """Handle reload signal (SIGHUP)."""
-        logger.info("Received SIGHUP, triggering config reload...")
+        logger.debug("Received SIGHUP, triggering config reload...")
         self._reload_event.set()
 
     def _setup_signal_handlers(self):
@@ -140,10 +140,10 @@ class MaggRunner:
             self._reload_event.clear()
 
             try:
-                logger.info("Processing config reload request...")
+                logger.debug("Processing config reload request...")
                 success = await self._server.reload_config()
                 if success:
-                    logger.info("Config reload completed successfully")
+                    logger.debug("Config reload completed successfully")
                 else:
                     logger.error("Config reload failed")
             except Exception as e:
@@ -168,6 +168,16 @@ class MaggRunner:
 
         finally:
             logger.debug("Magg HTTP server stopped")
+
+    async def run_hybrid(self, host: str = "localhost", port: int = 8000):
+        """Run server in hybrid mode (stdio + HTTP) with proper signal handling."""
+        try:
+            async with self._server_context() as server:
+                logger.debug("Starting Magg hybrid server (stdio + HTTP on %s:%s)", host, port)
+                await self._serve(server.run_hybrid(host, port))
+
+        finally:
+            logger.debug("Magg hybrid server stopped")
 
     async def start_stdio(self) -> asyncio.Task:
         """Start the server in stdio mode in a different task."""

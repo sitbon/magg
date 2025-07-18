@@ -36,7 +36,7 @@ class ServerManager:
             auth_manager = BearerAuthManager(auth_config.bearer)
             try:
                 auth_provider = auth_manager.provider
-                logger.info("Authentication enabled (bearer)")
+                logger.debug("Authentication enabled (bearer)")
             except RuntimeError as e:
                 logger.warning("Authentication disabled: %s", e)
 
@@ -72,7 +72,7 @@ class ServerManager:
         logger.debug("Attempting to mount server %s (enabled=%s)", server.name, server.enabled)
 
         if not server.enabled:
-            logger.info("Server %s is disabled, skipping mount", server.name)
+            logger.debug("Server %s is disabled, skipping mount", server.name)
             return False
 
         if server.name in self.mounted_servers:
@@ -185,7 +185,7 @@ class ServerManager:
                     logger.warning("Error closing client for server %s: %s", name, e)
 
             del self.mounted_servers[name]
-            logger.info("Unmounted server %s", name)
+            logger.debug("Unmounted server %s", name)
             return True
 
         else:
@@ -198,10 +198,10 @@ class ServerManager:
         enabled_servers = config.get_enabled_servers()
 
         if not enabled_servers:
-            logger.info("No enabled servers to mount")
+            logger.debug("No enabled servers to mount")
             return
 
-        logger.info("Mounting %d enabled servers...", len(enabled_servers))
+        logger.debug("Mounting %d enabled servers...", len(enabled_servers))
 
         results = []
         for name, server in enabled_servers.items():
@@ -216,7 +216,7 @@ class ServerManager:
         failed = [name for name, success in results if not success]
 
         if successful:
-            logger.info("Successfully mounted: %s", ', '.join(successful))
+            logger.debug("Successfully mounted: %s", ', '.join(successful))
         if failed:
             logger.warning("Failed to mount: %s", ', '.join(failed))
 
@@ -226,7 +226,7 @@ class ServerManager:
         Args:
             config_change: The configuration change object with old/new configs and changes
         """
-        logger.info("Applying configuration changes...")
+        logger.debug("Applying configuration changes...")
 
         # Process changes in order: remove, disable, update, enable, add
         # This ensures clean transitions
@@ -251,26 +251,26 @@ class ServerManager:
             if change.action == 'add':
                 await self._handle_server_add(change)
 
-        logger.info("Configuration reload complete")
+        logger.debug("Configuration reload complete")
 
     async def _handle_server_add(self, change: ServerChange) -> None:
         """Handle adding a new server."""
         if change.new_config:
-            logger.info("Adding new server: %s", change.name)
+            logger.debug("Adding new server: %s", change.name)
             success = await self.mount_server(change.new_config)
             if not success:
                 logger.error("Failed to add server: %s", change.name)
 
     async def _handle_server_remove(self, change: ServerChange) -> None:
         """Handle removing a server."""
-        logger.info("Removing server: %s", change.name)
+        logger.debug("Removing server: %s", change.name)
         success = await self.unmount_server(change.name)
         if not success:
             logger.warning("Failed to remove server: %s", change.name)
 
     async def _handle_server_update(self, change: ServerChange) -> None:
         """Handle updating a server (requires unmount and remount)."""
-        logger.info("Updating server: %s", change.name)
+        logger.debug("Updating server: %s", change.name)
 
         await self.unmount_server(change.name)
 
@@ -285,19 +285,19 @@ class ServerManager:
     async def _handle_server_enable(self, change: ServerChange) -> None:
         """Handle enabling a server."""
         if change.new_config:
-            logger.info("Enabling server: %s", change.name)
+            logger.debug("Enabling server: %s", change.name)
             success = await self.mount_server(change.new_config)
             if not success:
                 logger.error("Failed to enable server: %s", change.name)
             else:
-                logger.info("Successfully enabled server: %s", change.name)
+                logger.debug("Successfully enabled server: %s", change.name)
 
     async def _handle_server_disable(self, change: ServerChange) -> None:
         """Handle disabling a server."""
-        logger.info("Disabling server: %s", change.name)
+        logger.debug("Disabling server: %s", change.name)
         # If server is not mounted, that's fine - it's already in the desired state
         if change.name not in self.mounted_servers:
-            logger.info("Server %s is already unmounted", change.name)
+            logger.debug("Server %s is already unmounted", change.name)
         else:
             success = await self.unmount_server(change.name)
             if not success:
@@ -419,6 +419,41 @@ class ManagedServer:
         """Run Magg in HTTP mode."""
         await self.setup()
         await self.mcp.run_http_async(host=host, port=port, log_level=log_level, show_banner=False)
+
+    async def run_hybrid(self, host: str = "localhost", port: int = 8000, log_level: str = "INFO"):
+        """Run Magg in hybrid mode - both stdio and HTTP simultaneously."""
+        await self.setup()
+
+        http_task = asyncio.create_task(
+            self.mcp.run_http_async(host=host, port=port, log_level=log_level, show_banner=False)
+        )
+
+        stdio_task = asyncio.create_task(
+            self.mcp.run_stdio_async(show_banner=False)
+        )
+
+        try:
+            done, pending = await asyncio.wait(
+                [http_task, stdio_task],
+                return_when=asyncio.FIRST_COMPLETED
+            )
+
+            for task in pending:
+                task.cancel()
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    pass
+
+            for task in done:
+                if task.exception():
+                    raise task.exception()
+
+        except Exception:
+            http_task.cancel()
+            stdio_task.cancel()
+            await asyncio.gather(http_task, stdio_task, return_exceptions=True)
+            raise
 
     async def reload_config(self) -> bool:
         """Manually trigger a configuration reload.

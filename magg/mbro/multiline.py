@@ -18,33 +18,33 @@ except ImportError:
 
 class PropertyTypeValidator(Validator):
     """Validator for property types in multiline input."""
-    
+
     def __init__(self, prop_type: str, prop_info: Dict[str, Any]):
         self.prop_type = prop_type
         self.prop_info = prop_info
-    
+
     def validate(self, document):
         text = document.text.strip()
-        
+
         if not text:
             return
-        
+
         if self.prop_type == 'integer':
             try:
                 int(text)
             except ValueError:
                 raise ValidationError(message="Must be an integer")
-        
+
         elif self.prop_type == 'number':
             try:
                 float(text)
             except ValueError:
                 raise ValidationError(message="Must be a number")
-        
+
         elif self.prop_type == 'boolean':
             if text.lower() not in ('true', 'false', 'yes', 'no', '1', '0', 'y', 'n'):
                 raise ValidationError(message="Must be true/false")
-        
+
         if 'enum' in self.prop_info and text not in map(str, self.prop_info['enum']):
             valid = ', '.join(str(v) for v in self.prop_info['enum'])
             raise ValidationError(message=f"Must be one of: {valid}")

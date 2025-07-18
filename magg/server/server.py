@@ -732,7 +732,7 @@ Please provide:
                 "tools": {
                     "total": total_tools,
                 },
-                "prefixes": {s.name: s.prefix for s in config.servers.values() if s.prefix is not None}
+                "prefixes": {name: config.servers[name].prefix for name in self.server_manager.mounted_servers if name in config.servers and config.servers[name].prefix}
             }
 
             return MaggResponse.success(status_data)

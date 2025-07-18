@@ -111,7 +111,7 @@ class BearerAuthManager:
                     format=serialization.PublicFormat.OpenSSH
                 ))
 
-            logger.info("Generated new RSA keypair in %s", self.bearer_config.key_path)
+            logger.debug("Generated new RSA keypair in %s", self.bearer_config.key_path)
             return private_key
 
         except Exception as e:

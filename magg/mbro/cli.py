@@ -42,13 +42,13 @@ class MCPBrowserCLI:
     running: bool
     formatter: OutputFormatter
     verbose: bool
-    
+
     COMMANDS = frozenset({
         "help", "quit", "connect", "connections", "switch", "disconnect",
         "tools", "resources", "prompts", "call", "resource", "prompt",
         "status", "search", "info", "script"
     })
-    
+
     ALIASES = {
         "exit": "quit",
         "conns": "connections"
@@ -146,30 +146,39 @@ class MCPBrowserCLI:
 
         @kb.add('c-c')
         def _(event):
-            """Handle Ctrl+C - cancel completion or multiline input or interrupt."""
+            """Handle Ctrl+C - cancel completion, clear buffer, or exit cleanly."""
             buffer = event.app.current_buffer
             if buffer.complete_state:
                 buffer.cancel_completion()
             elif buffer.text.strip():
                 buffer.reset()
             else:
-                raise KeyboardInterrupt()
+                # Exit cleanly when buffer is empty
+                event.app.exit()
 
         @kb.add('enter')
         def _(event):
-            """Handle Enter key - submit complete commands immediately."""
+            """Handle Enter key - submit on empty line or continue multiline."""
             buffer = event.app.current_buffer
             document = buffer.document
             text = document.text.strip()
+            current_line = document.current_line.strip()
+
+            # Empty buffer - just submit (prevents multiline on empty enter)
+            if not text:
+                buffer.validate_and_handle()
+                return
 
             validator_instance = self._create_input_validator()
 
+            # Single line command that's complete - submit immediately
             if text and not validator_instance._needs_continuation(text):
                 if '\n' not in document.text:
                     buffer.validate_and_handle()
                     return
 
-            if not buffer.document.current_line.strip() and buffer.text.strip():
+            # Multiline: empty line after content means submit
+            if not current_line and text:
                 buffer.validate_and_handle()
             else:
                 buffer.insert_text('\n')
@@ -352,8 +361,7 @@ class MCPBrowserCLI:
                 await self.handle_command(command)
 
             except KeyboardInterrupt:
-                if not self.formatter.json_only:
-                    self.formatter.print("\nUse 'quit' to exit.")
+                continue
             except CancelledError:
                 pass
             except EOFError:
@@ -367,34 +375,34 @@ class MCPBrowserCLI:
     async def handle_command(self, command: str):
         """Handle a CLI command."""
         parts = CommandParser.parse_command_line(command)
-        
+
         if not parts:
             return
-        
+
         cmd = parts[0].lower()
         args = parts[1:]
-        
+
         if args and any('{' in arg for arg in args):
             json_start_idx = None
             for i, arg in enumerate(args):
                 if '{' in arg:
                     json_start_idx = i
                     break
-            
+
             if json_start_idx is not None:
                 json_part = ' '.join(args[json_start_idx:])
-                
+
                 if json_part.count('{') == json_part.count('}'):
                     if cmd in ['call', 'prompt', 'get-prompt']:
                         args = args[:json_start_idx] + [json_part]
 
         cmd = self.ALIASES.get(cmd, cmd)
-        
+
         if cmd not in self.COMMANDS:
-            self.formatter.format_error(f"Unknown command: {cmd}")
+            self.formatter.format_error(f"Unknown command: {cmd!r}")
             self.formatter.format_info("Type 'help' for available commands")
             return
-        
+
         match cmd:
             case "help":
                 self.show_help()
@@ -415,27 +423,37 @@ class MCPBrowserCLI:
 
 async def handle_commands(cli: MCPBrowserCLI, args) -> bool:
     """Handle command line commands from args or stdin.
-    
+
     Returns:
         True if any commands were executed
     """
     commands_to_run = []
-    
+
     if args.commands and args.commands[0] == '-':
         stdin_text = sys.stdin.read()
         commands_to_run = CommandParser.split_commands(stdin_text)
     elif args.commands:
         command_text = ' '.join(args.commands)
         commands_to_run = CommandParser.split_commands(command_text)
-    
+
     if not commands_to_run:
         return False
-    
+
     for command in commands_to_run:
         if command.strip():
             await cli.handle_command(command)
-    
+
     return True
+
+
+class ScriptAction(argparse.Action):
+    """Custom action to track script execution order."""
+    def __call__(self, parser, namespace, values, option_string=None):
+        if not hasattr(namespace, 'script_order'):
+            namespace.script_order = []
+
+        is_non_interactive = option_string in ['-X', '--execute-script-n']
+        namespace.script_order.append((values, is_non_interactive))
 
 
 async def main_async():
@@ -449,8 +467,9 @@ async def main_async():
     parser.add_argument("--repl", action="store_true", default=None, help="Drop into REPL mode on startup")
     parser.add_argument("--no-enhanced", action="store_true", help="Disable enhanced features (natural language, multiline, etc.)")
     parser.add_argument("-n", "--no-interactive", action="store_true", help="Don't drop into interactive mode after commands")
-    parser.add_argument("-x", "--execute-script", action="append", metavar="SCRIPT", help="Execute script file (can be used multiple times)")
-    
+    parser.add_argument("-x", "--execute-script", action=ScriptAction, default=None, metavar="SCRIPT", help="Execute script file (can be used multiple times)")
+    parser.add_argument("-X", "--execute-script-n", action=ScriptAction, default=None, metavar="SCRIPT", help="Execute script in non-interactive mode")
+
     parser.add_argument("commands", nargs="*", help="Commands to execute (use ';' to separate multiple commands or '-' to read from stdin)")
 
     args = parser.parse_args()
@@ -469,17 +488,21 @@ async def main_async():
         cli.use_enhanced = False
 
     try:
-        if args.execute_script:
-            for script_path in args.execute_script:
+        if hasattr(args, 'script_order') and args.script_order:
+            has_non_interactive_script = any(is_non_interactive for _, is_non_interactive in args.script_order)
+            if has_non_interactive_script:
+                args.no_interactive = True
+
+            for script_path, _ in args.script_order:
                 await cli.handle_command(f"script run {script_path}")
 
         commands_executed = False
         if args.commands:
             commands_executed = await handle_commands(cli, args)
-        
-        if not commands_executed and not args.no_interactive:
+
+        if not args.no_interactive:
             await cli.start(repl=args.repl)
-        elif not commands_executed and args.no_interactive:
+        elif not commands_executed and not hasattr(args, 'script_order'):
             parser.print_help()
             sys.exit(1)
 
@@ -502,10 +525,8 @@ def main():
 
     try:
         asyncio.run(main_async())
-
     except KeyboardInterrupt:
         pass
-
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
         exit(1)

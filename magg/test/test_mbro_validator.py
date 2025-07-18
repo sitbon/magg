@@ -44,7 +44,7 @@ class TestInputValidator:
         assert validator._has_unclosed_quotes("hello 'world")
         assert not validator._has_unclosed_quotes('hello "world"')
         assert not validator._has_unclosed_quotes("hello 'world'")
-        
+
         # Test escaped quotes
         assert not validator._has_unclosed_quotes('hello "world\\"quote"')
         assert validator._has_unclosed_quotes('hello "world\\"')
@@ -55,7 +55,7 @@ class TestInputValidator:
         assert validator._has_unclosed_brackets("call tool { 'key': [")
         assert not validator._has_unclosed_brackets("call tool {}")
         assert not validator._has_unclosed_brackets("call tool { 'key': [] }")
-        
+
         # Test brackets in strings
         assert not validator._has_unclosed_brackets('call tool "{"')
         assert validator._has_unclosed_brackets('call tool "{" {')
@@ -65,11 +65,11 @@ class TestInputValidator:
         # Valid key=value pairs
         assert not validator._has_syntax_errors("call tool key=value")
         assert not validator._has_syntax_errors("call tool key1=value1 key2=value2")
-        
+
         # Invalid key=value pairs
         assert validator._has_syntax_errors("call tool =value")
         assert validator._has_syntax_errors("call tool key=")
-        
+
         # JSON args shouldn't be checked for key=value syntax
         assert not validator._has_syntax_errors('call tool {"key": "value"}')
 
@@ -87,13 +87,13 @@ class TestInputValidator:
         assert validator._is_complete_mbro_command("help")
         assert validator._is_complete_mbro_command("quit")
         assert validator._is_complete_mbro_command("tools")
-        
+
         # Commands that need arguments
         assert not validator._is_complete_mbro_command("call")
         assert validator._is_complete_mbro_command("call my_tool")
         assert not validator._is_complete_mbro_command("connect")
         assert validator._is_complete_mbro_command("connect name stdio")
-        
+
         # Unknown commands
         assert not validator._is_complete_mbro_command("unknown")
         assert not validator._is_complete_mbro_command("")

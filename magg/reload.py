@@ -139,15 +139,15 @@ class ConfigReloader:
                     recursive=False
                 )
                 self._observer.start()
-                logger.info("Started config file watcher using file system notifications (watchdog)")
+                logger.debug("Started config file watcher using file system notifications (watchdog)")
             except Exception as e:
                 logger.error("Failed to start watchdog observer: %s", e)
-                logger.info("Falling back to polling mode")
+                logger.debug("Falling back to polling mode")
                 self._use_watchdog = False
                 self._observer = None
 
         if not self._use_watchdog:
-            logger.info("Started config file watcher using polling (interval: %.1fs)", poll_interval)
+            logger.debug("Started config file watcher using polling (interval: %.1fs)", poll_interval)
 
         # Start the main watch loop
         self._watch_task = asyncio.create_task(self._watch_loop(poll_interval))
@@ -174,7 +174,7 @@ class ConfigReloader:
             self._watchdog_handler = None
 
         self._watch_task = None
-        logger.info("Stopped config file watcher")
+        logger.debug("Stopped config file watcher")
 
     def ignore_next_change(self) -> None:
         """Tell the reloader to ignore the next file change.
@@ -249,7 +249,7 @@ class ConfigReloader:
 
         # First time seeing the file
         if self._last_mtime is None:
-            logger.info("Config file appeared: %s", self.config_path)
+            logger.debug("Config file appeared: %s", self.config_path)
             self._last_mtime = current_mtime
             self._last_config = self._load_config()
             return
@@ -263,7 +263,7 @@ class ConfigReloader:
                 self._last_mtime = current_mtime
                 return
 
-            logger.info("Config file changed, reloading...")
+            logger.debug("Config file changed, reloading...")
             await self.reload_config()
             self._last_mtime = current_mtime
 

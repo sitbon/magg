@@ -15,13 +15,13 @@ if TYPE_CHECKING:
 
 class Command:
     """Command handlers for mbro CLI."""
-    
+
     def __init__(self, cli: 'MCPBrowserCLI'):
         self.cli = cli
         self.browser = cli.browser
         self.formatter = cli.formatter
         self.script_manager = ScriptManager(cli=cli)
-    
+
     async def connections(self, args: list):
         """List all connections."""
         extended = False
@@ -39,7 +39,7 @@ class Command:
 
         connections = await self.browser.list_connections(extended=extended)
         self.formatter.format_connections_table(connections, extended=extended)
-    
+
     async def connect(self, args: list):
         """Connect to an MCP server with optional name."""
         if not args:
@@ -71,8 +71,8 @@ class Command:
 
             await self.cli.refresh_completer_cache()
         else:
-            self.formatter.format_error(f"Failed to connect to '{name}'")
-    
+            self.formatter.format_error(f"Failed to connect to {name!r}")
+
     async def switch(self, args: list):
         """Switch to a different connection."""
         if not args:
@@ -84,8 +84,8 @@ class Command:
         if success:
             await self.cli.refresh_completer_cache()
         else:
-            self.formatter.format_error(f"Failed to switch to '{name}'")
-    
+            self.formatter.format_error(f"Failed to switch to {name!r}")
+
     async def disconnect(self, args: list):
         """Disconnect from a server."""
         if not args:
@@ -95,8 +95,8 @@ class Command:
         name = args[0]
         success = await self.browser.remove_connection(name)
         if not success:
-            self.formatter.format_error(f"Connection '{name}' not found")
-    
+            self.formatter.format_error(f"Connection {name!r} not found")
+
     async def status(self):
         """Get status of the current connection.
         This includes counts of tools, resources, and prompts.
@@ -110,7 +110,7 @@ class Command:
             "resources": len(resources),
             "prompts": len(prompts)
         })
-    
+
     async def tools(self, args: list):
         """List available tools."""
         conn = self.browser.get_current_connection()
@@ -129,7 +129,7 @@ class Command:
             return
 
         self.formatter.format_tools_list(tools)
-    
+
     async def resources(self, args: list):
         """List available resources."""
         conn = self.browser.get_current_connection()
@@ -148,7 +148,7 @@ class Command:
             return
 
         self.formatter.format_resources_list(resources)
-    
+
     async def prompts(self, args: list):
         """List available prompts."""
         conn = self.browser.get_current_connection()
@@ -167,7 +167,7 @@ class Command:
             return
 
         self.formatter.format_prompts_list(prompts)
-    
+
     async def call(self, args: list):
         """Call a tool."""
         if not args:
@@ -231,7 +231,7 @@ class Command:
             if required:
                 missing = [param for param in required if param not in arguments]
                 if missing:
-                    self.formatter.format_error(f"Tool '{tool_name}' missing required parameters: {missing}")
+                    self.formatter.format_error(f"Tool {tool_name!r} missing required parameters: {missing}")
 
                     properties = schema.get('properties', {})
                     if properties and not self.formatter.json_only:
@@ -259,7 +259,7 @@ class Command:
         except Exception as e:
             error_args = (e,) if self.cli.verbose else ()
             self.formatter.format_error(str(e), *error_args)
-    
+
     async def resource(self, args: list):
         """Get a resource."""
         if not args:
@@ -284,7 +284,7 @@ class Command:
 
         except Exception as e:
             self.formatter.format_error(f"Error getting resource: {e}", e)
-    
+
     async def prompt(self, args: list):
         """Get a prompt."""
         if not args:
@@ -313,7 +313,7 @@ class Command:
 
         except Exception as e:
             self.formatter.format_error(f"Error getting prompt: {e}", e)
-    
+
     async def search(self, args: list):
         """Search tools, resources, and prompts."""
         if not args:
@@ -356,7 +356,7 @@ class Command:
         matching_prompts = [p for p in prompts if matches_enhanced(p, term)]
 
         self.formatter.format_search_results(term, matching_tools, matching_resources, matching_prompts)
-    
+
     async def info(self, args: list):
         """Show detailed info about a tool, resource, or prompt."""
         if len(args) < 2:
@@ -375,7 +375,7 @@ class Command:
             tools = await conn.get_tools()
             tool = next((t for t in tools if t["name"] == name), None)
             if not tool:
-                self.formatter.format_error(f"Tool '{name}' not found.")
+                self.formatter.format_error(f"Tool {name!r} not found.")
                 return
 
             self.formatter.format_tool_info(tool)
@@ -384,7 +384,7 @@ class Command:
             resources = await conn.get_resources()
             resource = next((r for r in resources if r["name"] == name), None)
             if not resource:
-                self.formatter.format_error(f"Resource '{name}' not found.")
+                self.formatter.format_error(f"Resource {name!r} not found.")
                 return
 
             self.formatter.format_resource_info(resource)
@@ -393,18 +393,18 @@ class Command:
             prompts = await conn.get_prompts()
             prompt = next((p for p in prompts if p["name"] == name), None)
             if not prompt:
-                self.formatter.format_error(f"Prompt '{name}' not found.")
+                self.formatter.format_error(f"Prompt {name!r} not found.")
                 return
 
             self.formatter.format_prompt_info(prompt)
 
         else:
             self.formatter.format_error("Item type must be 'tool', 'resource', or 'prompt'")
-    
+
     async def script(self, args: list):
         """Handle script commands."""
         await self.script_manager.handle_script_command(args)
-    
+
     async def _handle_proxy_query_result(self, tool_name: str, result: list) -> bool:
         """
         Handle the ProxyMCP tool's [list, info] actions on [tool, resource, prompt].
@@ -430,7 +430,7 @@ class Command:
         proxy_type = getattr(result.annotations, "proxyType", None)
 
         if (result := ProxyMCP.get_proxy_query_result(result)) is None:
-            self.formatter.format_error(f"Failed to handle apparent proxy query result for tool '{tool_name}'")
+            self.formatter.format_error(f"Failed to handle apparent proxy query result for tool {tool_name!r}")
             return True
 
         match proxy_type:

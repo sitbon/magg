@@ -33,15 +33,18 @@ logger: logging.Logger | None = logging.getLogger(__name__)
 
 async def cmd_serve(args) -> None:
     """Start Magg server."""
+    mode = 'hybrid' if args.hybrid else 'http' if args.http else 'stdio'
+    logger.info("Starting Magg server (mode: %s)", mode)
 
-    logger.info("Starting Magg server (mode: %s)", 'http' if args.http else 'stdio')
-
-    if args.http:
+    if args.http or args.hybrid:
         print_startup_banner()
 
     runner = MaggRunner(args.config)
 
-    if args.http:
+    if args.hybrid:
+        logger.info("Starting hybrid server (stdio + HTTP on %s:%s)", args.host, args.port)
+        await runner.run_hybrid(host=args.host, port=args.port)
+    elif args.http:
         logger.info("Starting HTTP server on %s:%s", args.host, args.port)
         await runner.run_http(host=args.host, port=args.port)
     else:
@@ -54,6 +57,11 @@ def cmd_serve_args(parser: argparse.ArgumentParser) -> None:
         '--http',
         action='store_true',
         help='Run as HTTP server instead of stdio mode'
+    )
+    parser.add_argument(
+        '--hybrid',
+        action='store_true',
+        help='Run in hybrid mode (both stdio and HTTP)'
     )
     parser.add_argument(
         '--host',
@@ -166,7 +174,7 @@ async def cmd_remove_server(args) -> None:
     config.remove_server(args.name)
 
     if config_manager.save_config(config):
-        logger.info("Successfully removed server '%s'", args.name)
+        logger.debug("Successfully removed server '%s'", args.name)
         print_success(f"Removed server '{args.name}'")
     else:
         print_error("Failed to save configuration")
@@ -327,10 +335,10 @@ async def cmd_kit(args) -> None:
             # Default to kit's enabled state if not specified
             if args.enable is not None:
                 server_config.enabled = args.enable
-            
+
             # Track which kit this server came from
             server_config.kits = [args.name]
-            
+
             config.servers[server_name] = server_config
             added_servers.append(server_name)
 
@@ -375,7 +383,7 @@ async def cmd_kit(args) -> None:
             kit_info_lines.append(f"Version: {kit_config.version}")
         if kit_config.keywords:
             kit_info_lines.append(f"Keywords: {', '.join(kit_config.keywords)}")
-        
+
         print_info("\n".join(kit_info_lines))
         if kit_config.links:
             print("Links:")
@@ -391,7 +399,7 @@ async def cmd_kit(args) -> None:
                     print(f"    {server.notes}")
         else:
             print("\nNo servers in this kit")
-            
+
     elif args.kit_action == 'export':
         # Export servers as a kit
         if args.kit:
@@ -399,11 +407,11 @@ async def cmd_kit(args) -> None:
             if args.kit not in config.kits:
                 print_error(f"Kit '{args.kit}' is not loaded")
                 sys.exit(1)
-            
+
             # Load the kit to get its servers
             kit_manager.load_kits_from_config(config)
             servers_to_export = kit_manager.get_kit_servers(args.kit)
-            
+
             # Use existing kit metadata if available
             kit_info = config.kits[args.kit]
             export_name = args.name or kit_info.name
@@ -413,19 +421,19 @@ async def cmd_kit(args) -> None:
             servers_to_export = config.servers
             export_name = args.name or "exported"
             export_description = args.description or "Exported from current configuration"
-        
+
         # Build kit data
         kit_data = {
             "name": export_name,
             "description": export_description,
             "servers": {}
         }
-        
+
         if args.author:
             kit_data["author"] = args.author
         if args.version:
             kit_data["version"] = args.version
-        
+
         # Add servers
         for name, server in servers_to_export.items():
             server_data = server.model_dump(
@@ -435,7 +443,7 @@ async def cmd_kit(args) -> None:
                 exclude={'name', 'kits'}  # Exclude fields not needed in kit
             )
             kit_data["servers"][name] = server_data
-        
+
         # Output
         if args.output:
             try:
@@ -447,7 +455,7 @@ async def cmd_kit(args) -> None:
                 sys.exit(1)
         else:
             print(json.dumps(kit_data, indent=2))
-            
+
     else:
         print_error(f"Unknown kit action: {args.kit_action}")
         sys.exit(1)
@@ -490,18 +498,18 @@ async def cmd_server_info(args) -> None:
         f"Enabled: {'Yes' if server.enabled else 'No'}",
         f"Prefix: {server.prefix if server.prefix else '(none)'}"
     ]
-    
+
     if server.command:
         info_lines.append(f"Command: {server.command}")
         if server.args:
             info_lines.append(f"Arguments: {' '.join(server.args)}")
-    
+
     if server.uri:
         info_lines.append(f"URI: {server.uri}")
-    
+
     if server.cwd:
         info_lines.append(f"Working Directory: {server.cwd}")
-    
+
     print_info("\n".join(info_lines))
 
     if server.env:
@@ -828,7 +836,7 @@ def create_parser() -> argparse.ArgumentParser:
     # Kit info
     kit_info = kit_subparsers.add_parser('info', help='Show information about a kit')
     kit_info.add_argument('name', help='Kit name')
-    
+
     # Kit export
     kit_export = kit_subparsers.add_parser('export', help='Export servers as a kit')
     kit_export.add_argument('--name', help='Kit name (optional)')

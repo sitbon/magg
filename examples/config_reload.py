@@ -24,20 +24,21 @@ async def demo_config_reload():
     config_path = Path(".magg") / "config.json"
 
     logger.setLevel(logging.INFO)
-    logger.info("Starting Magg server with config reloading enabled")
-    logger.info("Config path: %s", config_path)
-    logger.info("You can:")
-    logger.info("  1. Modify the config file to see automatic reload")
-    logger.info("  2. Send SIGHUP signal to trigger reload: kill -HUP %d", os.getpid())
-    logger.info("  3. Use the magg_reload_config tool via MCP client")
-    logger.info("")
-    logger.info("Press Ctrl+C to stop")
+    logger.info(
+        """Starting Magg server with config reloading enabled
+Config path: %s
+You can:
+  1. Modify the config file to see automatic reload
+  2. Send SIGHUP signal to trigger reload: kill -HUP %d
+  3. Use the magg_reload_config tool via MCP client
 
-    # Create runner with signal handling
+Press Ctrl+C to stop""",
+        config_path, os.getpid(),
+    )
+
     runner = MaggRunner(config_path)
 
     try:
-        # Run the server
         await runner.run_http("localhost", 8000)
     except KeyboardInterrupt:
         logger.info("Shutting down...")

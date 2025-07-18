@@ -48,21 +48,24 @@ mbro
 
 Then connect to an MCP server using the `connect` command (requires both a name and connection string):
 ```bash
-mbro> connect memory "npx -y @modelcontextprotocol/server-memory"
+mbro> connect memory npx -y @modelcontextprotocol/server-memory
 mbro> connect magg http://localhost:8080
-mbro> connect myserver "python -m mypackage.mcp_server"
+mbro> connect myserver python -m mypackage.mcp_server
 ```
 
 Or execute commands directly from the command line:
 ```bash
 # Connect and list tools in one command
-mbro "connect calc npx @modelcontextprotocol/server-calculator; tools"
+mbro connect calc npx -y @modelcontextprotocol/server-calculator \; tools
 
 # Multiple commands separated by semicolons
-mbro "connect magg http://localhost:8080; call magg_status"
+mbro connect magg http://localhost:8080 \; call magg_status
 
 # Read commands from stdin
 echo "connect calc npx calculator; tools" | mbro -
+
+# Execute a script file
+mbro -x setup.mbro
 ```
 
 ### Authentication
@@ -90,25 +93,25 @@ Once connected to a server, you can use these commands:
 mbro:memory> tools
 
 # Get detailed information about a tool
-mbro:memory> tool create_memory
+mbro:memory> info tool create_memory
 
-# Call a tool with JSON arguments
-mbro:memory> call create_memory {"content": "Remember this important note"}
-
-# Call a tool with shell-style arguments
+# Call a tool with shell-style arguments (preferred)
 mbro:memory> call create_memory content="Remember this important note"
+
+# Call a tool with JSON arguments (when needed for complex structures)
+mbro:memory> call create_memory {"content": "Remember this", "tags": ["important", "todo"]}
 
 # List resources
 mbro:memory> resources
 
 # Read a resource
-mbro:memory> read memory://notes/123
+mbro:memory> resource memory://notes/123
 
 # List prompts
 mbro:memory> prompts
 
 # Use a prompt with shell-style arguments
-mbro:memory> prompt summarize topic="recent_memories"
+mbro:memory> prompt summarize topic=recent_memories max_length=500
 ```
 
 ## Commands Reference
@@ -118,7 +121,7 @@ mbro:memory> prompt summarize topic="recent_memories"
 | Command | Description | Example |
 |---------|-------------|---------|
 | `connections` | List all connections | `connections` |
-| `connect <name> <connection>` | Connect to a server | `connect calc "npx @modelcontextprotocol/server-calculator"` |
+| `connect <name> <connection>` | Connect to a server | `connect calc npx -y @modelcontextprotocol/server-calculator` |
 | `switch <name>` | Switch to another connection | `switch calc` |
 | `disconnect` | Disconnect from current server | `disconnect` |
 
@@ -127,7 +130,7 @@ mbro:memory> prompt summarize topic="recent_memories"
 | Command | Description | Example |
 |---------|-------------|---------|
 | `tools` | List all available tools | `tools` |
-| `call <tool> <args>` | Execute a tool | `call add {"a": 5, "b": 3}` |
+| `call <tool> <args>` | Execute a tool | `call add a=5 b=3` |
 
 ### Resource Operations
 
@@ -141,7 +144,7 @@ mbro:memory> prompt summarize topic="recent_memories"
 | Command | Description | Example |
 |---------|-------------|---------|
 | `prompts` | List all prompts | `prompts` |
-| `prompt <name> [args]` | Execute a prompt | `prompt code_review {"file": "main.py"}` |
+| `prompt <name> [args]` | Execute a prompt | `prompt code_review file=main.py` |
 
 ### Search and Information
 
@@ -159,6 +162,94 @@ mbro:memory> prompt summarize topic="recent_memories"
 
 ## Advanced Features
 
+### Scripts
+
+mbro supports executing scripts from `.mbro` files. Scripts are plain text files containing mbro commands, one per line.
+
+#### Creating Scripts
+
+Create a file with `.mbro` extension:
+```bash
+# setup.mbro
+# Connect to calculator and memory servers
+connect calc npx -y @modelcontextprotocol/server-calculator
+connect memory npx -y @modelcontextprotocol/server-memory
+
+# Test calculator
+switch calc
+call add a=5 b=3
+
+# Save result to memory
+switch memory
+call create_memory content="5 + 3 = 8"
+```
+
+#### Running Scripts
+
+```bash
+# Execute a script
+mbro -x setup.mbro
+
+# Execute multiple scripts
+mbro -x init.mbro -x test.mbro
+
+# Combine scripts with interactive mode
+mbro -x setup.mbro  # Runs script then drops to interactive mode
+
+# Run script and exit
+mbro -x setup.mbro -n
+```
+
+#### Script Features
+
+- **Comments**: Lines starting with `#` are ignored
+- **Empty lines**: Ignored for readability
+- **Line continuation**: Use backslash `\` at end of line
+- **All commands supported**: Any interactive command works in scripts
+- **Error handling**: Scripts continue on errors unless fatal
+
+#### Script Discovery
+
+mbro can discover scripts in configured paths:
+```bash
+# List available scripts
+mbro scripts
+
+# Scripts are searched in:
+# - Current directory: ./.mbro/
+# - Home directory: ~/.mbro/
+# - MAGG_PATH directories
+```
+
+#### Example Scripts
+
+**Development setup** (`dev-setup.mbro`):
+```bash
+# Connect to development servers
+connect db npx -y @modelcontextprotocol/server-sqlite -- dev.db
+connect fs npx -y @modelcontextprotocol/server-filesystem -- --readonly .
+connect git npx -y @modelcontextprotocol/server-git
+
+# Check status
+status
+tools
+```
+
+**Testing workflow** (`test-flow.mbro`):
+```bash
+# Connect to test server
+connect test python -m myproject.test_server
+
+# Run test sequence
+call setup_test_data
+call run_test suite=integration
+call get_test_results format=json
+
+# Cleanup
+call cleanup_test_data
+disconnect
+```
+
 ### Modern CLI Features
 
 mbro includes modern command-line features for better usability:
@@ -166,14 +257,17 @@ mbro includes modern command-line features for better usability:
 #### 📝 Shell-Style Argument Parsing
 Supports key=value syntax with automatic type conversion:
 ```bash
-# Traditional JSON format
-mbro> call weather {"location": "London", "units": "celsius"}
+# Shell-style key=value format (preferred)
+mbro> call weather location=London units=celsius
 
-# Shell-style key=value format
-mbro> call weather location="London" units="celsius"
+# Quotes only when needed (spaces or special characters)
+mbro> call weather location="New York" units=celsius
 
 # Mixed types with automatic conversion
-mbro> call search query="python" limit=10 include_examples=true
+mbro> call search query=python limit=10 include_examples=true
+
+# JSON format for complex structures
+mbro> call create_task {"details": {"repo": "myproject", "pr": 123}}
 ```
 
 #### 📄 Python REPL-Style Multiline Input
@@ -197,8 +291,8 @@ Intelligent parameter completion with documentation:
 # Press Tab after tool name to see parameters
 mbro> call magg_server_enable <TAB>
 ┌─────────────────────────────────────────────────────┐
-│ server=     │ string │ required │ Name of server... │
-│ force=      │ boolean │ optional │ Force enable...   │
+│ server=    │ string  │ required │ Name of server... │
+│ force=     │ boolean │ optional │ Force enable...   │
 └─────────────────────────────────────────────────────┘
 ```
 
@@ -260,13 +354,16 @@ mbro --call-tool search '{"query": "python tutorials"}'
 
 #### Shell-Style Key=Value Format (New!)
 ```bash
-# Simple key=value pairs
-call weather location="London" units="celsius"
+# Simple key=value pairs (no quotes needed for single words)
+call weather location=London units=celsius
 
-# Mixed types with automatic conversion
+# Quotes only when values contain spaces
 call search query="python tutorials" limit=10 include_examples=true
 
-# Works with nested structures when combined with JSON
+# Boolean and numeric values
+call configure debug=true port=8080 timeout=30.5
+
+# Nested structures need JSON
 call create_task title="Review PR" details='{"repo": "myproject", "pr_number": 123}'
 ```
 
@@ -289,7 +386,7 @@ call tool arg1="value1" \
 mbro supports various server connection formats with the `connect` command:
 
 ```bash
-# In interactive mode
+# In interactive mode (no quotes needed)
 mbro> connect filesystem npx -y @modelcontextprotocol/server-filesystem
 mbro> connect myserver python -m mypackage.mcp_server
 mbro> connect api http://localhost:3000
@@ -297,11 +394,45 @@ mbro> connect remote https://api.example.com/mcp
 mbro> connect local ./my-mcp-server --port 8080
 mbro> connect server uvx myserver
 
-# Or from command line
-mbro "connect filesystem npx -y @modelcontextprotocol/server-filesystem"
-mbro "connect myserver python -m mypackage.mcp_server"
-mbro "connect api http://localhost:3000"
+# From command line (escape semicolons for multiple commands)
+mbro connect filesystem npx -y @modelcontextprotocol/server-filesystem
+mbro connect myserver python -m mypackage.mcp_server \; tools
+mbro connect api http://localhost:3000 \; status
 ```
+
+### Running Magg in stdio Mode
+
+A unique feature of mbro is the ability to run Magg directly in stdio mode for quick inspection:
+
+```bash
+# Connect to a local Magg instance via stdio
+mbro> connect magg magg serve
+Connected to 'magg' (Tools: 15, Resources: 0, Prompts: 0)
+
+# Now you can inspect your Magg setup from the MCP side
+mbro:magg> call magg_list_servers
+{
+  "servers": [
+    {"name": "calculator", "enabled": true, "prefix": "calc"},
+    {"name": "filesystem", "enabled": true, "prefix": "fs"},
+    {"name": "memory", "enabled": false, "prefix": "mem"}
+  ]
+}
+
+mbro:magg> call magg_status
+{
+  "mounted_servers": 2,
+  "total_servers": 3,
+  "total_tools": 15,
+  "enabled_servers": ["calculator", "filesystem"]
+}
+```
+
+This is particularly useful for:
+- **Quick debugging**: Inspect your Magg configuration without starting an HTTP server
+- **Testing changes**: See how Magg looks from an MCP client's perspective
+- **Script development**: Test Magg tools before integrating with other clients
+- **Configuration validation**: Verify servers are properly configured and mounted
 
 ### Async Python REPL
 
@@ -373,10 +504,10 @@ Available tools:
   - multiply: Multiply two numbers
   - divide: Divide two numbers
 
-mbro:calc> call add {"a": 42, "b": 58}
+mbro:calc> call add a=42 b=58
 100
 
-mbro:calc> call divide {"a": 100, "b": 4}
+mbro:calc> call divide a=100 b=4
 25
 ```
 
@@ -417,10 +548,10 @@ Tool Groups:
 - weather (2 tools): weather_current, weather_forecast
 Total tools: 11
 
-mbro:magg> call calc_add {"a": 10, "b": 20}
+mbro:magg> call calc_add a=10 b=20
 30
 
-mbro:magg> call weather_current {"location": "London"}
+mbro:magg> call weather_current location=London
 {
   "temperature": 15,
   "conditions": "Partly cloudy",
@@ -497,23 +628,24 @@ In JSON mode:
 Example using JSON mode in a script:
 ```bash
 # Get tools list as JSON
-mbro --json "connect calc npx calculator; tools" | jq '.'
+mbro --json connect calc npx -y @modelcontextprotocol/server-calculator \; tools | jq
 
 # Call a tool and parse result
-result=$(mbro --json "connect calc npx calculator; call add {\"a\": 5, \"b\": 3}")
-echo $result | jq '.'
+result=$(mbro --json connect calc npx calculator \; call add a=5 b=3)
+echo $result | jq
 
-# One-liner with shell-style arguments
-mbro --json connect calc 'npx -y @wrtnlabs/calculator-mcp@latest' \; call add a=5 b=3 | jq
+# One-liner with proper escaping
+mbro --json connect calc npx -y @modelcontextprotocol/server-calculator \; call add a=5 b=3 | jq
 ```
 
 ## Tips and Tricks
 
-1. **Tab Completion**: mbro supports tab completion for commands (not tool names)
-2. **JSON in Interactive Shell vs Command Line**: In the interactive shell, use JSON directly without surrounding quotes. On the command line, you may need single quotes to protect from shell parsing.
-3. **Multiple Connections**: You can connect to multiple servers and switch between them using the `switch` command.
-4. **Direct Commands**: Pass commands as arguments to execute operations without entering the interactive shell.
-5. **Empty Arguments**: When calling tools with no arguments, you can omit the empty `{}` in the interactive shell
+1. **Tab Completion**: After connecting, tab completion shows available tools and their parameters with rich documentation
+2. **Minimal Quoting**: Only use quotes when values contain spaces or special characters. Single words don't need quotes.
+3. **Scripts**: Create reusable `.mbro` scripts for common workflows and execute with `-x script.mbro`
+4. **Multiple Connections**: Connect to multiple servers and switch between them using the `switch` command
+5. **Shell Escaping**: When using semicolons on command line, escape them with backslash: `\;`
+6. **Empty Arguments**: When calling tools with no arguments, simply use the tool name: `call my_tool`
 
 ### Command Line Options 
    - `commands` - Commands to execute (positional arguments)
@@ -524,13 +656,15 @@ mbro --json connect calc 'npx -y @wrtnlabs/calculator-mcp@latest' \; call add a=
    - `--no-enhanced` - Disable enhanced features (shell-style args, multiline, etc.)
    - `--repl` - Drop into REPL mode on startup
    - `-n` / `--no-interactive` - Don't drop into interactive mode after commands
-   - `-x SCRIPT` / `--execute-script SCRIPT` - Execute script file (can be used multiple times)
+   - `-x SCRIPT` / `--execute-script SCRIPT` - Execute .mbro script file (can be used multiple times)
+   - `-X SCRIPT` / `--execute-script-n SCRIPT` - Execute script in non-interactive mode (equivalent to -n -x)
    - `--help` - Show help message
 
 Special command line usage:
    - Use `-` as command to read from stdin
-   - Use `;` to separate multiple commands
-   - Quote commands containing spaces: `mbro "connect calc npx calculator"`
+   - Use `\;` to separate multiple commands (escape semicolon)
+   - Scripts provide reusable command sequences
+   - Minimal quoting: only quote values with spaces
 
 ## Troubleshooting
 
@@ -538,7 +672,7 @@ Special command line usage:
 
 1. **Connection Failed**: Ensure the MCP server is installed and the command is correct
 2. **Tool Not Found**: Use `tools` to list available tools and check the exact name
-3. **Invalid Arguments**: Tool arguments must be valid JSON. In the interactive shell, don't surround JSON with quotes.
+3. **Invalid Arguments**: Use shell-style key=value arguments. Only use JSON for complex nested structures.
 4. **Permission Denied**: Some servers require specific permissions or environment variables
 
 ## See Also

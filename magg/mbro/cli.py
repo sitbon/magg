@@ -438,6 +438,18 @@ async def handle_commands(cli: MCPBrowserCLI, args) -> bool:
     return True
 
 
+class ScriptAction(argparse.Action):
+    """Custom action to track script execution order."""
+    def __call__(self, parser, namespace, values, option_string=None):
+        # Initialize script_order list if not present
+        if not hasattr(namespace, 'script_order'):
+            namespace.script_order = []
+        
+        # Track order with type indicator
+        is_non_interactive = option_string in ['-X', '--execute-script-n']
+        namespace.script_order.append((values, is_non_interactive))
+
+
 async def main_async():
     """Async main entry point."""
     parser = argparse.ArgumentParser(description="MBRO - MCP Browser")
@@ -449,7 +461,8 @@ async def main_async():
     parser.add_argument("--repl", action="store_true", default=None, help="Drop into REPL mode on startup")
     parser.add_argument("--no-enhanced", action="store_true", help="Disable enhanced features (natural language, multiline, etc.)")
     parser.add_argument("-n", "--no-interactive", action="store_true", help="Don't drop into interactive mode after commands")
-    parser.add_argument("-x", "--execute-script", action="append", metavar="SCRIPT", help="Execute script file (can be used multiple times)")
+    parser.add_argument("-x", "--execute-script", action=ScriptAction, default=None, metavar="SCRIPT", help="Execute script file (can be used multiple times)")
+    parser.add_argument("-X", "--execute-script-n", action=ScriptAction, default=None, metavar="SCRIPT", help="Execute script in non-interactive mode")
 
     parser.add_argument("commands", nargs="*", help="Commands to execute (use ';' to separate multiple commands or '-' to read from stdin)")
 
@@ -469,17 +482,21 @@ async def main_async():
         cli.use_enhanced = False
 
     try:
-        if args.execute_script:
-            for script_path in args.execute_script:
+        if hasattr(args, 'script_order') and args.script_order:
+            has_non_interactive_script = any(is_non_interactive for _, is_non_interactive in args.script_order)
+            if has_non_interactive_script:
+                args.no_interactive = True
+            
+            for script_path, _ in args.script_order:
                 await cli.handle_command(f"script run {script_path}")
 
         commands_executed = False
         if args.commands:
             commands_executed = await handle_commands(cli, args)
 
-        if not commands_executed and not args.no_interactive:
+        if not args.no_interactive:
             await cli.start(repl=args.repl)
-        elif not commands_executed and args.no_interactive:
+        elif not commands_executed and not hasattr(args, 'script_order'):
             parser.print_help()
             sys.exit(1)
 

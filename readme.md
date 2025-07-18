@@ -1,3 +1,5 @@
+[![MseeP.ai Security Assessment Badge](https://mseep.net/pr/sitbon-magg-badge.png)](https://mseep.ai/app/sitbon-magg)
+
 # 🧲 **Magg** - *The MCP Aggregator*
 
 [//]: # ([![Tests]&#40;https://img.shields.io/github/actions/workflow/status/sitbon/magg/test.yml?style=flat-square&label=tests&#41;]&#40;https://github.com/sitbon/magg/actions/workflows/test.yml&#41;)

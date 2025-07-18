@@ -131,7 +131,7 @@ jobs:
           
           # Get changelog since last release with rich formatting
           echo "CHANGELOG<<EOFEOF" >> $GITHUB_ENV
-          git log ${LATEST_TAG}..${{ github.sha }} --pretty=format:'### [%s](https://github.com/${{ github.repository }}/commit/%H)%nDate: %ad*%n%n%b%n' | sed '/^Signed-off-by:/d' | sed 's/^$/>/g' >> $GITHUB_ENV
+          git log ${LATEST_TAG}..${{ github.sha }} --pretty=format:'### [%s](https://github.com/${{ github.repository }}/commit/%H)%nDate: %ad%n%n%b%n' | sed '/^Signed-off-by:/d' | sed 's/^$/>/g' >> $GITHUB_ENV
           echo "EOFEOF" >> $GITHUB_ENV
           
           # Delete remote latest-publish tag FIRST (before creating new one)

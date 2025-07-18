@@ -71,7 +71,7 @@ class Command:
 
             await self.cli.refresh_completer_cache()
         else:
-            self.formatter.format_error(f"Failed to connect to '{name}'")
+            self.formatter.format_error(f"Failed to connect to {name!r}")
 
     async def switch(self, args: list):
         """Switch to a different connection."""
@@ -84,7 +84,7 @@ class Command:
         if success:
             await self.cli.refresh_completer_cache()
         else:
-            self.formatter.format_error(f"Failed to switch to '{name}'")
+            self.formatter.format_error(f"Failed to switch to {name!r}")
 
     async def disconnect(self, args: list):
         """Disconnect from a server."""
@@ -95,7 +95,7 @@ class Command:
         name = args[0]
         success = await self.browser.remove_connection(name)
         if not success:
-            self.formatter.format_error(f"Connection '{name}' not found")
+            self.formatter.format_error(f"Connection {name!r} not found")
 
     async def status(self):
         """Get status of the current connection.
@@ -231,7 +231,7 @@ class Command:
             if required:
                 missing = [param for param in required if param not in arguments]
                 if missing:
-                    self.formatter.format_error(f"Tool '{tool_name}' missing required parameters: {missing}")
+                    self.formatter.format_error(f"Tool {tool_name!r} missing required parameters: {missing}")
 
                     properties = schema.get('properties', {})
                     if properties and not self.formatter.json_only:
@@ -375,7 +375,7 @@ class Command:
             tools = await conn.get_tools()
             tool = next((t for t in tools if t["name"] == name), None)
             if not tool:
-                self.formatter.format_error(f"Tool '{name}' not found.")
+                self.formatter.format_error(f"Tool {name!r} not found.")
                 return
 
             self.formatter.format_tool_info(tool)
@@ -384,7 +384,7 @@ class Command:
             resources = await conn.get_resources()
             resource = next((r for r in resources if r["name"] == name), None)
             if not resource:
-                self.formatter.format_error(f"Resource '{name}' not found.")
+                self.formatter.format_error(f"Resource {name!r} not found.")
                 return
 
             self.formatter.format_resource_info(resource)
@@ -393,7 +393,7 @@ class Command:
             prompts = await conn.get_prompts()
             prompt = next((p for p in prompts if p["name"] == name), None)
             if not prompt:
-                self.formatter.format_error(f"Prompt '{name}' not found.")
+                self.formatter.format_error(f"Prompt {name!r} not found.")
                 return
 
             self.formatter.format_prompt_info(prompt)
@@ -430,7 +430,7 @@ class Command:
         proxy_type = getattr(result.annotations, "proxyType", None)
 
         if (result := ProxyMCP.get_proxy_query_result(result)) is None:
-            self.formatter.format_error(f"Failed to handle apparent proxy query result for tool '{tool_name}'")
+            self.formatter.format_error(f"Failed to handle apparent proxy query result for tool {tool_name!r}")
             return True
 
         match proxy_type:

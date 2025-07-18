@@ -112,9 +112,36 @@ magg serve
 # Or for HTTP mode
 magg serve --http
 
+# Or for hybrid mode (both stdio and HTTP simultaneously)
+magg serve --hybrid
+magg serve --hybrid --port 8080  # Custom port
+
 # Or run directly without installation (if you have uvx)
 uvx magg serve
 ```
+
+#### Hybrid Mode
+
+Magg supports running in hybrid mode where it accepts connections via both stdio and HTTP simultaneously. This is particularly useful when you want to:
+
+- Use Magg through an MCP client (stdio) while also accessing it via HTTP API
+- Have mbro host the server while connecting to it via stdio
+- Test both interfaces without running multiple instances
+
+**Example with mbro:**
+```bash
+# mbro can host Magg in hybrid mode and connect to it via stdio
+mbro connect magg "magg serve --hybrid --port 8080"
+
+# Now Magg is:
+# - Connected to mbro via stdio
+# - Also accessible via HTTP at http://localhost:8080
+
+# Other mbro instances can now connect via HTTP
+mbro connect magg-remote http://localhost:8080
+```
+
+This allows you to use mbro's interactive features while other clients (including other mbro instances) can connect via HTTP.
 
 ## Usage Flows
 

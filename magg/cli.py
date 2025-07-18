@@ -33,15 +33,18 @@ logger: logging.Logger | None = logging.getLogger(__name__)
 
 async def cmd_serve(args) -> None:
     """Start Magg server."""
+    mode = 'hybrid' if args.hybrid else 'http' if args.http else 'stdio'
+    logger.info("Starting Magg server (mode: %s)", mode)
 
-    logger.info("Starting Magg server (mode: %s)", 'http' if args.http else 'stdio')
-
-    if args.http:
+    if args.http or args.hybrid:
         print_startup_banner()
 
     runner = MaggRunner(args.config)
 
-    if args.http:
+    if args.hybrid:
+        logger.info("Starting hybrid server (stdio + HTTP on %s:%s)", args.host, args.port)
+        await runner.run_hybrid(host=args.host, port=args.port)
+    elif args.http:
         logger.info("Starting HTTP server on %s:%s", args.host, args.port)
         await runner.run_http(host=args.host, port=args.port)
     else:
@@ -54,6 +57,11 @@ def cmd_serve_args(parser: argparse.ArgumentParser) -> None:
         '--http',
         action='store_true',
         help='Run as HTTP server instead of stdio mode'
+    )
+    parser.add_argument(
+        '--hybrid',
+        action='store_true',
+        help='Run in hybrid mode (both stdio and HTTP)'
     )
     parser.add_argument(
         '--host',
@@ -166,7 +174,7 @@ async def cmd_remove_server(args) -> None:
     config.remove_server(args.name)
 
     if config_manager.save_config(config):
-        logger.info("Successfully removed server '%s'", args.name)
+        logger.debug("Successfully removed server '%s'", args.name)
         print_success(f"Removed server '{args.name}'")
     else:
         print_error("Failed to save configuration")

@@ -130,6 +130,14 @@ class CommandParser:
         if not cleaned.strip():
             return []
 
+        # Strip trailing backslash from single-line continuation
+        cleaned = cleaned.rstrip()
+        if cleaned.endswith('\\'):
+            cleaned = cleaned[:-1].rstrip()
+
+        if not cleaned:
+            return []
+
         try:
             return shlex.split(cleaned)
         except ValueError:

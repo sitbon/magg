@@ -166,7 +166,7 @@ See `compose.yaml` and `.env.example` for configuration options.
 
 ### Running Magg
 
-Magg can run in two modes:
+Magg can run in three modes:
 
 1. **Stdio Mode** (default) - For integration with Claude Desktop, Cline, Cursor, etc.:
    ```bash
@@ -176,6 +176,29 @@ Magg can run in two modes:
 2. **HTTP Mode** - For system-wide access or web integrations:
    ```bash
    magg serve --http --port 8000
+   ```
+
+3. **Hybrid Mode** - Both stdio and HTTP simultaneously:
+   ```bash
+   magg serve --hybrid
+   magg serve --hybrid --port 8080  # Custom port
+   ```
+   
+   This is particularly useful when you want to use Magg through an MCP client while also allowing HTTP access. For example:
+   
+   **With Claude Code:**
+   ```bash
+   # Configure Claude Code to use Magg in hybrid mode
+   claude mcp add magg -- magg serve --hybrid --port 42000
+   ```
+   
+   **With mbro:**
+   ```bash
+   # mbro hosts Magg and connects via stdio
+   mbro connect magg "magg serve --hybrid --port 8080"
+   
+   # Other mbro instances can connect via HTTP
+   mbro connect magg http://localhost:8080
    ```
 
 ### Available Tools
@@ -409,3 +432,17 @@ mbro -x setup.mbro
 ## Documentation
 
 For more documentation, see [docs/](docs/index.md).
+
+## Appearances
+
+Magg appears in multiple locations. Please feel free to submit a PR to add more appearances below in alphabetical order.
+
+### Listing, Index, and other MCP Sites
+
+* [DeepWiki](https://deepwiki.com/sitbon/magg) - AI-generated documentation
+* [Glama.ai](https://glama.ai/mcp/servers/@sitbon/magg) - MCP server listing and hosting
+
+### Awesome GitHub MCP Lists
+
+* [@punkpeye/awesome-mcp-servers](https://github.com/punkpeye/awesome-mcp-servers)
+* [@wong2/awesome-mcp-servers](https://github.com/wong2/awesome-mcp-servers)

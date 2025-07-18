@@ -167,11 +167,11 @@ class KitManager:
                 kit_config = self.load_kit(kit_path)
                 if kit_config:
                     self.add_kit(kit_name, kit_config)
-                    logger.info("Loaded kit %r from %s", kit_name, kit_path)
+                    logger.debug("Loaded kit %r from %s", kit_name, kit_path)
                 else:
                     logger.error("Failed to load kit %r from %s", kit_name, kit_path)
             else:
-                logger.info("Kit %r not found in any kit.d directory - creating in memory", kit_name)
+                logger.debug("Kit %r not found in any kit.d directory - creating in memory", kit_name)
                 kit_config = KitConfig(name=kit_name)
                 self.add_kit(kit_name, kit_config)
 

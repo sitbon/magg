@@ -146,30 +146,39 @@ class MCPBrowserCLI:
 
         @kb.add('c-c')
         def _(event):
-            """Handle Ctrl+C - cancel completion or multiline input or interrupt."""
+            """Handle Ctrl+C - cancel completion, clear buffer, or exit cleanly."""
             buffer = event.app.current_buffer
             if buffer.complete_state:
                 buffer.cancel_completion()
             elif buffer.text.strip():
                 buffer.reset()
             else:
-                raise KeyboardInterrupt()
+                # Exit cleanly when buffer is empty
+                event.app.exit()
 
         @kb.add('enter')
         def _(event):
-            """Handle Enter key - submit complete commands immediately."""
+            """Handle Enter key - submit on empty line or continue multiline."""
             buffer = event.app.current_buffer
             document = buffer.document
             text = document.text.strip()
+            current_line = document.current_line.strip()
+
+            # Empty buffer - just submit (prevents multiline on empty enter)
+            if not text:
+                buffer.validate_and_handle()
+                return
 
             validator_instance = self._create_input_validator()
 
+            # Single line command that's complete - submit immediately
             if text and not validator_instance._needs_continuation(text):
                 if '\n' not in document.text:
                     buffer.validate_and_handle()
                     return
 
-            if not buffer.document.current_line.strip() and buffer.text.strip():
+            # Multiline: empty line after content means submit
+            if not current_line and text:
                 buffer.validate_and_handle()
             else:
                 buffer.insert_text('\n')
@@ -352,8 +361,7 @@ class MCPBrowserCLI:
                 await self.handle_command(command)
 
             except KeyboardInterrupt:
-                if not self.formatter.json_only:
-                    self.formatter.print("\nUse 'quit' to exit.")
+                continue
             except CancelledError:
                 pass
             except EOFError:
@@ -391,7 +399,7 @@ class MCPBrowserCLI:
         cmd = self.ALIASES.get(cmd, cmd)
 
         if cmd not in self.COMMANDS:
-            self.formatter.format_error(f"Unknown command: {cmd}")
+            self.formatter.format_error(f"Unknown command: {cmd!r}")
             self.formatter.format_info("Type 'help' for available commands")
             return
 
@@ -441,11 +449,9 @@ async def handle_commands(cli: MCPBrowserCLI, args) -> bool:
 class ScriptAction(argparse.Action):
     """Custom action to track script execution order."""
     def __call__(self, parser, namespace, values, option_string=None):
-        # Initialize script_order list if not present
         if not hasattr(namespace, 'script_order'):
             namespace.script_order = []
-        
-        # Track order with type indicator
+
         is_non_interactive = option_string in ['-X', '--execute-script-n']
         namespace.script_order.append((values, is_non_interactive))
 
@@ -486,7 +492,7 @@ async def main_async():
             has_non_interactive_script = any(is_non_interactive for _, is_non_interactive in args.script_order)
             if has_non_interactive_script:
                 args.no_interactive = True
-            
+
             for script_path, _ in args.script_order:
                 await cli.handle_command(f"script run {script_path}")
 
@@ -519,10 +525,8 @@ def main():
 
     try:
         asyncio.run(main_async())
-
     except KeyboardInterrupt:
         pass
-
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
         exit(1)

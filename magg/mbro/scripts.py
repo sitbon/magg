@@ -88,7 +88,7 @@ class ScriptManager:
         elif subcmd == "dump":
             await self.dump_script(subargs)
         else:
-            self.formatter.format_error(f"Unknown script command: {subcmd}\nCommands: run, list, search, dump")
+            self.formatter.format_error(f"Unknown script command: {subcmd!r}\nCommands: run, list, search, dump")
 
     async def run_script(self, args: List[str]):
         """Run a script file."""
@@ -100,7 +100,7 @@ class ScriptManager:
 
         script_path = self.find_script(script_ref)
         if not script_path:
-            self.formatter.format_error(f"Script not found: {script_ref}")
+            self.formatter.format_error(f"Script not found: {script_ref!r}")
             exit(1)
 
         try:
@@ -201,7 +201,7 @@ class ScriptManager:
 
         script_path = self.find_script(script_ref)
         if not script_path:
-            self.formatter.format_error(f"Script not found: {script_ref}")
+            self.formatter.format_error(f"Script not found: {script_ref!r}")
             exit(1)
 
         try:

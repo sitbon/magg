@@ -194,8 +194,8 @@ jobs:
     strategy:
       matrix:
         include:
-          - target: pre
-            suffix: "-pre"
+          # - target: pre
+          #   suffix: "-pre"
           - target: pro
             suffix: ""
 
@@ -223,7 +223,7 @@ jobs:
             type=ref,event=pr,suffix=${{ matrix.suffix }}
             type=semver,pattern=v{{major}}.{{minor}}.{{patch}},pattern={{major}}.{{minor}}.{{patch}},suffix=${{ matrix.suffix }}
             type=semver,pattern=v{{major}}.{{minor}}.{{patch}},pattern={{major}}.{{minor}},suffix=${{ matrix.suffix }}
-            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' && matrix.target == 'pro' }}
+            # type=raw,value=current,enable=${{ github.ref == 'refs/heads/main' && matrix.target == 'pro' }}
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v6

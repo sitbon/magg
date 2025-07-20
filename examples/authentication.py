@@ -8,6 +8,7 @@ This script demonstrates:
 """
 import argparse
 import asyncio
+import logging
 import os
 import sys
 from typing import Any
@@ -19,7 +20,6 @@ from magg.client import MaggClient
 
 async def bearer_auth(args: argparse.Namespace) -> None:
     """Test bearer token authentication with configurable options."""
-    # Get JWT from environment or command line
     jwt = args.token
     if not jwt:
         jwt = os.environ.get(args.env_var)
@@ -175,7 +175,6 @@ async def main():
     args = parser.parse_args()
 
     if args.debug:
-        import logging
         logging.basicConfig(level=logging.DEBUG)
 
     # Check if subcommand was provided

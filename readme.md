@@ -127,13 +127,13 @@ docker run -p 8000:8000 \
 Magg uses a multi-stage Docker build with three target stages:
 
 - **`pro` (Production)**: Minimal image with WARNING log level, suitable for production deployments
-- **`pre` (Pre-production)**: Same as production but with INFO log level for staging/testing
+- **`pre` (Pre-production)**: Same as production but with INFO log level for staging/testing (available but not published)
 - **`dev` (Development)**: Includes development dependencies and DEBUG logging for troubleshooting
 
 Images are automatically published to GitHub Container Registry with the following tags:
 
-- **Version tags** (from main branch): `latest`, `1.2.3`, `1.2`, `dev`, `1.2-dev`, `1.2-dev-py3.12`, etc.
-- **Branch tags** (from beta branch): `beta`, `beta-pre`, `beta-dev`
+- **Version tags** (from main branch): `1.2.3`, `1.2`, `dev`, `1.2-dev`, `1.2-dev-py3.12`, etc.
+- **Branch tags** (from beta branch): `beta`, `beta-dev`
 - **Python-specific dev tags**: `beta-dev-py3.12`, `beta-dev-py3.13`, etc.
 
 #### Docker Compose
@@ -324,7 +324,6 @@ Magg supports several environment variables for configuration:
 - `MAGG_AUTO_RELOAD` - Enable/disable config auto-reload (default: true)
 - `MAGG_RELOAD_POLL_INTERVAL` - Config polling interval in seconds (default: 1.0)
 - `MAGG_READ_ONLY=true` - Run in read-only mode
-- `MAGG_QUIET=true` - Suppress output unless errors occur
 - `MAGG_SELF_PREFIX` - Prefix for Magg tools (default: "magg"). Tools will be named as `{prefix}{sep}{tool}` (e.g., `magg_list_servers`)
 - `MAGG_PREFIX_SEP` - Separator between prefix and tool name (default: "_")
 

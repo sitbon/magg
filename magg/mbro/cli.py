@@ -1,10 +1,7 @@
-#!/usr/bin/env python3
 """Interactive CLI for MBRO - MCP Browser."""
 
 import argparse
 import asyncio
-import codeop
-import shlex
 import sys
 from asyncio import CancelledError
 from functools import cached_property
@@ -26,7 +23,7 @@ except ImportError:
 
 from .client import BrowserClient
 from .formatter import OutputFormatter
-from .. import process
+from .. import process, __version__
 
 from .completers import create_improved_completer
 from .parser import JsonArgParser
@@ -54,15 +51,28 @@ class MCPBrowserCLI:
         "conns": "connections"
     }
 
-    def __init__(self, json_only: bool = False, use_rich: bool = True, indent: int = 2, verbose: bool = False):
-        self.browser = BrowserClient()
+    def __init__(
+        self,
+        json_only: bool = False,
+        use_rich: bool = True,
+        indent: int = 2,
+        verbose: bool = False,
+        quiet: bool = False,
+        env_pass: bool = False,
+        env_vars: dict[str, str] | None = None,
+        status_bar: bool = False
+    ):
+        self.browser = BrowserClient(env_pass=env_pass, env_vars=env_vars)
         self.running = True
         self.formatter = OutputFormatter(json_only=json_only, use_rich=use_rich, indent=indent)
         self.verbose = verbose
+        self.quiet = quiet
+        self.env_pass = env_pass
+        self.env_vars = env_vars
+        self.status_bar = status_bar
         self.command = Command(self)
 
-        self.use_enhanced = not json_only
-        if self.use_enhanced:
+        if not json_only:
             self.json_parser = JsonArgParser()
             self.multiline_handler = MultilineInputHandler(self.formatter)
             self._multiline_buffer = []
@@ -70,7 +80,7 @@ class MCPBrowserCLI:
 
     @cached_property
     def _completer(self):
-        if self.use_enhanced:
+        if not self.formatter.json_only:
             return create_improved_completer(self)
         else:
             return WordCompleter(
@@ -111,7 +121,7 @@ class MCPBrowserCLI:
             reserve_space_for_menu=8,
         )
 
-        if self.use_enhanced:
+        if not self.formatter.json_only:
             kwds.update(
                 auto_suggest=self._create_smart_auto_suggest(),
                 enable_history_search=True,
@@ -119,7 +129,7 @@ class MCPBrowserCLI:
                 complete_style=CompleteStyle.COLUMN,
                 complete_in_thread=False,
                 style=self._create_completion_style(),
-                bottom_toolbar=self._create_bottom_toolbar,
+                bottom_toolbar=self._create_bottom_toolbar if self.status_bar else None,
                 multiline=True,
                 prompt_continuation=self._create_continuation_prompt,
             )
@@ -229,7 +239,7 @@ class MCPBrowserCLI:
 
     def _create_bottom_toolbar(self):
         """Create bottom toolbar for enhanced mode."""
-        if self.use_enhanced:
+        if not self.formatter.json_only:
             conn = self.browser.current_connection
             if conn:
                 return f" Connected: {conn} | TAB: complete | Shift+TAB: navigate | Enter: apply | ESC/Ctrl+C: cancel "
@@ -300,7 +310,7 @@ class MCPBrowserCLI:
 
     async def refresh_completer_cache(self):
         """Refresh the completer cache after connection changes."""
-        if self.use_enhanced and hasattr(self, '_completer'):
+        if not self.formatter.json_only and hasattr(self, '_completer'):
             completer = self._completer
 
             if hasattr(completer, 'completers'):
@@ -331,7 +341,7 @@ class MCPBrowserCLI:
 
             return
 
-        if not self.formatter.json_only:
+        if not self.formatter.json_only and not self.quiet:
             self.formatter.print("MBRO - MCP Browser", file=sys.stderr)
             self.formatter.print("Type 'help' for available commands or 'quit' to exit.\n", file=sys.stderr)
 
@@ -341,7 +351,6 @@ class MCPBrowserCLI:
             try:
                 if not self.formatter.json_only:
                     current = self.browser.current_connection
-                    prompt = f"mbro{f':{current}' if current else ''}> "
 
                     if self.formatter.use_rich:
                         prompt = HTML(
@@ -349,6 +358,8 @@ class MCPBrowserCLI:
                             + ('<ansigreen>:</ansigreen><ansicyan>{}</ansicyan>'.format(current) if current else '')
                             + '<ansiwhite>> </ansiwhite>'
                         )
+                    else:
+                        prompt = f"mbro{f':{current}' if current else ''}> "
 
                 else:
                     prompt = ""
@@ -417,7 +428,7 @@ class MCPBrowserCLI:
 
     def show_help(self):
         """Show help text."""
-        self.formatter.format_help(enhanced=self.use_enhanced and not self.formatter.json_only)
+        self.formatter.format_help(enhanced=not self.formatter.json_only)
 
 
 
@@ -459,16 +470,20 @@ class ScriptAction(argparse.Action):
 async def main_async():
     """Async main entry point."""
     parser = argparse.ArgumentParser(description="MBRO - MCP Browser")
+    parser.add_argument("-V", "--version", action="version", version=f"%(prog)s (magg) {__version__}")
     parser.add_argument("--json", "-j", action="store_true", help="Output only JSON (machine-readable)")
     parser.add_argument("--no-rich", action="store_true", default=None, help="Disable Rich formatting")
     parser.add_argument("--indent", type=int, default=2, help="JSON indent level (0 for compact)")
     parser.add_argument("-v", "--verbose", action="count", default=0, help="Increase verbosity (can be used multiple times)")
+    parser.add_argument("-q", "--quiet", action="store_true", help="Suppress informational messages")
+    parser.add_argument("-e", "--env-pass", action="store_true", help="Pass environment to stdio MCP servers")
+    parser.add_argument("-E", "--env-set", nargs=2, action="append", metavar=("KEY", "VALUE"), help="Set environment variable for stdio MCP servers (can be used multiple times)")
 
     parser.add_argument("--repl", action="store_true", default=None, help="Drop into REPL mode on startup")
-    parser.add_argument("--no-enhanced", action="store_true", help="Disable enhanced features (natural language, multiline, etc.)")
     parser.add_argument("-n", "--no-interactive", action="store_true", help="Don't drop into interactive mode after commands")
     parser.add_argument("-x", "--execute-script", action=ScriptAction, default=None, metavar="SCRIPT", help="Execute script file (can be used multiple times)")
     parser.add_argument("-X", "--execute-script-n", action=ScriptAction, default=None, metavar="SCRIPT", help="Execute script in non-interactive mode")
+    parser.add_argument("--status-bar", action="store_true", help="Show status bar with keyboard shortcuts")
 
     parser.add_argument("commands", nargs="*", help="Commands to execute (use ';' to separate multiple commands or '-' to read from stdin)")
 
@@ -482,10 +497,12 @@ async def main_async():
         use_rich=not args.no_rich,
         indent=args.indent,
         verbose=args.verbose,
+        quiet=args.quiet,
+        env_pass=args.env_pass,
+        env_vars=dict(args.env_set) if args.env_set else None,
+        status_bar=args.status_bar,
     )
 
-    if args.no_enhanced:
-        cli.use_enhanced = False
 
     try:
         if hasattr(args, 'script_order') and args.script_order:

@@ -105,10 +105,11 @@ class TestServerRemoval:
         server_manager = ServerManager(config_manager)
 
         # Add a server to mounted_servers
-        server_manager.mounted_servers["test1"] = {
-            'proxy': None,
-            'client': None
-        }
+        from magg.server.manager import MountedServer
+        server_manager.mounted_servers["test1"] = MountedServer(
+            proxy=None,
+            client=None
+        )
 
         # Load config and verify test1 exists
         config = config_manager.load_config()

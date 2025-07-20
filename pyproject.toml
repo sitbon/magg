@@ -1,6 +1,6 @@
 [project]
 name = "magg"
-version = "0.9.1"
+version = "0.10.0"
 requires-python = ">=3.12"
 description = "MCP Aggregator"
 authors = [{ name = "Phillip Sitbon", email = "phillip.sitbon@gmail.com"}]
@@ -39,7 +39,21 @@ keywords = [
     "pydantic-settings",
     "rich",
 ]
-packages = [{include = "magg"}]
+
+packages = [
+    {include = "magg"},
+    {include = "test", format = "sdist"},
+]
+
+include = [
+    "readme.md",
+    "license.md",
+    "compose.yaml",
+    "dockerfile",
+    ".dockerignore",
+    ".env.example",
+]
+
 dependencies = [
     "fastmcp>=2.8.0",
     "aiohttp>=3.12.13",
@@ -74,27 +88,16 @@ test = [
 dev = [
     "pytest>=8.4.0",
     "pytest-asyncio>=1.0.0",
-    "poethepoet>=0.35.0",
     "keyring>=25.6.0",
     "anthropic>=0.54.0",
     "pyjwt>=2.10.1",
     "packaging>=25.0",
 ]
 
-[tool.poe]
-verbosity = -1
-
-[tool.poe.tasks]
-fix-whitespace.cmd = "python scripts/fix_whitespace.py"
-fix-whitespace.description = "Fix trailing whitespace in all files"
-
 [tool.pytest.ini_options]
 markers = [
     "integration: marks tests as integration tests (deselect with '-m \"not integration\"')",
 ]
-
-[tool.hatch.metadata]
-allow-direct-references = true
 
 [build-system]
 requires = ["hatchling"]

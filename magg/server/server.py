@@ -29,10 +29,16 @@ logger = logging.getLogger(__name__)
 class MaggServer(ManagedServer):
     """Main Magg server with tools for managing other MCP servers.
     """
-
-    def __init__(self, config_path: Path | str | None = None, *, enable_config_reload: bool | None = None):
+    def __init__(
+            self,
+            config_path: Path | str | None = None,
+            *,
+            enable_config_reload: bool | None = None,
+            env: dict | None = None,
+    ):
         config_manager = ConfigManager(config_path)
-        super().__init__(ServerManager(config_manager), enable_config_reload=enable_config_reload)
+        server_manager = ServerManager(config_manager, env=env)
+        super().__init__(server_manager, enable_config_reload=enable_config_reload)
 
     def _register_tools(self):
         """Register all Magg management tools programmatically.

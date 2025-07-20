@@ -728,6 +728,37 @@ When configuration changes are detected, Magg:
 - `MAGG_PREFIX_SEP` (default: `_`) - Separator between prefix and tool name
 - `MAGG_SELF_PREFIX` (default: `magg`) - Prefix for Magg's own tools
 
+### Environment Variable Inheritance
+
+By default, stdio-based MCP servers run with isolated environments. While the recommended approach is to configure environment variables in the server configuration (see Advanced Configuration), you can also pass environment variables at runtime to all stdio subprocesses:
+
+**Pass current environment to servers:**
+```bash
+magg serve --env-pass
+```
+
+**Set specific environment variables:**
+```bash
+magg serve --env-set API_KEY mykey --env-set LANG en_US.UTF-8
+```
+
+**Combined usage:**
+```bash
+# Pass current env and add specific variables
+magg serve --env-pass --env-set DEBUG true
+```
+
+This is useful for:
+- Passing API keys and authentication tokens to servers
+- Sharing PATH and system configuration
+- Development environments where servers need local tools
+- CI/CD pipelines with environment-based configuration
+
+**Note:** 
+- Environment inheritance only affects stdio-based servers. HTTP/URI servers do not receive inherited environment variables.
+- The preferred method is to set environment variables in the server configuration's `env` field for better reproducibility.
+- The `mbro` CLI tool also supports these same `--env-pass` and `--env-set` flags when connecting to servers.
+
 ### Usage Examples
 
 **Automatic reload (default):**
@@ -996,16 +1027,16 @@ export MAGG_SELF_PREFIX=""
 You can change the separator between prefix and tool name:
 
 ```bash
-# Default underscore separator: calc_add, magg_list_servers
+# Default underscore separator: calc_add, magg_server_list
 export MAGG_PREFIX_SEP="_"
 
-# Dash separator: calc-add, magg-list-servers  
+# Dash separator: calc-add, magg-server-list  
 export MAGG_PREFIX_SEP="-"
 
-# Dot separator: calc.add, magg.list.servers
+# Dot separator: calc.add, magg.server.list
 export MAGG_PREFIX_SEP="."
 
-# No separator: calcadd, magglistservers
+# No separator: calcadd, maggserverlist
 export MAGG_PREFIX_SEP=""
 ```
 

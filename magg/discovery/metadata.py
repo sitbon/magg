@@ -27,15 +27,12 @@ class SourceMetadataCollector:
         """Collect metadata from all available sources."""
         metadata = []
 
-        # Determine collection strategy based on URL type
         if url.startswith('file://') or (not url.startswith('http') and '/' in url):
-            # Local file system source
             tasks = [
                 self._collect_filesystem_metadata(url),
-                self._collect_search_metadata(url, name),  # Still search for name if provided
+                self._collect_search_metadata(url, name),
             ]
         else:
-            # Remote source (HTTP/GitHub)
             tasks = [
                 self._collect_http_metadata(url),
                 self._collect_search_metadata(url, name),
@@ -44,7 +41,6 @@ class SourceMetadataCollector:
 
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
-        # Process results and add successful ones to metadata
         for result in results:
             if isinstance(result, dict) and result:
                 metadata.append(result)
@@ -74,7 +70,6 @@ class SourceMetadataCollector:
                     }
                 }
 
-            # Only check URLs that look like actual server endpoints
             if not self._looks_like_server_url(url):
                 return {
                     "source": "http_check",

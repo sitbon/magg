@@ -2,14 +2,12 @@
 import json
 import logging
 from pathlib import Path
-from typing import Any, TYPE_CHECKING
+from typing import Any
+
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from .settings import ConfigManager, ServerConfig, MaggConfig, KitInfo
-
-if TYPE_CHECKING:
-    pass
 
 logger = logging.getLogger(__name__)
 

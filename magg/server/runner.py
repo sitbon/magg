@@ -27,8 +27,14 @@ class MaggRunner:
     _hook_signals: bool
     _hooked_signals: bool = False
 
-    def __init__(self, config_path: Path | str | None = None, *, hook_signals: bool = True):
-        self._server = MaggServer(config_path)
+    def __init__(
+        self,
+        config_path: Path | str | None = None,
+        *,
+        hook_signals: bool = True,
+        env: dict | None = None,
+    ):
+        self._server = MaggServer(config_path, env=env)
         self._shutdown_event = asyncio.Event()
         self._reload_event = asyncio.Event()
         self._original_sigint = None

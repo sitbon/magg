@@ -4,6 +4,7 @@ import shlex
 import sys
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 from fastmcp.client.transports import (
     infer_transport,
     StdioTransport,
@@ -19,8 +20,26 @@ from .transports import NoValidatePythonStdioTransport, NoValidateNodeStdioTrans
 __all__ = (
     "get_transport_for_input",
     "get_transport_for_command", "get_transport_for_command_string", "get_transport_for_uri",
-    "parse_command_string", "TRANSPORT_DOCS"
+    "parse_command_string", "is_connection_string_url", "TRANSPORT_DOCS"
 )
+
+
+def is_connection_string_url(connect_string: str) -> bool:
+    """
+    Determine if a connection string represents a URL.
+
+    Args:
+        connect_string: Connection string to check
+
+    Returns:
+        True if the string is a URL, False if it's a command
+    """
+    try:
+        result = urlparse(connect_string.strip())
+        # A valid URL should have at least a scheme and netloc
+        return bool(result.scheme and result.netloc)
+    except Exception:
+        return False
 
 
 def get_transport_for_input(connect_string: str) -> ClientTransport:
@@ -45,8 +64,8 @@ def get_transport_for_input(connect_string: str) -> ClientTransport:
     if not connect_string:
         raise ValueError("Input cannot be empty")
 
-    # Check if it's a URI (HTTP/SSE)
-    if connect_string.startswith(("http://", "https://")) or "/sse" in connect_string:
+    # Check if it's a URI
+    if is_connection_string_url(connect_string):
         return get_transport_for_uri(connect_string)
 
     # Otherwise, treat it as a command string

@@ -49,6 +49,6 @@ def setup(source: str | None = __name__, **environment) -> None:
         config_manager = ConfigManager()
 
         if not config_manager.config_path.exists():
-            logger.warning("Config file %s does not exist. Using default settings.", config_manager.config_path)
+            logger.debug("Config file %s does not exist. Using default settings.", config_manager.config_path)
 
         config_manager.load_config()

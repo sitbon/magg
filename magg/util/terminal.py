@@ -1,7 +1,6 @@
 """Terminal utilities for better CLI output."""
 import os
 import sys
-from typing import Optional, List, Dict, Any
 
 import art
 
@@ -39,35 +38,31 @@ if not sys.stderr.isatty():
     Colors.disable()
 
 
-def print_header(text: str):
-    """Print a section header."""
-    print(f"\n{Colors.BOLD}{Colors.HEADER}{text}{Colors.ENDC}", file=sys.stderr)
+def print_text(text: str = "", *args, **kwds):
+    kwds.setdefault('file', sys.stderr)
+    print(text, *args, **kwds)
 
 
-def print_success(text: str):
-    """Print a success message."""
-    print(f"{Colors.OKGREEN}✓ {text}{Colors.ENDC}", file=sys.stderr)
+def print_header(text: str, *args, **kwds):
+    print_text(f"{Colors.BOLD}{Colors.HEADER}{text}{Colors.ENDC}", *args, **kwds)
 
 
-def print_error(text: str):
-    """Print an error message."""
-    print(f"{Colors.FAIL}✗ {text}{Colors.ENDC}", file=sys.stderr)
+def print_success(text: str, *args, **kwds):
+    print_text(f"{Colors.OKGREEN}✓ {text}{Colors.ENDC}", *args, **kwds)
 
 
-def print_warning(text: str):
-    """Print a warning message."""
-    print(f"{Colors.WARNING}⚠ {text}{Colors.ENDC}", file=sys.stderr)
+def print_error(text: str, *args, **kwds):
+    print_text(f"{Colors.FAIL}✗ {text}{Colors.ENDC}", *args, **kwds)
 
 
-def print_info(text: str):
-    """Print an info message."""
-    print(f"{Colors.OKCYAN}ⓘ {text}{Colors.ENDC}", file=sys.stderr)
+def print_warning(text: str, *args, **kwds):
+    print_text(f"{Colors.WARNING}⚠ {text}{Colors.ENDC}", *args, **kwds)
 
-def print_newline():
-    """Print a new line."""
-    print(file=sys.stderr)
 
-def print_server_list(servers: Dict[str, Any]):
+def print_info(text: str, *args, **kwds):
+    print_text(f"{Colors.OKCYAN}ⓘ {text}{Colors.ENDC}", *args, **kwds)
+
+def print_server_list(servers: dict):
     """Print a formatted list of servers."""
     if not servers:
         print_info("No servers configured")
@@ -79,29 +74,29 @@ def print_server_list(servers: Dict[str, Any]):
         status_color = Colors.OKGREEN if server.enabled else Colors.WARNING
         status_text = "enabled" if server.enabled else "disabled"
 
-        print(f"\n  {Colors.BOLD}{name}{Colors.ENDC} ({server.prefix}) - {status_color}{status_text}{Colors.ENDC}")
-        print(f"    Source: {server.source}")
+        print_text(f"\n  {Colors.BOLD}{name}{Colors.ENDC} ({server.prefix}) - {status_color}{status_text}{Colors.ENDC}")
+        print_text(f"    Source: {server.source}")
 
         if server.command:
             full_command = server.command
             if server.args:
                 full_command += ' ' + ' '.join(server.args)
-            print(f"    Command: {full_command}")
+            print_text(f"    Command: {full_command}")
 
         if server.uri:
-            print(f"    URI: {server.uri}")
+            print_text(f"    URI: {server.uri}")
 
         if server.cwd:
-            print(f"    Working Dir: {server.cwd}")
+            print_text(f"    Working Dir: {server.cwd}")
 
         if server.env:
-            print(f"    Environment: {', '.join(f'{k}={v}' for k, v in server.env.items())}")
+            print_text(f"    Environment: {', '.join(f'{k}={v}' for k, v in server.env.items())}")
 
         if server.notes:
-            print(f"    Notes: {Colors.OKCYAN}{server.notes}{Colors.ENDC}")
+            print_text(f"    Notes: {Colors.OKCYAN}{server.notes}{Colors.ENDC}")
 
 
-def format_command(command: str, args: Optional[List[str]] = None) -> str:
+def format_command(command: str, args: list[str] | None = None) -> str:
     """Format a command with arguments."""
     if args:
         return f"{command} {' '.join(args)}"
@@ -111,10 +106,10 @@ def format_command(command: str, args: Optional[List[str]] = None) -> str:
 def print_status_summary(config_path: str, total: int, enabled: int, disabled: int):
     """Print a status summary."""
     print_header("Magg Status")
-    print(f"  Config: {config_path}")
-    print(f"  Total servers: {Colors.BOLD}{total}{Colors.ENDC}")
-    print(f"    {Colors.OKGREEN}● Enabled: {enabled}{Colors.ENDC}")
-    print(f"    {Colors.WARNING}○ Disabled: {disabled}{Colors.ENDC}")
+    print_text(f"""  Config: {config_path}
+  Total servers: {Colors.BOLD}{total}{Colors.ENDC}
+    {Colors.OKGREEN}● Enabled: {enabled}{Colors.ENDC}
+    {Colors.WARNING}○ Disabled: {disabled}{Colors.ENDC}""")
 
 
 def confirm_action(prompt: str) -> bool:
@@ -130,16 +125,13 @@ def confirm_action(prompt: str) -> bool:
 def print_startup_banner():
     """Print a beautiful startup banner.
     """
-    if os.environ.get("MAGG_QUIET", "").lower() in ("1", "true", "yes"):
-        return
-
     # import pyfiglet
     # Use banner font which has solid # characters
     # ascii_art = pyfiglet.figlet_format("MAGG", font="big")
     # ascii_art = pyfiglet.figlet_format("MAGG", font="isometric3")
     # ascii_art = pyfiglet.figlet_format("MAGG", font="whimsy")
 
-        # ascii_art = art.text2art("MAGG", font="cricket")
+    # ascii_art = art.text2art("MAGG", font="cricket")
     # ascii_art = art.text2art("MAGG", font="diamond")
     # ascii_art = art.text2art("MAGG", font="tarty1")
     ascii_art = art.text2art("MAGG", font="isometric3")
@@ -164,4 +156,3 @@ def print_startup_banner():
                 print(ascii_art, file=sys.stderr)
         except ImportError:
             print(ascii_art, file=sys.stderr)
-

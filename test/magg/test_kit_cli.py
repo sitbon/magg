@@ -74,10 +74,10 @@ class TestKitCLI:
                 await cmd_kit(mock_args)
 
         captured = capsys.readouterr()
-        # Info messages go to stderr
+        # All output goes to stderr for consistency
         assert 'Available kits (2)' in captured.err
-        assert 'test-kit: Test kit for unit tests' in captured.out
-        assert 'empty-kit: Empty kit' in captured.out
+        assert 'test-kit: Test kit for unit tests' in captured.err
+        assert 'empty-kit: Empty kit' in captured.err
 
     @pytest.mark.asyncio
     async def test_kit_list_empty(self, mock_args, capsys):
@@ -124,7 +124,7 @@ class TestKitCLI:
         # Check output
         captured = capsys.readouterr()
         assert 'Added 1 servers from kit' in captured.err
-        assert 'test-server (enabled)' in captured.out
+        assert 'test-server (enabled)' in captured.err
 
     @pytest.mark.asyncio
     async def test_kit_load_no_enable(self, mock_args, mock_kit_manager, capsys):
@@ -152,7 +152,7 @@ class TestKitCLI:
 
         # Check output
         captured = capsys.readouterr()
-        assert 'test-server (disabled)' in captured.out
+        assert 'test-server (disabled)' in captured.err
 
     @pytest.mark.asyncio
     async def test_kit_load_not_found(self, mock_args, mock_kit_manager, capsys):
@@ -162,10 +162,8 @@ class TestKitCLI:
 
         with patch('magg.cli.KitManager', return_value=mock_kit_manager):
             with patch('magg.cli.ConfigManager'):
-                with patch('sys.exit', side_effect=SystemExit(1)) as mock_exit:
-                    with pytest.raises(SystemExit):
-                        await cmd_kit(mock_args)
-                    mock_exit.assert_called_with(1)
+                result = await cmd_kit(mock_args)
+                assert result == 1
 
         captured = capsys.readouterr()
         assert "Kit 'nonexistent-kit' not found" in captured.err
@@ -203,7 +201,7 @@ class TestKitCLI:
         # Check output
         captured = capsys.readouterr()
         assert 'Skipped 1 servers already in configuration' in captured.err
-        assert 'test-server' in captured.out
+        assert 'test-server' in captured.err
 
     @pytest.mark.asyncio
     async def test_kit_info(self, mock_args, mock_kit_manager, capsys):
@@ -222,10 +220,10 @@ class TestKitCLI:
         assert 'Author: Test Author' in captured.err
         assert 'Version: 1.0.0' in captured.err
         assert 'Keywords: test, example' in captured.err
-        assert 'homepage: https://example.com' in captured.out
-        assert 'Servers (1):' in captured.out
-        assert 'test-server' in captured.out
-        assert 'Test server' in captured.out
+        assert 'homepage: https://example.com' in captured.err
+        assert 'Servers (1):' in captured.err
+        assert 'test-server' in captured.err
+        assert 'Test server' in captured.err
 
     @pytest.mark.asyncio
     async def test_kit_info_not_found(self, mock_args, mock_kit_manager, capsys):
@@ -235,10 +233,8 @@ class TestKitCLI:
 
         with patch('magg.cli.KitManager', return_value=mock_kit_manager):
             with patch('magg.cli.ConfigManager'):
-                with patch('sys.exit', side_effect=SystemExit(1)) as mock_exit:
-                    with pytest.raises(SystemExit):
-                        await cmd_kit(mock_args)
-                    mock_exit.assert_called_with(1)
+                result = await cmd_kit(mock_args)
+                assert result == 1
 
         captured = capsys.readouterr()
         assert "Kit 'nonexistent-kit' not found" in captured.err
@@ -285,10 +281,8 @@ class TestKitCLI:
 
         with patch('magg.cli.KitManager', return_value=mock_kit_manager):
             with patch('magg.cli.ConfigManager', return_value=mock_config_instance):
-                with patch('sys.exit', side_effect=SystemExit(1)) as mock_exit:
-                    with pytest.raises(SystemExit):
-                        await cmd_kit(mock_args)
-                    mock_exit.assert_called_with(1)
+                result = await cmd_kit(mock_args)
+                assert result == 1
 
         captured = capsys.readouterr()
         assert 'Failed to save configuration' in captured.err

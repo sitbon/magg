@@ -67,7 +67,8 @@ class Command:
             tools = await conn.get_tools()
             resources = await conn.get_resources()
             prompts = await conn.get_prompts()
-            self.formatter.format_success(f"Connected to '{name}' (Tools: {len(tools)}, Resources: {len(resources)}, Prompts: {len(prompts)})")
+            if not self.cli.quiet:
+                self.formatter.format_success(f"Connected to '{name}' (Tools: {len(tools)}, Resources: {len(resources)}, Prompts: {len(prompts)})")
 
             await self.cli.refresh_completer_cache()
         else:
@@ -331,29 +332,29 @@ class Command:
         resources = await conn.get_resources()
         prompts = await conn.get_prompts()
 
-        def matches_enhanced(item, search_term):
-            """Enhanced matching with word splitting."""
+        def matches_item(item, search_term):
+            """Check if item matches search term with word splitting."""
             name = item.get("name", "").lower()
             desc = item.get("description", "").lower()
 
+            # Direct substring match
             if search_term in name or search_term in desc:
                 return True
 
+            # URI matching for resources
             if "uri" in item and search_term in item["uri"].lower():
                 return True
             if "uriTemplate" in item and search_term in item["uriTemplate"].lower():
                 return True
 
-            if self.cli.use_enhanced:
-                words = search_term.split()
-                combined = f"{name} {desc}"
-                return all(word in combined for word in words)
+            # Word splitting - match all words anywhere in name or description
+            words = search_term.split()
+            combined = f"{name} {desc}"
+            return all(word in combined for word in words)
 
-            return False
-
-        matching_tools = [t for t in tools if matches_enhanced(t, term)]
-        matching_resources = [r for r in resources if matches_enhanced(r, term)]
-        matching_prompts = [p for p in prompts if matches_enhanced(p, term)]
+        matching_tools = [t for t in tools if matches_item(t, term)]
+        matching_resources = [r for r in resources if matches_item(r, term)]
+        matching_prompts = [p for p in prompts if matches_item(p, term)]
 
         self.formatter.format_search_results(term, matching_tools, matching_resources, matching_prompts)
 

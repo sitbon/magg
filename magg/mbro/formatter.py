@@ -603,7 +603,7 @@ JSON Tips (REPL):
         if enhanced:
             help_text += """
 
-Enhanced Features:
+Interactive Features:
   • TAB completion: Press TAB to see available tools, resources, and commands
   • Parameter completion: Shows tool parameters with documentation
   • Python-style arguments: Use param=value syntax or JSON

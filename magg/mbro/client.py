@@ -8,7 +8,7 @@ from fastmcp import Client
 from fastmcp.client import BearerAuth
 from mcp.types import TextContent, ImageContent, EmbeddedResource, BlobResourceContents, TextResourceContents, Tool, \
     Resource, ResourceTemplate, Prompt, GetPromptResult
-from magg.util.transport import get_transport_for_command_string
+from magg.util.transport import get_transport_for_command_string, is_connection_string_url
 
 logger = logging.getLogger(__name__)
 
@@ -69,18 +69,21 @@ class BrowserConnection:
 
         return prompts_data
 
-    async def connect(self) -> bool:
+    async def connect(self, env_pass: bool = False, env_vars: dict[str, str] | None = None) -> bool:
         """Connect to the MCP server using FastMCP Client."""
         jwt = os.getenv("MAGG_JWT", os.getenv("MBRO_JWT", os.getenv("MCP_JWT", None)))
         auth = BearerAuth(jwt) if jwt else None
 
-        if self.connection_string.startswith("http"):
+        if is_connection_string_url(self.connection_string):
             url = self.connection_string
             if not url.endswith("/mcp/"):
                 url = url.rstrip("/") + "/mcp/"
             client = Client(url, auth=auth)
         else:
-            transport = get_transport_for_command_string(self.connection_string)
+            from ..util.system import get_subprocess_environment
+            env = get_subprocess_environment(inherit=env_pass, provided=env_vars)
+
+            transport = get_transport_for_command_string(self.connection_string, env=env)
             client = Client(transport, auth=auth)
 
         try:
@@ -216,23 +219,27 @@ class BrowserClient:
     """Main MCP browser class for managing connections."""
     connections: dict[str, BrowserConnection]
     current_connection: str | None
+    env_pass: bool
+    env_vars: dict[str, str] | None
 
-    def __init__(self):
+    def __init__(self, env_pass: bool = False, env_vars: dict[str, str] | None = None):
         self.connections: dict[str, BrowserConnection] = {}
         self.current_connection: str | None = None
+        self.env_pass = env_pass
+        self.env_vars = env_vars
 
     async def add_connection(self, name: str, connection_string: str) -> bool:
         """Add a new MCP connection using FastMCP Client connection string."""
         if name in self.connections:
             return False
 
-        if connection_string.startswith("http"):
+        if is_connection_string_url(connection_string):
             connection_type = "http"
         else:
             connection_type = "command"
 
         connection = BrowserConnection(name, connection_type, connection_string)
-        success = await connection.connect()
+        success = await connection.connect(env_pass=self.env_pass, env_vars=self.env_vars)
 
         if success:
             self.connections[name] = connection

@@ -18,7 +18,6 @@ class CatalogManager:
         self.search_catalog = ToolCatalog()
         self.logger = logging.getLogger(__name__)
 
-        # Load existing search cache
         self.load_search_cache()
 
     def load_search_cache(self) -> None:
@@ -30,7 +29,6 @@ class CatalogManager:
             with open(self.catalog_path, 'r') as f:
                 data = json.load(f)
 
-            # Load search catalog cache
             if "search_catalog" in data:
                 self.search_catalog.import_catalog(data["search_catalog"])
 
@@ -50,7 +48,8 @@ class CatalogManager:
         except Exception as e:
             self.logger.error("Error saving search cache: %s", e)
 
-    async def search_only(self, query: str, limit_per_source: int = 5) -> dict[str, list[ToolSearchResult]]:
+    @classmethod
+    async def search_only(cls, query: str, limit_per_source: int = 5) -> dict[str, list[ToolSearchResult]]:
         """Search for tools without auto-adding to cache."""
         async with ToolSearchEngine() as search_engine:
             results = await search_engine.search_all(query, limit_per_source)
@@ -61,11 +60,9 @@ class CatalogManager:
         async with ToolSearchEngine() as search_engine:
             results = await search_engine.search_all(query, limit_per_source)
 
-            # Add all results to cache
             for source_results in results.values():
                 self.search_catalog.add_results(source_results)
 
-            # Save updated cache
             self.save_search_cache()
 
             return results
@@ -78,7 +75,6 @@ class CatalogManager:
         """Get statistics about the search cache."""
         total_cached = len(self.search_catalog.catalog)
 
-        # Count by source
         source_counts = {}
         for result in self.search_catalog.catalog.values():
             source_counts[result.source] = source_counts.get(result.source, 0) + 1

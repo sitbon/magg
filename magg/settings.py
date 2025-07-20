@@ -2,7 +2,7 @@
 import json
 import logging
 import os
-from functools import cached_property
+from functools import cached_property, lru_cache
 from pathlib import Path
 from typing import Any, Callable, Coroutine, TYPE_CHECKING
 
@@ -202,8 +202,6 @@ class MaggConfig(BaseSettings):
         description="Explicit configuration file path (overrides path search) (env: MAGG_CONFIG_PATH)"
     )
     read_only: bool = Field(default=False, description="Run in read-only mode (env: MAGG_READ_ONLY)")
-    quiet: bool = Field(default=False, description="Suppress output unless errors occur (env: MAGG_QUIET)")
-    debug: bool = Field(default=False, description="Enable debug mode for Magg (env: MAGG_DEBUG)")
     log_level: str | None = Field(default=None, description="Logging level for Magg (default: INFO) (env: MAGG_LOG_LEVEL)")
     self_prefix: str = Field(
         default="magg",
@@ -215,7 +213,6 @@ class MaggConfig(BaseSettings):
     )
     auto_reload: bool = Field(default=True, description="Enable automatic config reloading on file changes (env: MAGG_AUTO_RELOAD)")
     reload_poll_interval: float = Field(default=1.0, description="Config file poll interval in seconds (env: MAGG_RELOAD_POLL_INTERVAL)")
-    reload_use_watchdog: bool | None = Field(default=None, description="Use file system notifications if available, None=auto-detect (env: MAGG_RELOAD_USE_WATCHDOG)")
     stderr_show: bool = Field(default=False, description="Show stderr output from subprocess MCP servers (env: MAGG_STDERR_SHOW)")
     servers: dict[str, ServerConfig] = Field(default_factory=dict, description="Servers configuration (loaded from config_path)")
     kits: dict[str, KitInfo] = Field(default_factory=dict, description="Loaded kits with metadata")
@@ -247,7 +244,6 @@ class MaggConfig(BaseSettings):
             if config_file.exists():
                 return config_file
 
-        # Return first path location for new config creation
         return self.path[0] / "config.json"
 
     def get_kitd_paths(self) -> list[Path]:
@@ -269,13 +265,18 @@ class MaggConfig(BaseSettings):
 
     @model_validator(mode='after')
     def export_environment_variables(self) -> 'MaggConfig':
-        """Export log_level and config_path as environment variables, in case they were not set that way.
-        """
-        if self.quiet and self.log_level is None:
-            self.log_level = 'CRITICAL'
+        """Export configuration as environment variables for child processes."""
+        if 'MAGG_LOG_LEVEL' not in os.environ:
+            os.environ['MAGG_LOG_LEVEL'] = self.log_level or 'INFO'
 
-        if 'MAGG_LOG_LEVEL' not in os.environ and self.log_level is not None:
-            os.environ['MAGG_LOG_LEVEL'] = self.log_level
+        if self.config_path and 'MAGG_CONFIG_PATH' not in os.environ:
+            os.environ['MAGG_CONFIG_PATH'] = str(self.config_path)
+
+        if 'MAGG_AUTO_RELOAD' not in os.environ:
+            os.environ['MAGG_AUTO_RELOAD'] = str(self.auto_reload).lower()
+
+        if 'MAGG_READ_ONLY' not in os.environ:
+            os.environ['MAGG_READ_ONLY'] = str(self.read_only).lower()
 
         return self
 
@@ -311,7 +312,7 @@ class ConfigManager:
     auth_config_path: Path
     auth_config: AuthConfig | None = None
     read_only: bool
-    _reload_manager: Any = None  # ReloadManager instance
+    _reload_manager: Any = None
 
     def __init__(self, config_path: Path | str | None = None):
         """Initialize config manager."""

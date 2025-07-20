@@ -5,21 +5,13 @@ import logging
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Coroutine, TypeAlias
-from datetime import datetime
 
 from .settings import MaggConfig, ServerConfig
 
 logger = logging.getLogger(__name__)
 
-# Try to import watchdog for file system notifications
-try:
-    from watchdog.observers import Observer
-    from watchdog.events import FileSystemEventHandler, FileModifiedEvent
-    WATCHDOG_AVAILABLE = True
-except ImportError:
-    WATCHDOG_AVAILABLE = False
-    Observer = None
-    FileSystemEventHandler = object
+from watchdog.observers import Observer
+from watchdog.events import FileSystemEventHandler
 
 ReloadCallback: TypeAlias = Callable[['ConfigChange'], Coroutine[None, None, None]]
 
@@ -88,13 +80,12 @@ class WatchdogHandler(FileSystemEventHandler):
 class ConfigReloader:
     """Manages configuration reloading with file watching and diff detection."""
 
-    def __init__(self, config_path: Path, reload_callback: ReloadCallback, *, use_watchdog: bool | None = None):
+    def __init__(self, config_path: Path, reload_callback: ReloadCallback):
         """Initialize the config reloader.
 
         Args:
             config_path: Path to the configuration file
             reload_callback: Async callback to handle config changes
-            use_watchdog: Force watchdog usage (True), disable it (False), or auto-detect (None)
         """
         self.config_path = config_path
         self.reload_callback = reload_callback
@@ -105,13 +96,6 @@ class ConfigReloader:
         self._reload_lock = asyncio.Lock()
         self._reload_event = asyncio.Event()
         self._ignore_next_change = False
-
-        # Determine if we should use watchdog
-        if use_watchdog is None:
-            self._use_watchdog = WATCHDOG_AVAILABLE
-        else:
-            self._use_watchdog = use_watchdog and WATCHDOG_AVAILABLE
-
         self._observer: Observer | None = None
         self._watchdog_handler: WatchdogHandler | None = None
 
@@ -128,26 +112,22 @@ class ConfigReloader:
         self._shutdown_event.clear()
         self._reload_event.clear()
 
-        if self._use_watchdog:
-            # Start watchdog observer
-            try:
-                self._observer = Observer()
-                self._watchdog_handler = WatchdogHandler(self.config_path, self._reload_event)
-                self._observer.schedule(
-                    self._watchdog_handler,
-                    str(self.config_path.parent),
-                    recursive=False
-                )
-                self._observer.start()
-                logger.debug("Started config file watcher using file system notifications (watchdog)")
-            except Exception as e:
-                logger.error("Failed to start watchdog observer: %s", e)
-                logger.debug("Falling back to polling mode")
-                self._use_watchdog = False
-                self._observer = None
-
-        if not self._use_watchdog:
-            logger.debug("Started config file watcher using polling (interval: %.1fs)", poll_interval)
+        # Try to start watchdog observer
+        try:
+            self._observer = Observer()
+            self._watchdog_handler = WatchdogHandler(self.config_path, self._reload_event)
+            self._observer.schedule(
+                self._watchdog_handler,
+                str(self.config_path.parent),
+                recursive=False
+            )
+            self._observer.start()
+            logger.debug("Started config file watcher using file system notifications (watchdog)")
+        except Exception as e:
+            logger.warning("Failed to start watchdog observer: %s. Falling back to polling mode.", e)
+            self._observer = None
+            self._watchdog_handler = None
+            logger.debug("Using polling mode (interval: %.1fs)", poll_interval)
 
         # Start the main watch loop
         self._watch_task = asyncio.create_task(self._watch_loop(poll_interval))
@@ -210,7 +190,7 @@ class ConfigReloader:
 
             while not self._shutdown_event.is_set():
                 try:
-                    if self._use_watchdog:
+                    if self._observer:
                         # Wait for reload event from watchdog
                         try:
                             await asyncio.wait_for(
@@ -227,7 +207,6 @@ class ConfigReloader:
                             # Just checking shutdown event periodically
                             pass
                     else:
-                        # Polling mode
                         await asyncio.sleep(poll_interval)
                         await self._check_for_changes()
                 except Exception as e:
@@ -254,9 +233,7 @@ class ConfigReloader:
             self._last_config = self._load_config()
             return
 
-        # Check if file was modified
         if current_mtime > self._last_mtime:
-            # Check if we should ignore this change
             if self._ignore_next_change:
                 logger.debug("Ignoring config file change (internal modification)")
                 self._ignore_next_change = False
@@ -317,7 +294,6 @@ class ConfigReloader:
             with self.config_path.open('r') as f:
                 data = json.load(f)
 
-            # Parse servers
             servers = {}
             for name, server_data in data.get('servers', {}).items():
                 try:
@@ -403,7 +379,6 @@ class ConfigReloader:
     def _validate_config(self, config: MaggConfig) -> bool:
         """Validate that the configuration is valid."""
         try:
-            # Validate each server
             for name, server in config.servers.items():
                 if not server.command and not server.uri:
                     logger.error("Server '%s' has neither command nor uri", name)
@@ -450,8 +425,7 @@ class ReloadManager:
             if self.config_manager.config_path.exists():
                 self._config_reloader = ConfigReloader(
                     config_path=self.config_manager.config_path,
-                    reload_callback=reload_callback,
-                    use_watchdog=config.reload_use_watchdog
+                    reload_callback=reload_callback
                 )
                 await self._config_reloader.start_watching(poll_interval=config.reload_poll_interval)
 
@@ -472,7 +446,6 @@ class ReloadManager:
             return False
 
         if not self._config_reloader:
-            # Create a temporary reloader for manual reload
             if not self.config_manager.config_path.exists():
                 logger.error("Config file does not exist: %s", self.config_manager.config_path)
                 return False
@@ -480,8 +453,7 @@ class ReloadManager:
             config = self.config_manager.load_config()
             reloader = ConfigReloader(
                 config_path=self.config_manager.config_path,
-                reload_callback=self._reload_callback,
-                use_watchdog=config.reload_use_watchdog
+                reload_callback=self._reload_callback
             )
             change = await reloader.reload_config()
             return change is not None

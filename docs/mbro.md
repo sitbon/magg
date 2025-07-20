@@ -296,7 +296,7 @@ mbro> call magg_server_enable <TAB>
 └─────────────────────────────────────────────────────┘
 ```
 
-#### 🔍 Enhanced Tab Completion
+#### 🔍 Tab Completion
 Tab completion provides rich parameter information:
 - **Parameter names with types**: `server=` | `string` | `required` | `Name of server to enable`
 - **Type-aware value suggestions**: Enum values, boolean `true/false`, examples
@@ -312,7 +312,7 @@ Error: Tool 'wether' not found.
 Did you mean: weather, whether_tool?
 ```
 
-#### ⚡ Enhanced Search
+#### ⚡ Search
 - Multi-word search support: `search file manager`
 - Searches across names, descriptions, and URIs
 - More flexible matching algorithms
@@ -559,35 +559,51 @@ mbro:magg> call weather_current location=London
 }
 ```
 
-### Example 4: Using Natural Language (Enhanced Mode)
+### Example 3.1: Using Magg in Hybrid Mode
 
 ```bash
+# mbro can host Magg in hybrid mode and connect via stdio
 $ mbro
-MBRO - MCP Browser
-Type 'help' for available commands or 'quit' to exit.
-Enhanced mode: Ctrl+M for multiline JSON, natural language supported
+mbro> connect magg "magg serve --hybrid --port 8080"
+Connected to 'magg' (Tools: 11, Resources: 5, Prompts: 2)
 
-mbro> connect to calculator at npx -y @modelcontextprotocol/server-calculator
-Connected to 'calculator' (Tools: 4, Resources: 0, Prompts: 0)
+# Now Magg is:
+# - Connected to mbro via stdio
+# - Also accessible via HTTP at http://localhost:8080
 
-mbro:calculator> what tools are available?
-Available tools:
-  - add: Add two numbers
-  - subtract: Subtract two numbers
-  - multiply: Multiply two numbers
-  - divide: Divide two numbers
+# In another terminal, different mbro instances can connect via HTTP
+$ mbro
+mbro> connect magg-remote http://localhost:8080
+Connected to 'magg-remote' (Tools: 11, Resources: 5, Prompts: 2)
 
-mbro:calculator> call add with a=25 and b=17
-42
+# Both connections can use Magg simultaneously
+mbro:magg> call calc_add a=5 b=3
+8
 
-mbro:calculator> search for mult
-Search results for 'mult':
+mbro:magg-remote> call calc_multiply a=5 b=3
+15
+```
 
-Tools (1):
-  - multiply: Multiply two numbers
+### Example 4: Script Automation
 
-mbro:calculator> call multiply a=6 b=7
-42
+```bash
+# Create a script file for common tasks
+$ cat > weather_check.mbro << 'EOF'
+# Weather check script
+connect weather npx -y @modelcontextprotocol/server-weather
+call get_forecast location="San Francisco" days=3
+disconnect
+quit
+EOF
+
+# Execute the script
+$ mbro -x weather_check.mbro
+
+# Or execute non-interactively
+$ mbro -X weather_check.mbro
+
+# Chain multiple scripts
+$ mbro -x setup.mbro -x weather_check.mbro -x cleanup.mbro
 ```
 
 ## Output Modes
@@ -636,6 +652,9 @@ echo $result | jq
 
 # One-liner with proper escaping
 mbro --json connect calc npx -y @modelcontextprotocol/server-calculator \; call add a=5 b=3 | jq
+
+# Quiet mode - suppress informational messages
+mbro -q connect calc npx -y @modelcontextprotocol/server-calculator \; call add a=5 b=3
 ```
 
 ## Tips and Tricks
@@ -649,11 +668,14 @@ mbro --json connect calc npx -y @modelcontextprotocol/server-calculator \; call 
 
 ### Command Line Options 
    - `commands` - Commands to execute (positional arguments)
+   - `--version` / `-V` - Show version information
    - `--json` / `-j` - Output only JSON (machine-readable)
    - `--no-rich` - Disable Rich formatting
    - `--indent N` - Set JSON indent level (0 for compact, default: 2)
    - `--verbose` / `-v` - Enable verbose output (can be used multiple times)
-   - `--no-enhanced` - Disable enhanced features (shell-style args, multiline, etc.)
+   - `--quiet` / `-q` - Suppress informational messages
+   - `--env-pass` / `-e` - Pass environment to stdio MCP servers
+   - `--env-set KEY VALUE` / `-E KEY VALUE` - Set environment variable for stdio MCP servers (can be used multiple times)
    - `--repl` - Drop into REPL mode on startup
    - `-n` / `--no-interactive` - Don't drop into interactive mode after commands
    - `-x SCRIPT` / `--execute-script SCRIPT` - Execute .mbro script file (can be used multiple times)

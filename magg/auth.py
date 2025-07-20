@@ -37,7 +37,6 @@ class BearerAuthManager:
         if not self.enabled:
             raise RuntimeError("Authentication is not enabled")
 
-        # Already loaded
         if self._private_key and self._public_key:
             return
 

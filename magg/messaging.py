@@ -63,7 +63,6 @@ class MessageRouter:
                         if not self._handlers[server_id]:
                             del self._handlers[server_id]
             except ValueError:
-                # Handler not found, ignore
                 pass
 
     async def route_message(

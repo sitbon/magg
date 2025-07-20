@@ -52,8 +52,8 @@ class TestMessagingIntegration:
 
         # Verify client has message handler (we can't directly test this without
         # starting the actual server, but we can verify the setup doesn't break)
-        client = server_manager.mounted_servers["test_server"]["client"]
-        assert client is not None
+        mounted_server = server_manager.mounted_servers["test_server"]
+        assert mounted_server.client is not None
 
         # Clean up
         await server_manager.unmount_server("test_server")
@@ -142,7 +142,7 @@ class TestMessagingIntegration:
 
     @pytest.mark.asyncio
     async def test_server_mounting_without_messaging(self, tmp_path):
-        """Test that server mounting works even if messaging isn't available."""
+        """Test that server mounting fails gracefully without messaging support."""
         from magg.settings import ConfigManager
         from magg.proxy.mixin import ProxyMCP  # Use base ProxyMCP without messaging
         from fastmcp import FastMCP
@@ -176,10 +176,10 @@ class TestMessagingIntegration:
         server_manager = ServerManager(config_manager)
         server_manager.mcp = basic_server  # Replace with basic server
 
-        # Mount should still work (without message handlers)
+        # Mount should fail without message coordinator
         server_config = config.servers["test_server"]
         result = await server_manager.mount_server(server_config)
-        assert result is True
+        assert result is False  # Should fail gracefully
 
-        # Clean up
-        await server_manager.unmount_server("test_server")
+        # Verify server was not mounted
+        assert "test_server" not in server_manager.mounted_servers

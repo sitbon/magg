@@ -1,5 +1,4 @@
 import os
-import shutil
 import sys
 from pathlib import Path
 from typing import Optional
@@ -12,7 +11,7 @@ try:
 except (ImportError, ModuleNotFoundError):
     pass
 
-__all__ = "initterm", "is_subdirectory", "get_project_root"
+__all__ = "initterm", "is_subdirectory", "get_project_root", "get_subprocess_environment",
 
 
 def initterm(**kwds) -> Optional["console.Console"]:
@@ -58,3 +57,21 @@ def is_subdirectory(child: Path, parent: Path) -> bool:
 def get_project_root() -> Path:
     """Get the current project root (where .magg directory is)."""
     return Path.cwd()
+
+
+def get_subprocess_environment(*, inherit: bool = False, provided: dict | None = None) -> dict:
+    """Get the environment for subprocesses.
+
+    Args:
+        inherit: If True, inherit the current environment.
+        provided: Additional environment variables to include.
+
+    Returns:
+        A dictionary of environment variables.
+    """
+    env = os.environ.copy() if inherit else {}
+
+    if provided:
+        env.update(provided)
+
+    return env

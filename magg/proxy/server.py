@@ -15,7 +15,7 @@ from ..messaging import MessageRouter, ServerMessageCoordinator
 
 logger = logging.getLogger(__name__)
 
-__all__ = "ProxyFastMCP",
+__all__ = "ProxyFastMCP", "BackendMessageHandler",
 
 
 class BackendMessageHandler(MessageHandler):

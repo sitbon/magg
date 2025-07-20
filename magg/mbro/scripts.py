@@ -210,7 +210,7 @@ class ScriptManager:
             self.formatter.format_error(f"Failed to read script: {e}")
             return
 
-        if not self.formatter.json_only and self.cli.use_enhanced and hasattr(self.cli, 'multiline_handler'):
+        if not self.formatter.json_only and hasattr(self.cli, 'multiline_handler'):
             self.formatter.format_info(f"Script: {script_path.name}\nPress Ctrl+D to run, Ctrl+C to cancel")
 
             edited = await self.cli.multiline_handler.get_multiline_input(

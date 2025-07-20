@@ -2,6 +2,8 @@
 """
 import asyncio
 import logging
+import os
+from dataclasses import dataclass
 from functools import cached_property
 from typing import Annotated
 
@@ -12,7 +14,7 @@ from .defaults import MAGG_INSTRUCTIONS
 from .response import MaggResponse
 from ..auth import BearerAuthManager
 from ..kit import KitManager
-from ..proxy.server import ProxyFastMCP
+from ..proxy.server import ProxyFastMCP, BackendMessageHandler
 from ..reload import ConfigChange, ServerChange
 from ..settings import ConfigManager, MaggConfig, ServerConfig
 from ..util.stdio_patch import patch_stdio_transport_stderr
@@ -21,13 +23,23 @@ from ..util.transport import get_transport_for_command, get_transport_for_uri
 logger = logging.getLogger(__name__)
 
 
+@dataclass
+class MountedServer:
+    """Information about a mounted MCP server."""
+    proxy: FastMCP
+    client: Client
+
+
 class ServerManager:
     """Manages MCP servers - mounting, unmounting, and tracking."""
     config_manager: ConfigManager
     mcp: ProxyFastMCP
-    mounted_servers: dict
-    def __init__(self, config_manager: ConfigManager):
+    mounted_servers: dict[str, MountedServer]
+    subprocess_env: dict | None = None
+
+    def __init__(self, config_manager: ConfigManager, *, env: dict | None = None):
         self.config_manager = config_manager
+        self.subprocess_env = env.copy() if env else None
 
         auth_config = config_manager.load_auth_config()
         auth_provider = None
@@ -40,7 +52,6 @@ class ServerManager:
             except RuntimeError as e:
                 logger.warning("Authentication disabled: %s", e)
 
-        # Create FastMCP instance with optional auth
         self.mcp = ProxyFastMCP(
             name=self.self_prefix,
             instructions=MAGG_INSTRUCTIONS.format(self_prefix=self.self_prefix),
@@ -80,25 +91,34 @@ class ServerManager:
             return False
 
         try:
-            message_handler = None
-            if hasattr(self.mcp, 'message_coordinator'):
-                from ..proxy.server import BackendMessageHandler
-                message_handler = BackendMessageHandler(
-                    server_id=server.name,
-                    coordinator=self.mcp.message_coordinator
-                )
+            message_handler = BackendMessageHandler(
+                server_id=server.name,
+                coordinator=self.mcp.message_coordinator
+            )
 
             if server.command:
+                env = None
+
+                if server.env or self.subprocess_env:
+                    env = {}
+
+                    if server.env:
+                        env.update(server.env)
+
+                    if self.subprocess_env:
+                        env.update(self.subprocess_env)
+
                 transport = get_transport_for_command(
                     command=server.command,
                     args=server.args or [],
-                    env=server.env,
+                    env=env,
                     cwd=server.cwd,
                     transport_config=server.transport
                 )
-                # Suppress stderr from subprocess servers by default
+
                 if not self.config.stderr_show:
                     transport = patch_stdio_transport_stderr(transport)
+
                 client = Client(transport, message_handler=message_handler)
 
             elif server.uri:
@@ -106,6 +126,7 @@ class ServerManager:
                     uri=server.uri,
                     transport_config=server.transport
                 )
+
                 client = Client(transport, message_handler=message_handler)
 
             else:
@@ -115,10 +136,10 @@ class ServerManager:
             proxy_server = FastMCP.as_proxy(client, name=server.name)
             self.mcp.mount(server=proxy_server, prefix=server.prefix)
 
-            self.mounted_servers[server.name] = {
-                'proxy': proxy_server,
-                'client': client
-            }
+            self.mounted_servers[server.name] = MountedServer(
+                proxy=proxy_server,
+                client=client
+            )
 
             logger.debug("Mounted server %s with prefix %r", server.name, server.prefix)
             return True
@@ -152,6 +173,7 @@ class ServerManager:
             for i, ms in enumerate(mounted_servers):
                 if hasattr(ms, 'server') and hasattr(ms.server, 'name') and ms.server.name == server_name:
                     mounted_servers.pop(i)
+                    found = True
                     logger.debug("Removed server %s from resource manager", server_name)
                     break
 
@@ -161,6 +183,7 @@ class ServerManager:
             for i, ms in enumerate(mounted_servers):
                 if hasattr(ms, 'server') and hasattr(ms.server, 'name') and ms.server.name == server_name:
                     mounted_servers.pop(i)
+                    found = True
                     logger.debug("Removed server %s from prompt manager", server_name)
                     break
 
@@ -175,11 +198,10 @@ class ServerManager:
             else:
                 logger.debug("Server %s was not found in FastMCP's mounted servers", name)
 
-            server_info = self.mounted_servers.get(name, {})
-            client: Client = server_info.get('client')
-            if client:
+            server_info = self.mounted_servers.get(name)
+            if server_info and server_info.client:
                 try:
-                    await client.close()
+                    await server_info.client.close()
                     logger.debug("Closed client for server %s", name)
                 except Exception as e:
                     logger.warning("Error closing client for server %s: %s", name, e)
@@ -411,17 +433,23 @@ class ManagedServer:
                 )
 
     async def run_stdio(self):
-        """Run Magg in stdio mode."""
+        """Run Magg in stdio mode.
+        """
         await self.setup()
         await self.mcp.run_stdio_async(show_banner=False)
 
-    async def run_http(self, host: str = "localhost", port: int = 8000, log_level: str = "CRITICAL"):
-        """Run Magg in HTTP mode."""
+    async def run_http(self, host: str = "localhost", port: int = 8000, log_level: str | None = None):
+        """Run Magg in HTTP mode.
+        """
+        log_level = log_level or os.getenv("FASTMCP_LOG_LEVEL", "CRITICAL").upper() or "CRITICAL"
         await self.setup()
         await self.mcp.run_http_async(host=host, port=port, log_level=log_level, show_banner=False)
 
-    async def run_hybrid(self, host: str = "localhost", port: int = 8000, log_level: str = "INFO"):
-        """Run Magg in hybrid mode - both stdio and HTTP simultaneously."""
+    async def run_hybrid(self, host: str = "localhost", port: int = 8000, log_level: str | None = None):
+        """Run Magg in hybrid mode - both stdio and HTTP simultaneously.
+        """
+        log_level = log_level or os.getenv("FASTMCP_LOG_LEVEL", "CRITICAL").upper() or "CRITICAL"
+
         await self.setup()
 
         http_task = asyncio.create_task(

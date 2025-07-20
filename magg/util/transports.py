@@ -30,12 +30,10 @@ class NoValidatePythonStdioTransport(PythonStdioTransport):
             cwd: Working directory
             keep_alive: Whether to keep process alive
         """
-        # Build the full command without validation
         full_args = [script_path] if script_path else []
         if args:
             full_args.extend(args)
 
-        # Initialize parent StdioTransport directly to skip PythonStdioTransport's validation
         StdioTransport.__init__(
             self,
             command=python_cmd,
@@ -68,12 +66,10 @@ class NoValidateNodeStdioTransport(NodeStdioTransport):
             cwd: Working directory
             keep_alive: Whether to keep process alive
         """
-        # Build the full command without validation
         full_args = [script_path] if script_path else []
         if args:
             full_args.extend(args)
 
-        # Initialize parent StdioTransport directly to skip NodeStdioTransport's validation
         StdioTransport.__init__(
             self,
             command=node_cmd,

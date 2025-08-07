@@ -443,5 +443,6 @@ Magg appears in multiple locations. Please feel free to submit a PR to add more 
 
 ### Awesome GitHub MCP Lists
 
+* [@modelcontextprotocol/servers](https://github.com/modelcontextprotocol/servers)
 * [@punkpeye/awesome-mcp-servers](https://github.com/punkpeye/awesome-mcp-servers)
 * [@wong2/awesome-mcp-servers](https://github.com/wong2/awesome-mcp-servers)

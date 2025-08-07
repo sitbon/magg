@@ -15,21 +15,21 @@ This directory contains GitHub Actions workflows for automated testing, publishi
 
 ### 2. Publish to PyPI (`publish.yml`)
 - **Trigger**: On push to main branch
-- **Purpose**: Automatically publish new versions to PyPI without version commits
+- **Purpose**: Automatically publish new versions to PyPI when version changes
 - **Actions**:
-  1. Run all tests (must pass to continue)
-  2. Calculate version as X.Y.Z.C (C = commit count)
-  3. Update version in pyproject.toml temporarily
-  4. Build the package
-  5. Create GPG-signed tag (magg/vX.Y.Z.C)
-  6. Push tag to repository
-  7. Create GitHub release with changelog
-  8. Publish to PyPI
+  1. Check if version in pyproject.toml has changed since last publish
+  2. If changed, build the package
+  3. Create GPG-signed tag (vX.Y.Z)
+  4. Create simplified tag for major.minor (vX.Y)
+  5. Push tags to repository
+  6. Create GitHub release with changelog
+  7. Publish to PyPI
+  8. Update latest-publish tag for future comparisons
 
 ### 3. Docker Build and Publish (`docker-publish.yml`)
 - **Trigger**: 
-  - Push to beta branch
-  - Version tags matching `magg/v*`
+  - Push to main or beta branch
+  - Version tags matching `v*.*.*`
   - Pull requests to main or beta (build only)
 - **Purpose**: Build and publish multi-stage Docker images
 - **Actions**:
@@ -54,6 +54,7 @@ This directory contains GitHub Actions workflows for automated testing, publishi
 
 The following secrets must be configured in the GitHub repository settings:
 
+- `PAT_TOKEN`: Personal Access Token with read/write permissions on Content
 - `GPG_PRIVATE_KEY`: The GPG private key for signing commits and tags
 - `GPG_PASSPHRASE`: The passphrase for the GPG key
 - `PYPI_TOKEN`: The API token for publishing to PyPI
@@ -69,33 +70,38 @@ The following environment variables should be set in the `publish` environment:
 
 ## Version Numbering
 
-The version number follows the pattern `X.Y.Z.C` where:
-- X.Y.Z is the base version from pyproject.toml
-- C is the commit count from git history
+The version number follows the pattern `X.Y.Z` where:
+- X = Major version (breaking changes)
+- Y = Minor version (new features)
+- Z = Patch version (bug fixes)
 
-This ensures every commit to main gets a unique, incrementing version number without requiring version bump commits.
+The workflow only publishes when the version in pyproject.toml is manually changed.
 
 ## Docker Image Tags
 
 Docker images are tagged based on the trigger:
 - **From beta branch**: `beta`, `beta-pre`, `beta-dev`
-- **From version tags**: `1.2.3.4`, `1.2`, `latest` (main only)
+- **From version tags**: `1.2.3`, `1.2`, `latest` (main only)
 - **With Python versions**: `beta-dev-py3.12`, `beta-dev-py3.13`, etc.
 
 ## Environment Configuration
 
 The publish environment requires:
-- `SIGNED_COMMIT_USER`: Git user name for commits
+- `SIGNED_COMMIT_USER`: Git username for commits
 - `SIGNED_COMMIT_EMAIL`: Git user email for commits
 
 ## Usage
 
-1. **Regular Development**: Push to any branch to run tests
-2. **Publishing to PyPI**: Merge to main branch to automatically publish
-3. **Docker Images**: 
-   - Push to beta branch for testing images
-   - Version tags on main create production images
-4. **Testing Publishing**: Use the manual workflow dispatch to dry-run
+**Publishing to PyPI**: 
+1. Update version in pyproject.toml
+2. Commit and push to main branch
+3. Workflow will automatically detect version change and publish
+
+**Docker Images**: 
+- Push to beta branch for testing images
+- Version tags created by publish workflow trigger production images
+
+**Testing Publishing**: Use the manual workflow dispatch to dry-run
 
 ## Branch Strategy
 
@@ -105,6 +111,7 @@ The publish environment requires:
 
 ## Troubleshooting
 
+- If git operations fail, ensure the PAT_TOKEN has sufficient permissions
 - If GPG signing fails, ensure the GPG key is properly imported and the secrets are correct
 - If PyPI publishing fails, check that the PYPI_TOKEN has sufficient permissions
 - If Docker builds fail, check that dev image tests are passing

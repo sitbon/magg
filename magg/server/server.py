@@ -798,7 +798,7 @@ Please provide:
             unresponsive_servers = []
 
             for server_name, server_info in self.server_manager.mounted_servers.items():
-                client = server_info.get('client')
+                client = server_info.client
                 if not client:
                     results[server_name] = {"status": "error", "reason": "No client found"}
                     unresponsive_servers.append(server_name)

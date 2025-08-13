@@ -7,7 +7,7 @@ ARG UID=1000
 
 ENV PATH="${HOME}/.local/bin:${PATH}"
 
-RUN apk add --no-cache tini bash curl nano nodejs npm && \
+RUN apk add --no-cache tini bash curl nano nodejs npm python3 py3-pip && \
     addgroup -g ${UID} -S ${USER} && \
     adduser -u ${UID} -S -G ${USER} -h ${HOME} -s /bin/bash ${USER} && \
     chmod 755 ${HOME}

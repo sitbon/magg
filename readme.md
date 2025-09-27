@@ -432,6 +432,12 @@ mbro -x setup.mbro
 
 For more documentation, see [docs/](docs/index.md).
 
+## Related Tools
+
+### MCP Orchestrators
+
+- **[NCP (Natural Context Protocol)](https://github.com/portel-dev/ncp)** - A complementary MCP orchestrator focused on performance optimization. While Magg excels at dynamic server management and runtime configuration, NCP specializes in token overhead reduction (94.8% savings) and O(1) complexity scaling. Both tools can be used together: Magg for flexible server management and NCP for production performance optimization.
+
 ## Appearances
 
 Magg appears in multiple locations. Please feel free to submit a PR to add more appearances below in alphabetical order.

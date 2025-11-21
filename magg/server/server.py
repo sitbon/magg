@@ -45,23 +45,38 @@ class MaggServer(ManagedServer):
         """
         self_prefix_ = self.self_prefix_
 
-        tools = [
-            (self.add_server, f"{self_prefix_}add_server", None),
-            (self.remove_server, f"{self_prefix_}remove_server", None),
-            (self.list_servers, f"{self_prefix_}list_servers", None),
-            (self.enable_server, f"{self_prefix_}enable_server", None),
-            (self.disable_server, f"{self_prefix_}disable_server", None),
-            (self.search_servers, f"{self_prefix_}search_servers", None),
-            (self.smart_configure, f"{self_prefix_}smart_configure", None),
-            (self.analyze_servers, f"{self_prefix_}analyze_servers", None),
-            (self.status, f"{self_prefix_}status", None),
-            (self.check, f"{self_prefix_}check", None),
-            (self.reload_config_tool, f"{self_prefix_}reload_config", None),
+        # Define kit-related tools
+        kit_tools = [
             (self.load_kit, f"{self_prefix_}load_kit", None),
             (self.unload_kit, f"{self_prefix_}unload_kit", None),
             (self.list_kits, f"{self_prefix_}list_kits", None),
             (self.kit_info, f"{self_prefix_}kit_info", None),
         ]
+
+        # Define read-only/view tools
+        view_tools = [
+            (self.list_servers, f"{self_prefix_}list_servers", None),
+            (self.status, f"{self_prefix_}status", None),
+        ]
+
+        # Define modification tools
+        modification_tools = [
+            (self.add_server, f"{self_prefix_}add_server", None),
+            (self.remove_server, f"{self_prefix_}remove_server", None),
+            (self.enable_server, f"{self_prefix_}enable_server", None),
+            (self.disable_server, f"{self_prefix_}disable_server", None),
+            (self.search_servers, f"{self_prefix_}search_servers", None),
+            (self.smart_configure, f"{self_prefix_}smart_configure", None),
+            (self.analyze_servers, f"{self_prefix_}analyze_servers", None),
+            (self.check, f"{self_prefix_}check", None),
+            (self.reload_config_tool, f"{self_prefix_}reload_config", None),
+        ]
+
+        # If kit_changes_only is enabled, only register kit and view tools
+        if self.config.kit_changes_only:
+            tools = kit_tools + view_tools
+        else:
+            tools = modification_tools + view_tools + kit_tools
 
         def call_tool_wrapper(func):
             @wraps(func)

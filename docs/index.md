@@ -609,6 +609,23 @@ mbro:magg> call magg_unload_kit name="web-tools"
 
 For complete documentation, see **[Kit Management Guide](kits.md)**.
 
+### Kit-Only Mode
+
+Magg supports a restricted mode where only kit management and view operations are allowed. This is useful for controlled environments where you want to manage servers exclusively through curated kits.
+
+**Enable kit-only mode:**
+```bash
+MAGG_KIT_CHANGES_ONLY=true magg serve
+```
+
+**In kit-only mode, only these tools are exposed:**
+- `magg_load_kit` - Load a kit
+- `magg_unload_kit` - Unload a kit
+- `magg_list_kits` - List available kits
+- `magg_kit_info` - Get kit information
+- `magg_list_servers` - View current servers
+- `magg_status` - View system status
+
 ## Authentication
 
 Magg supports optional bearer token authentication using RSA keypairs and JWT tokens. When enabled, all clients must provide a valid JWT token to access the server.

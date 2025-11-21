@@ -150,6 +150,24 @@ Example custom kit:
 4. **Server Names**: Use consistent, meaningful server names
 5. **Keywords**: Add relevant keywords for discoverability
 
+## Kit-Only Mode
+
+For controlled environments where server management should be restricted to curated kits, enable kit-only mode:
+
+```bash
+MAGG_KIT_CHANGES_ONLY=true magg serve
+```
+
+**In kit-only mode:**
+- ✅ Kit operations allowed: `load_kit`, `unload_kit`, `list_kits`, `kit_info`
+- ✅ View operations allowed: `list_servers`, `status`
+- ❌ Direct server management blocked: `add_server`, `remove_server`, `enable_server`, etc.
+
+**Use cases:**
+- Production environments with centrally managed server configurations
+- Team settings where infrastructure is controlled through reviewed kits
+- Compliance scenarios requiring restricted ad-hoc changes
+
 ## Example Kits
 
 ### Web Tools Kit

@@ -214,6 +214,7 @@ class MaggConfig(BaseSettings):
     auto_reload: bool = Field(default=True, description="Enable automatic config reloading on file changes (env: MAGG_AUTO_RELOAD)")
     reload_poll_interval: float = Field(default=1.0, description="Config file poll interval in seconds (env: MAGG_RELOAD_POLL_INTERVAL)")
     stderr_show: bool = Field(default=False, description="Show stderr output from subprocess MCP servers (env: MAGG_STDERR_SHOW)")
+    kit_changes_only: bool = Field(default=False, description="Expose only kit-related and read-only tools (load/unload/list/info kits, list_servers, list_tools, status), allowing viewing current state but only allowing changes via kits (env: MAGG_KIT_CHANGES_ONLY)")
     servers: dict[str, ServerConfig] = Field(default_factory=dict, description="Servers configuration (loaded from config_path)")
     kits: dict[str, KitInfo] = Field(default_factory=dict, description="Loaded kits with metadata")
 

@@ -321,6 +321,7 @@ Magg supports several environment variables for configuration:
 - `MAGG_CONFIG_PATH` - Path to config file (default: `.magg/config.json`)
 - `MAGG_LOG_LEVEL` - Logging level: DEBUG, INFO, WARNING, ERROR, CRITICAL (default: INFO)
 - `MAGG_STDERR_SHOW=1` - Show stderr output from subprocess MCP servers (default: suppressed)
+- `MAGG_KIT_CHANGES_ONLY=true` - Expose only kit-related and view tools (load_kit, unload_kit, list_kits, kit_info, list_servers, status), allowing viewing current state but only allowing server changes via kits (default: false)
 - `MAGG_AUTO_RELOAD` - Enable/disable config auto-reload (default: true)
 - `MAGG_RELOAD_POLL_INTERVAL` - Config polling interval in seconds (default: 1.0)
 - `MAGG_READ_ONLY=true` - Run in read-only mode

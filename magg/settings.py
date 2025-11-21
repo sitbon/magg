@@ -12,7 +12,7 @@ if TYPE_CHECKING:
 from pydantic import field_validator, Field, model_validator, AnyUrl, BaseModel
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from .util.system import get_project_root
+from .util.system import get_project_root, expand_env_vars, expand_env_vars_in_dict
 from .util.paths import get_contrib_paths
 
 __all__ = "ServerConfig", "MaggConfig", "ConfigManager", "AuthConfig", "BearerAuthConfig", "ClientSettings", "KitInfo"
@@ -355,6 +355,19 @@ class ConfigManager:
             for name, server_data in data.pop('servers', {}).items():
                 try:
                     server_data['name'] = name
+
+                    # Expand environment variables in env field
+                    if 'env' in server_data and isinstance(server_data['env'], dict):
+                        server_data['env'] = expand_env_vars_in_dict(server_data['env'])
+
+                    # Expand environment variables in transport.headers field
+                    if 'transport' in server_data and isinstance(server_data['transport'], dict):
+                        if 'headers' in server_data['transport'] and isinstance(server_data['transport']['headers'], dict):
+                            server_data['transport']['headers'] = expand_env_vars_in_dict(server_data['transport']['headers'])
+                        # Expand environment variables in transport.auth field
+                        if 'auth' in server_data['transport'] and isinstance(server_data['transport']['auth'], str):
+                            server_data['transport']['auth'] = expand_env_vars(server_data['transport']['auth'])
+
                     servers[name] = ServerConfig.model_validate(server_data)
                 except Exception as e:
                     self.logger.error("Error loading server %r: %s", name, e)

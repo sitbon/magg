@@ -1,4 +1,6 @@
+"""System utilities for Magg - terminal initialization, paths, and environment handling."""
 import os
+import re
 import sys
 from pathlib import Path
 from typing import Optional
@@ -11,7 +13,14 @@ try:
 except (ImportError, ModuleNotFoundError):
     pass
 
-__all__ = "initterm", "is_subdirectory", "get_project_root", "get_subprocess_environment",
+__all__ = (
+    "initterm",
+    "is_subdirectory",
+    "get_project_root",
+    "get_subprocess_environment",
+    "expand_env_vars",
+    "expand_env_vars_in_dict",
+)
 
 
 def initterm(**kwds) -> Optional["console.Console"]:
@@ -75,3 +84,74 @@ def get_subprocess_environment(*, inherit: bool = False, provided: dict | None =
         env.update(provided)
 
     return env
+
+
+def expand_env_vars(value: str) -> str:
+    """Expand environment variables in a string.
+
+    Supports the following formats:
+    - ${VAR} - expands to the value of VAR (or stays as-is if VAR doesn't exist)
+    - ${VAR:-default} - expands to the value of VAR, or 'default' if VAR is unset
+
+    Args:
+        value: String potentially containing environment variable references
+
+    Returns:
+        String with environment variables expanded
+
+    Examples:
+        >>> os.environ['API_KEY'] = 'secret123'
+        >>> expand_env_vars('Bearer ${API_KEY}')
+        'Bearer secret123'
+        >>> expand_env_vars('${MISSING:-default}')
+        'default'
+    """
+    if not isinstance(value, str):
+        return value
+
+    # Pattern for ${VAR:-default} or ${VAR}
+    def replace_braced(match):
+        var_expr = match.group(1)
+        if ':-' in var_expr:
+            var_name, default = var_expr.split(':-', 1)
+            return os.environ.get(var_name.strip(), default)
+        return os.environ.get(var_expr, match.group(0))
+
+    # Handle ${VAR:-default} and ${VAR}
+    return re.sub(r'\$\{([^}]+)\}', replace_braced, value)
+
+
+def expand_env_vars_in_dict(data: dict) -> dict:
+    """Recursively expand environment variables in dictionary string values.
+
+    Args:
+        data: Dictionary potentially containing string values with env var references
+
+    Returns:
+        Dictionary with all string values expanded
+
+    Examples:
+        >>> os.environ['TOKEN'] = 'abc123'
+        >>> expand_env_vars_in_dict({'auth': 'Bearer ${TOKEN}', 'count': 5})
+        {'auth': 'Bearer abc123', 'count': 5}
+    """
+    if not isinstance(data, dict):
+        return data
+
+    result = {}
+    for key, value in data.items():
+        if isinstance(value, str):
+            result[key] = expand_env_vars(value)
+        elif isinstance(value, dict):
+            result[key] = expand_env_vars_in_dict(value)
+        elif isinstance(value, list):
+            result[key] = [
+                expand_env_vars(item) if isinstance(item, str)
+                else expand_env_vars_in_dict(item) if isinstance(item, dict)
+                else item
+                for item in value
+            ]
+        else:
+            result[key] = value
+
+    return result

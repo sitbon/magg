@@ -947,7 +947,7 @@ For servers requiring special setup:
    ```json
    {
      "name": "docker-server",
-     "source": "docker://myimage:tag", 
+     "source": "docker://myimage:tag",
      "prefix": "myimage",
      "command": "docker run -i myimage:tag",
      "env": {
@@ -955,6 +955,52 @@ For servers requiring special setup:
      }
    }
    ```
+
+### Environment Variable Expansion
+
+Magg automatically expands environment variables in the `env`, `transport.headers`, and `transport.auth` fields when loading configuration. This allows you to keep secrets and sensitive data out of config files.
+
+**Supported Syntax:**
+- `${VAR}` - Expands to the value of VAR (or stays as-is if VAR doesn't exist)
+- `${VAR:-default}` - Expands to the value of VAR, or 'default' if VAR is unset/empty
+
+**Example Configuration:**
+```json
+{
+  "servers": {
+    "remote-api": {
+      "source": "https://example.com/api-server",
+      "uri": "https://api.example.com/mcp",
+      "transport": {
+        "auth": "Bearer ${API_TOKEN}",
+        "headers": {
+          "X-Environment": "${ENVIRONMENT:-production}"
+        }
+      }
+    },
+    "local-server": {
+      "source": "https://example.com/local-server",
+      "command": "python",
+      "args": ["server.py"],
+      "env": {
+        "DATABASE_URL": "${DATABASE_URL}",
+        "API_KEY": "${API_KEY}",
+        "LOG_LEVEL": "${LOG_LEVEL:-info}"
+      }
+    }
+  }
+}
+```
+
+**Set environment variables before running Magg:**
+```bash
+export API_TOKEN="secret_token_123"
+export DATABASE_URL="postgresql://localhost/mydb"
+export API_KEY="my_api_key"
+magg serve
+```
+
+This approach keeps secrets out of version control while maintaining readable configuration files.
 
 ### Debugging
 

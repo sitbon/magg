@@ -244,3 +244,146 @@ class TestConfigManager:
 
             # Should return empty config on error
             assert config.servers == {}
+
+    def test_env_var_expansion_in_env_field(self):
+        """Test that environment variables are expanded in server env field."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config_path = Path(tmpdir) / "config.json"
+
+            # Set environment variable for testing
+            with patch.dict(os.environ, {"TEST_API_KEY": "secret123", "TEST_DB": "prod"}):
+                # Create config with env vars
+                config_data = {
+                    "servers": {
+                        "testserver": {
+                            "source": "https://example.com",
+                            "command": "python",
+                            "args": ["server.py"],
+                            "env": {
+                                "API_KEY": "${TEST_API_KEY}",
+                                "DATABASE": "${TEST_DB}",
+                                "FALLBACK": "${MISSING_VAR:-default_value}"
+                            }
+                        }
+                    }
+                }
+
+                with open(config_path, 'w') as f:
+                    json.dump(config_data, f)
+
+                # Load config
+                manager = ConfigManager(str(config_path))
+                config = manager.load_config()
+
+                # Check that env vars were expanded
+                server = config.servers["testserver"]
+                assert server.env["API_KEY"] == "secret123"
+                assert server.env["DATABASE"] == "prod"
+                assert server.env["FALLBACK"] == "default_value"
+
+    def test_env_var_expansion_in_transport_headers(self):
+        """Test that environment variables are expanded in transport headers."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config_path = Path(tmpdir) / "config.json"
+
+            # Set environment variable for testing
+            with patch.dict(os.environ, {"AUTH_TOKEN": "bearer_token_123"}):
+                # Create config with transport headers
+                config_data = {
+                    "servers": {
+                        "httpserver": {
+                            "source": "https://example.com",
+                            "uri": "https://api.example.com/mcp",
+                            "transport": {
+                                "headers": {
+                                    "Authorization": "Bearer ${AUTH_TOKEN}",
+                                    "X-Custom": "${CUSTOM_HEADER:-default}"
+                                }
+                            }
+                        }
+                    }
+                }
+
+                with open(config_path, 'w') as f:
+                    json.dump(config_data, f)
+
+                # Load config
+                manager = ConfigManager(str(config_path))
+                config = manager.load_config()
+
+                # Check that env vars were expanded
+                server = config.servers["httpserver"]
+                assert server.transport["headers"]["Authorization"] == "Bearer bearer_token_123"
+                assert server.transport["headers"]["X-Custom"] == "default"
+
+    def test_env_var_expansion_in_transport_auth(self):
+        """Test that environment variables are expanded in transport auth."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config_path = Path(tmpdir) / "config.json"
+
+            # Set environment variable for testing
+            with patch.dict(os.environ, {"API_TOKEN": "secret_token_xyz"}):
+                # Create config with transport auth
+                config_data = {
+                    "servers": {
+                        "apiserver": {
+                            "source": "https://example.com",
+                            "uri": "https://api.example.com/mcp",
+                            "transport": {
+                                "auth": "Bearer ${API_TOKEN}"
+                            }
+                        },
+                        "fallbackserver": {
+                            "source": "https://example.com",
+                            "uri": "https://api2.example.com/mcp",
+                            "transport": {
+                                "auth": "${MISSING_TOKEN:-default_token}"
+                            }
+                        }
+                    }
+                }
+
+                with open(config_path, 'w') as f:
+                    json.dump(config_data, f)
+
+                # Load config
+                manager = ConfigManager(str(config_path))
+                config = manager.load_config()
+
+                # Check that env vars were expanded
+                server1 = config.servers["apiserver"]
+                assert server1.transport["auth"] == "Bearer secret_token_xyz"
+
+                server2 = config.servers["fallbackserver"]
+                assert server2.transport["auth"] == "default_token"
+
+    def test_env_var_expansion_missing_var(self):
+        """Test that missing env vars are left unexpanded without defaults."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config_path = Path(tmpdir) / "config.json"
+
+            # Make sure the var doesn't exist
+            with patch.dict(os.environ, {}, clear=False):
+                if "NONEXISTENT_VAR" in os.environ:
+                    del os.environ["NONEXISTENT_VAR"]
+
+                config_data = {
+                    "servers": {
+                        "testserver": {
+                            "source": "https://example.com",
+                            "env": {
+                                "SHOULD_STAY": "${NONEXISTENT_VAR}"
+                            }
+                        }
+                    }
+                }
+
+                with open(config_path, 'w') as f:
+                    json.dump(config_data, f)
+
+                manager = ConfigManager(str(config_path))
+                config = manager.load_config()
+
+                # Should keep the original unexpanded value
+                server = config.servers["testserver"]
+                assert server.env["SHOULD_STAY"] == "${NONEXISTENT_VAR}"

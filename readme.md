@@ -25,6 +25,10 @@ Magg is a meta-MCP server that acts as a central hub for managing multiple MCP s
 
 Think of Magg as a "package manager for LLM tools" - it lets AI assistants install and manage their own capabilities at runtime.
 
+## Hosted deployment
+
+A hosted deployment is available on [Fronteir AI](https://fronteir.ai/mcp/sitbon-magg).
+
 ## Features
 
 - **Self-Service Tool Management**: LLMs can search for and add new MCP servers without human intervention.

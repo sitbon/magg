@@ -1,4 +1,4 @@
-FROM alpine AS base
+FROM alpine:3.24 AS base
 
 ARG USER=magg
 ARG HOME=/home/${USER}

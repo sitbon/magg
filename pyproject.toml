@@ -1,6 +1,6 @@
 [project]
 name = "magg"
-version = "0.10.1"
+version = "1.1.0"
 requires-python = ">=3.12"
 description = "MCP Aggregator"
 authors = [{ name = "Phillip Sitbon", email = "phillip.sitbon@gmail.com"}]
@@ -8,7 +8,7 @@ readme = "readme.md"
 license = {text = "AGPL-3.0-or-later"}
 license-files = ["license.md"]
 classifiers = [
-    "Development Status :: 4 - Beta",
+    "Development Status :: 5 - Production/Stable",
     "Environment :: Web Environment",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: GNU Affero General Public License v3 or later (AGPLv3+)",

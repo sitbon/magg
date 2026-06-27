@@ -3,11 +3,9 @@
 TODO: Add support for mcpservers.org.
 """
 
-import asyncio
 import aiohttp
-import json
 from dataclasses import dataclass
-from urllib.parse import urlencode
+from urllib.parse import urlparse
 import logging
 from typing import Any
 
@@ -99,7 +97,8 @@ class ToolSearchEngine:
 
         return results
 
-    def _get_hosting_type(self, attributes: list[str]) -> str:
+    @classmethod
+    def _get_hosting_type(cls, attributes: list[str]) -> str:
         """Determine hosting type from Glama server attributes."""
         if "hosting:remote-capable" in attributes:
             return "remote"
@@ -110,13 +109,15 @@ class ToolSearchEngine:
         else:
             return "local"  # Default to local
 
-    def _generate_install_command(self, server: dict[str, Any], hosting_type: str) -> str:
+    @classmethod
+    def _generate_install_command(cls, server: dict[str, Any], hosting_type: str) -> str:
         """Generate appropriate install command based on server metadata."""
         repository = server.get("repository", {})
         repo_url = repository.get("url", "") if repository else ""
 
         if repo_url:
-            if "github.com" in repo_url:
+            repo_host = urlparse(repo_url).netloc.lower()
+            if repo_host == "github.com" or repo_host.endswith(".github.com"):
                 return f"git clone {repo_url}"
             elif "npm" in repo_url or "npmjs" in repo_url:
                 # Try to extract package name from NPM URL
@@ -131,7 +132,8 @@ class ToolSearchEngine:
 
         return f"# Manual installation required - see {server.get('url', 'documentation')}"
 
-    def _extract_tags(self, server: dict[str, Any]) -> list[str]:
+    @classmethod
+    def _extract_tags(cls, server: dict[str, Any]) -> list[str]:
         """Extract meaningful tags from server metadata."""
         tags = []
 
@@ -186,7 +188,8 @@ class ToolSearchEngine:
             self.logger.error("Error searching GitHub: %s", e)
             return []
 
-    def _parse_github_results(self, data: dict[str, Any]) -> list[ToolSearchResult]:
+    @classmethod
+    def _parse_github_results(cls, data: dict[str, Any]) -> list[ToolSearchResult]:
         """Parse GitHub search results."""
         results = []
 
@@ -240,7 +243,8 @@ class ToolSearchEngine:
             self.logger.error("Error searching NPM: %s", e)
             return []
 
-    def _parse_npm_results(self, data: dict[str, Any]) -> list[ToolSearchResult]:
+    @classmethod
+    def _parse_npm_results(cls, data: dict[str, Any]) -> list[ToolSearchResult]:
         """Parse NPM search results."""
         results = []
 
@@ -282,7 +286,8 @@ class ToolSearchEngine:
 
         return results
 
-    def rank_results(self, results: list[ToolSearchResult]) -> list[ToolSearchResult]:
+    @classmethod
+    def rank_results(cls, results: list[ToolSearchResult]) -> list[ToolSearchResult]:
         """Rank search results by relevance and quality."""
         def calculate_score(result: ToolSearchResult) -> float:
             score = 0.0

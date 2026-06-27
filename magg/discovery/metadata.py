@@ -13,7 +13,6 @@ from urllib.parse import urlparse
 from typing import Any
 
 from .catalog import CatalogManager
-from .search import ToolSearchResult
 
 
 class SourceMetadataCollector:
@@ -136,7 +135,8 @@ class SourceMetadataCollector:
                 }
             }
 
-    def _looks_like_server_url(self, url: str) -> bool:
+    @classmethod
+    def _looks_like_server_url(cls, url: str) -> bool:
         """Check if URL looks like it could be a server endpoint."""
         parsed = urlparse(url)
 
@@ -152,7 +152,7 @@ class SourceMetadataCollector:
             return False
 
         # PyPI package paths
-        if 'project' in path_parts and 'pypi.org' in parsed.netloc:
+        if 'project' in path_parts and parsed.netloc == 'pypi.org':
             return False
 
         # URLs with ports or localhost are more likely to be servers
@@ -262,7 +262,8 @@ class SourceMetadataCollector:
 
         return {}
 
-    async def _fetch_github_readme(self, session: aiohttp.ClientSession, owner: str, repo: str) -> str:
+    @classmethod
+    async def _fetch_github_readme(cls, session: aiohttp.ClientSession, owner: str, repo: str) -> str:
         """Fetch README content from GitHub."""
         readme_files = ["README.md", "README.rst", "README.txt", "README"]
 
@@ -280,7 +281,8 @@ class SourceMetadataCollector:
 
         return ""
 
-    def _extract_setup_instructions(self, readme_content: str) -> list[str]:
+    @classmethod
+    def _extract_setup_instructions(cls, readme_content: str) -> list[str]:
         """Extract setup/installation instructions from README."""
         if not readme_content:
             return []
@@ -316,16 +318,18 @@ class SourceMetadataCollector:
 
         return list(set(instructions))  # Remove duplicates
 
-    def _extract_name_from_url(self, url: str) -> str | None:
+    @classmethod
+    def _extract_name_from_url(cls, url: str) -> str | None:
         """Extract a searchable name from the URL."""
-        if 'github.com' in url:
-            parsed = urlparse(url)
+        parsed = urlparse(url)
+        host = parsed.netloc.lower()
+        if host == 'github.com' or host.endswith('.github.com'):
             parts = parsed.path.strip('/').split('/')
             if len(parts) >= 2:
                 return parts[1]  # repo name
-        elif 'npmjs.com' in url:
-            if '/package/' in url:
-                return url.split('/package/')[-1].split('/')[0]
+        elif host == 'npmjs.com' or host.endswith('.npmjs.com'):
+            if '/package/' in parsed.path:
+                return parsed.path.split('/package/')[-1].split('/')[0]
 
         return None
 
@@ -504,7 +508,8 @@ class SourceMetadataCollector:
 
         return analysis
 
-    async def _analyze_file(self, file_path: Path) -> dict[str, Any]:
+    @classmethod
+    async def _analyze_file(cls, file_path: Path) -> dict[str, Any]:
         """Analyze a single file."""
         analysis = {
             "filename": file_path.name,
@@ -524,7 +529,8 @@ class SourceMetadataCollector:
 
         return analysis
 
-    async def _analyze_package_json(self, package_path: Path) -> dict[str, Any]:
+    @classmethod
+    async def _analyze_package_json(cls, package_path: Path) -> dict[str, Any]:
         """Analyze package.json for Node.js projects."""
         try:
             with open(package_path, 'r') as f:
@@ -557,7 +563,8 @@ class SourceMetadataCollector:
         except Exception as e:
             return {"error": f"Failed to parse package.json: {str(e)}"}
 
-    async def _analyze_pyproject_toml(self, pyproject_path: Path) -> dict[str, Any]:
+    @classmethod
+    async def _analyze_pyproject_toml(cls, pyproject_path: Path) -> dict[str, Any]:
         """Analyze pyproject.toml for Python projects."""
         try:
             with open(pyproject_path, 'rb') as f:
@@ -596,7 +603,8 @@ class SourceMetadataCollector:
         except Exception as e:
             return {"error": f"Failed to parse pyproject.toml: {str(e)}"}
 
-    async def _analyze_requirements_txt(self, req_path: Path) -> dict[str, Any]:
+    @classmethod
+    async def _analyze_requirements_txt(cls, req_path: Path) -> dict[str, Any]:
         """Analyze requirements.txt for Python projects."""
         try:
             with open(req_path, 'r') as f:
@@ -649,7 +657,8 @@ class SourceMetadataCollector:
         except Exception as e:
             return {"error": f"Failed to parse README: {str(e)}"}
 
-    async def _analyze_claude_file(self, claude_path: Path) -> dict[str, Any]:
+    @classmethod
+    async def _analyze_claude_file(cls, claude_path: Path) -> dict[str, Any]:
         """Analyze CLAUDE.md file for AI instructions."""
         try:
             with open(claude_path, 'r', encoding='utf-8') as f:
@@ -687,7 +696,8 @@ class SourceMetadataCollector:
         except Exception as e:
             return {"error": f"Failed to parse CLAUDE.md: {str(e)}"}
 
-    def _generate_setup_hints(self, analysis: dict[str, Any]) -> list[str]:
+    @classmethod
+    def _generate_setup_hints(cls, analysis: dict[str, Any]) -> list[str]:
         """Generate setup hints based on project analysis."""
         hints = []
         project_type = analysis.get("project_type", "unknown")

@@ -6,6 +6,7 @@ This script demonstrates:
 2. Direct token passing
 3. Using the MaggClient for automatic authentication
 """
+
 import argparse
 import asyncio
 import logging
@@ -15,6 +16,7 @@ from typing import Any
 
 from fastmcp import Client
 from fastmcp.client import BearerAuth
+
 from magg.client import MaggClient
 
 
@@ -59,7 +61,7 @@ async def bearer_auth(args: argparse.Namespace) -> None:
                 print(f"Proxy functionality not available: {e}")
     else:
         # Use regular FastMCP Client
-        print(f"Using FastMCP Client")
+        print("Using FastMCP Client")
         auth = BearerAuth(jwt)
 
         async with Client(args.url, auth=auth) as client:
@@ -129,42 +131,26 @@ Examples:
 
   # Test MaggClient with direct token
   %(prog)s bearer --magg --token "eyJ..."
-"""
+""",
     )
 
-    parser.add_argument(
-        "--debug",
-        action="store_true",
-        help="Enable debug output"
-    )
+    parser.add_argument("--debug", action="store_true", help="Enable debug output")
 
     subparsers = parser.add_subparsers(dest="auth_type", help="Authentication type")
 
     # Bearer authentication subcommand
-    bearer_parser = subparsers.add_parser(
-        "bearer",
-        help="Test bearer token authentication"
-    )
+    bearer_parser = subparsers.add_parser("bearer", help="Test bearer token authentication")
     bearer_parser.add_argument(
         "url",
         nargs="?",
         default="http://localhost:8000/mcp",
-        help="MCP server URL (default: http://localhost:8000/mcp)"
+        help="MCP server URL (default: http://localhost:8000/mcp)",
     )
     bearer_parser.add_argument(
-        "--env-var",
-        default="MAGG_JWT",
-        help="Environment variable name for JWT (default: MAGG_JWT)"
+        "--env-var", default="MAGG_JWT", help="Environment variable name for JWT (default: MAGG_JWT)"
     )
-    bearer_parser.add_argument(
-        "--token",
-        help="JWT token (overrides environment variable)"
-    )
-    bearer_parser.add_argument(
-        "--magg",
-        action="store_true",
-        help="Use MaggClient instead of regular FastMCP Client"
-    )
+    bearer_parser.add_argument("--token", help="JWT token (overrides environment variable)")
+    bearer_parser.add_argument("--magg", action="store_true", help="Use MaggClient instead of regular FastMCP Client")
 
     return parser
 
@@ -192,6 +178,7 @@ async def main():
         print(f"\nError: {e}", file=sys.stderr)
         if args.debug:
             import traceback
+
             traceback.print_exc()
         sys.exit(1)
 

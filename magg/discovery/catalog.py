@@ -5,7 +5,7 @@ import logging
 from pathlib import Path
 from typing import Any
 
-from .search import ToolSearchEngine, ToolSearchResult, ToolCatalog
+from .search import ToolCatalog, ToolSearchEngine, ToolSearchResult
 
 
 class CatalogManager:
@@ -26,7 +26,7 @@ class CatalogManager:
             return
 
         try:
-            with open(self.catalog_path, 'r') as f:
+            with open(self.catalog_path, "r") as f:
                 data = json.load(f)
 
             if "search_catalog" in data:
@@ -38,11 +38,9 @@ class CatalogManager:
     def save_search_cache(self) -> None:
         """Save search cache to disk."""
         try:
-            data = {
-                "search_catalog": self.search_catalog.export_catalog()
-            }
+            data = {"search_catalog": self.search_catalog.export_catalog()}
 
-            with open(self.catalog_path, 'w') as f:
+            with open(self.catalog_path, "w") as f:
                 json.dump(data, f, indent=2)
 
         except Exception as e:
@@ -79,8 +77,4 @@ class CatalogManager:
         for result in self.search_catalog.catalog.values():
             source_counts[result.source] = source_counts.get(result.source, 0) + 1
 
-        return {
-            "total_cached": total_cached,
-            "source_breakdown": source_counts,
-            "cache_path": str(self.catalog_path)
-        }
+        return {"total_cached": total_cached, "source_breakdown": source_counts, "cache_path": str(self.catalog_path)}

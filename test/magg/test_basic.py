@@ -2,9 +2,8 @@
 
 import pytest
 from fastmcp import Client
+
 from magg.server.server import MaggServer
-import tempfile
-from pathlib import Path
 
 
 class TestMaggBasicFunctionality:
@@ -48,9 +47,9 @@ class TestMaggBasicFunctionality:
         async with server:
             async with Client(server.mcp) as client:
                 result = await client.call_tool("magg_list_servers", {})
-                assert hasattr(result, 'content')
+                assert hasattr(result, "content")
                 assert len(result.content) > 0
-                assert hasattr(result.content[0], 'text')
+                assert hasattr(result.content[0], "text")
                 assert isinstance(result.content[0].text, str)
 
 
@@ -64,27 +63,31 @@ class TestMaggServerManagement:
         server = MaggServer(config_path, enable_config_reload=False)
 
         import time
+
         unique_id = str(int(time.time()))
 
         async with server:
             async with Client(server.mcp) as client:
                 server_name = f"testserver{unique_id}"
-                result = await client.call_tool("magg_add_server", {
-                    "name": server_name,
-                    "source": f"https://github.com/example/test-{unique_id}",
-                    "prefix": "test",
-                    "command": "echo test",
-                    "enable": False  # Don't try to mount it
-                })
+                result = await client.call_tool(
+                    "magg_add_server",
+                    {
+                        "name": server_name,
+                        "source": f"https://github.com/example/test-{unique_id}",
+                        "prefix": "test",
+                        "command": "echo test",
+                        "enable": False,  # Don't try to mount it
+                    },
+                )
 
-                assert hasattr(result, 'content')
+                assert hasattr(result, "content")
                 assert len(result.content) > 0
-                assert hasattr(result.content[0], 'text')
+                assert hasattr(result.content[0], "text")
 
                 list_result = await client.call_tool("magg_list_servers", {})
-                assert hasattr(list_result, 'content')
+                assert hasattr(list_result, "content")
                 assert len(list_result.content) > 0
-                assert hasattr(list_result.content[0], 'text')
+                assert hasattr(list_result.content[0], "text")
                 assert server_name in list_result.content[0].text
 
 
@@ -101,12 +104,9 @@ class TestMaggServerSearch:
         async with server:
             async with Client(server.mcp) as client:
                 try:
-                    result = await client.call_tool("magg_search_servers", {
-                        "query": "filesystem",
-                        "limit": 3
-                    })
-                    assert hasattr(result, 'content')
+                    result = await client.call_tool("magg_search_servers", {"query": "filesystem", "limit": 3})
+                    assert hasattr(result, "content")
                     assert len(result.content) > 0
-                    assert hasattr(result.content[0], 'text')
+                    assert hasattr(result.content[0], "text")
                 except Exception as e:
                     pytest.skip(f"Search test failed (requires internet): {e}")

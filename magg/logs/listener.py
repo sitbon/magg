@@ -4,7 +4,7 @@ import weakref
 
 from .queue import LogQueue
 
-__all__ = "QueueListener",
+__all__ = ("QueueListener",)
 
 
 class QueueListener(logging.handlers.QueueListener):
@@ -12,6 +12,7 @@ class QueueListener(logging.handlers.QueueListener):
 
     Support self-starting and stopping, and sets respect_handler_level to True by default.
     """
+
     __listeners = []
 
     def __init__(self, queue: LogQueue, *handlers: logging.Handler, respect_handler_level=True, start=False):

@@ -3,9 +3,10 @@
 This module provides message handlers and coordination for routing notifications
 and requests between clients and multiple backend MCP servers.
 """
+
 import asyncio
-from typing import Any, Callable
 import logging
+from typing import Any, Callable
 
 import mcp.types
 from fastmcp.client.messages import MessageHandler
@@ -27,11 +28,7 @@ class MessageRouter:
         self._global_handlers: list[MessageHandler] = []
         self._lock = asyncio.Lock()
 
-    async def register_handler(
-        self,
-        handler: MessageHandler,
-        server_id: str | None = None
-    ) -> None:
+    async def register_handler(self, handler: MessageHandler, server_id: str | None = None) -> None:
         """Register a message handler for a specific server or globally.
 
         Args:
@@ -47,11 +44,7 @@ class MessageRouter:
                     self._handlers[server_id] = []
                 self._handlers[server_id].append(handler)
 
-    async def unregister_handler(
-        self,
-        handler: MessageHandler,
-        server_id: str | None = None
-    ) -> None:
+    async def unregister_handler(self, handler: MessageHandler, server_id: str | None = None) -> None:
         """Unregister a message handler."""
         async with self._lock:
             try:
@@ -65,11 +58,7 @@ class MessageRouter:
             except ValueError:
                 pass
 
-    async def route_message(
-        self,
-        message: Any,
-        server_id: str | None = None
-    ) -> None:
+    async def route_message(self, message: Any, server_id: str | None = None) -> None:
         """Route a message to appropriate handlers.
 
         Args:
@@ -83,10 +72,7 @@ class MessageRouter:
                 handlers_to_call.extend(self._handlers[server_id])
 
         if handlers_to_call:
-            await asyncio.gather(
-                *[handler(message) for handler in handlers_to_call],
-                return_exceptions=True
-            )
+            await asyncio.gather(*[handler(message) for handler in handlers_to_call], return_exceptions=True)
 
 
 class ServerMessageCoordinator:
@@ -98,9 +84,7 @@ class ServerMessageCoordinator:
         self._lock = asyncio.Lock()
 
     async def handle_tool_list_changed(
-        self,
-        notification: mcp.types.ToolListChangedNotification,
-        server_id: str
+        self, notification: mcp.types.ToolListChangedNotification, server_id: str
     ) -> None:
         """Handle tool list change from a specific server."""
         async with self._lock:
@@ -114,9 +98,7 @@ class ServerMessageCoordinator:
             await self.router.route_message(server_notification, server_id)
 
     async def handle_resource_list_changed(
-        self,
-        notification: mcp.types.ResourceListChangedNotification,
-        server_id: str
+        self, notification: mcp.types.ResourceListChangedNotification, server_id: str
     ) -> None:
         """Handle resource list change from a specific server."""
         async with self._lock:
@@ -125,9 +107,7 @@ class ServerMessageCoordinator:
             await self.router.route_message(server_notification, server_id)
 
     async def handle_prompt_list_changed(
-        self,
-        notification: mcp.types.PromptListChangedNotification,
-        server_id: str
+        self, notification: mcp.types.PromptListChangedNotification, server_id: str
     ) -> None:
         """Handle prompt list change from a specific server."""
         async with self._lock:
@@ -135,21 +115,13 @@ class ServerMessageCoordinator:
             server_notification = mcp.types.ServerNotification(root=notification)
             await self.router.route_message(server_notification, server_id)
 
-    async def handle_progress(
-        self,
-        notification: mcp.types.ProgressNotification,
-        server_id: str
-    ) -> None:
+    async def handle_progress(self, notification: mcp.types.ProgressNotification, server_id: str) -> None:
         """Handle progress notification from a specific server."""
         # Progress notifications don't need aggregation, forward immediately
         server_notification = mcp.types.ServerNotification(root=notification)
         await self.router.route_message(server_notification, server_id)
 
-    async def handle_logging_message(
-        self,
-        notification: mcp.types.LoggingMessageNotification,
-        server_id: str
-    ) -> None:
+    async def handle_logging_message(self, notification: mcp.types.LoggingMessageNotification, server_id: str) -> None:
         """Handle logging message from a specific server."""
         # Log messages don't need aggregation, forward immediately
         server_notification = mcp.types.ServerNotification(root=notification)
@@ -205,10 +177,7 @@ class MaggMessageHandler(MessageHandler):
             except Exception as e:
                 logger.error("Error in message handler: %s", e)
 
-    async def on_tool_list_changed(
-        self,
-        notification: mcp.types.ToolListChangedNotification
-    ) -> None:
+    async def on_tool_list_changed(self, notification: mcp.types.ToolListChangedNotification) -> None:
         """Handle tool list changed notification."""
         if self._on_tool_list_changed:
             try:
@@ -218,10 +187,7 @@ class MaggMessageHandler(MessageHandler):
             except Exception as e:
                 logger.error("Error in tool list changed handler: %s", e)
 
-    async def on_resource_list_changed(
-        self,
-        notification: mcp.types.ResourceListChangedNotification
-    ) -> None:
+    async def on_resource_list_changed(self, notification: mcp.types.ResourceListChangedNotification) -> None:
         """Handle resource list changed notification."""
         if self._on_resource_list_changed:
             try:
@@ -231,10 +197,7 @@ class MaggMessageHandler(MessageHandler):
             except Exception as e:
                 logger.error("Error in resource list changed handler: %s", e)
 
-    async def on_prompt_list_changed(
-        self,
-        notification: mcp.types.PromptListChangedNotification
-    ) -> None:
+    async def on_prompt_list_changed(self, notification: mcp.types.PromptListChangedNotification) -> None:
         """Handle prompt list changed notification."""
         if self._on_prompt_list_changed:
             try:
@@ -244,10 +207,7 @@ class MaggMessageHandler(MessageHandler):
             except Exception as e:
                 logger.error("Error in prompt list changed handler: %s", e)
 
-    async def on_progress(
-        self,
-        notification: mcp.types.ProgressNotification
-    ) -> None:
+    async def on_progress(self, notification: mcp.types.ProgressNotification) -> None:
         """Handle progress notification."""
         if self._on_progress:
             try:
@@ -257,10 +217,7 @@ class MaggMessageHandler(MessageHandler):
             except Exception as e:
                 logger.error("Error in progress handler: %s", e)
 
-    async def on_logging_message(
-        self,
-        notification: mcp.types.LoggingMessageNotification
-    ) -> None:
+    async def on_logging_message(self, notification: mcp.types.LoggingMessageNotification) -> None:
         """Handle logging message notification."""
         if self._on_logging_message:
             try:

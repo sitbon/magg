@@ -4,8 +4,11 @@
 This example shows how to use MaggClient with message handlers to receive
 notifications from backend MCP servers.
 """
+
 import asyncio
+
 import mcp.types
+
 from magg import MaggClient, MaggMessageHandler
 
 
@@ -60,15 +63,12 @@ async def callback_example():
             print(f"⏳ [Callback] Progress: {notification.params.progress}")
 
     # Create handler with callbacks
-    handler = MaggMessageHandler(
-        on_tool_list_changed=on_tool_change,
-        on_progress=on_progress
-    )
+    handler = MaggMessageHandler(on_tool_list_changed=on_tool_change, on_progress=on_progress)
 
     # Create client with message handler
     client = MaggClient(
         "http://localhost:8000/mcp/",  # MCP endpoint with trailing slash
-        message_handler=handler
+        message_handler=handler,
     )
 
     try:
@@ -99,7 +99,7 @@ async def class_example():
     # Create client with message handler
     client = MaggClient(
         "http://localhost:8000/mcp/",  # MCP endpoint with trailing slash
-        message_handler=handler
+        message_handler=handler,
     )
 
     try:
@@ -111,7 +111,7 @@ async def class_example():
             resources = await client.list_resources()
             prompts = await client.list_prompts()
 
-            print(f"📋 Available capabilities:")
+            print("📋 Available capabilities:")
             print(f"  🔧 Tools: {len(tools)}")
             print(f"  📁 Resources: {len(resources)}")
             print(f"  💬 Prompts: {len(prompts)}")

@@ -18,21 +18,21 @@ class JsonArgParser:
         brace_count = 0
 
         for char in text:
-            if char == '{' and not in_json:
+            if char == "{" and not in_json:
                 if current:
-                    parts.extend(''.join(current).split())
+                    parts.extend("".join(current).split())
                     current = []
                 in_json = True
                 brace_count = 1
                 current.append(char)
             elif in_json:
                 current.append(char)
-                if char == '{':
+                if char == "{":
                     brace_count += 1
-                elif char == '}':
+                elif char == "}":
                     brace_count -= 1
                     if brace_count == 0:
-                        parts.append(''.join(current))
+                        parts.append("".join(current))
                         current = []
                         in_json = False
             else:
@@ -40,12 +40,12 @@ class JsonArgParser:
 
         if current:
             if in_json:
-                parts.append(''.join(current))
+                parts.append("".join(current))
             else:
-                parts.extend(''.join(current).split())
+                parts.extend("".join(current).split())
 
         if not parts:
-            return '', []
+            return "", []
 
         command = parts[0].lower()
         args = parts[1:]
@@ -60,11 +60,11 @@ class JsonArgParser:
         if not args:
             return args
 
-        if command == 'call' and len(args) > 1:
+        if command == "call" and len(args) > 1:
             tool_name = args[0]
-            remaining = ' '.join(args[1:])
+            remaining = " ".join(args[1:])
 
-            if not remaining.strip().startswith('{'):
+            if not remaining.strip().startswith("{"):
                 converted = JsonArgParser._convert_to_json(remaining)
                 if converted:
                     return [tool_name, converted]
@@ -74,16 +74,16 @@ class JsonArgParser:
     @staticmethod
     def _convert_to_json(arg_string: str) -> str | None:
         """Try to convert various argument formats to JSON."""
-        if arg_string.strip().startswith('{'):
+        if arg_string.strip().startswith("{"):
             return arg_string
 
-        if '=' in arg_string:
+        if "=" in arg_string:
             args_dict = {}
-            pairs = re.split(r'\s+', arg_string)
+            pairs = re.split(r"\s+", arg_string)
 
             for pair in pairs:
-                if '=' in pair:
-                    key, value = pair.split('=', 1)
+                if "=" in pair:
+                    key, value = pair.split("=", 1)
                     args_dict[key] = JsonArgParser._infer_type(value)
 
             if args_dict:
@@ -96,24 +96,23 @@ class JsonArgParser:
         """Infer the type of a string value."""
         value = value.strip()
 
-        if (value.startswith('"') and value.endswith('"')) or \
-           (value.startswith("'") and value.endswith("'")):
+        if (value.startswith('"') and value.endswith('"')) or (value.startswith("'") and value.endswith("'")):
             return value[1:-1]
 
-        if value.lower() in ('true', 'false'):
-            return value.lower() == 'true'
+        if value.lower() in ("true", "false"):
+            return value.lower() == "true"
 
-        if value.isdigit() or (value.startswith('-') and value[1:].isdigit()):
+        if value.isdigit() or (value.startswith("-") and value[1:].isdigit()):
             return int(value)
 
         try:
-            if '.' in value:
+            if "." in value:
                 return float(value)
         except ValueError:
             pass
 
-        if ',' in value:
-            items = [JsonArgParser._infer_type(item.strip()) for item in value.split(',')]
+        if "," in value:
+            items = [JsonArgParser._infer_type(item.strip()) for item in value.split(",")]
             return items
 
         return value
@@ -132,7 +131,7 @@ class CommandParser:
 
         # Strip trailing backslash from single-line continuation
         cleaned = cleaned.rstrip()
-        if cleaned.endswith('\\'):
+        if cleaned.endswith("\\"):
             cleaned = cleaned[:-1].rstrip()
 
         if not cleaned:
@@ -157,7 +156,7 @@ class CommandParser:
                 escaped = False
                 continue
 
-            if char == '\\':
+            if char == "\\":
                 escaped = True
                 result.append(char)
                 continue
@@ -168,27 +167,27 @@ class CommandParser:
             elif char == "'" and not in_double_quote:
                 in_single_quote = not in_single_quote
                 result.append(char)
-            elif char == '#' and not in_single_quote and not in_double_quote:
+            elif char == "#" and not in_single_quote and not in_double_quote:
                 break
             else:
                 result.append(char)
 
-        return ''.join(result).rstrip()
+        return "".join(result).rstrip()
 
     @staticmethod
     def split_commands(text: str) -> list[str]:
         """Split text into individual commands by semicolon or newline."""
-        lines = text.split('\n')
+        lines = text.split("\n")
         merged_lines = []
         i = 0
 
         while i < len(lines):
             line = lines[i]
-            while line.rstrip().endswith('\\') and i + 1 < len(lines):
+            while line.rstrip().endswith("\\") and i + 1 < len(lines):
                 stripped = line.rstrip()[:-1]
                 next_line = lines[i + 1].lstrip()
-                if stripped and not stripped.endswith(' ') and next_line:
-                    line = stripped + ' ' + next_line
+                if stripped and not stripped.endswith(" ") and next_line:
+                    line = stripped + " " + next_line
                 else:
                     line = stripped + next_line
                 i += 1
@@ -221,7 +220,7 @@ class CommandParser:
                 escaped = False
                 continue
 
-            if char == '\\':
+            if char == "\\":
                 escaped = True
                 current.append(char)
             elif char == '"' and not in_single_quote:
@@ -230,14 +229,14 @@ class CommandParser:
             elif char == "'" and not in_double_quote:
                 in_single_quote = not in_single_quote
                 current.append(char)
-            elif char == ';' and not in_single_quote and not in_double_quote:
-                parts.append(''.join(current))
+            elif char == ";" and not in_single_quote and not in_double_quote:
+                parts.append("".join(current))
                 current = []
             else:
                 current.append(char)
 
         if current:
-            parts.append(''.join(current))
+            parts.append("".join(current))
 
         return parts
 
@@ -248,6 +247,6 @@ class CommandParser:
             raise ValueError("Usage: connect <name> <connection_string>")
 
         name = args[0]
-        connection = ' '.join(args[1:])
+        connection = " ".join(args[1:])
 
         return name, connection

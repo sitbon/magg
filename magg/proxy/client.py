@@ -3,22 +3,30 @@
 This module provides a FastMCP client wrapper that simplifies interaction with
 Magg's proxy tool, making it easier to work with proxied MCP capabilities.
 """
+
 import datetime
 from typing import Any
 
 from fastmcp import Client
 from fastmcp.client.progress import ProgressHandler
 from mcp.types import (
-    Tool, Resource, Prompt,
-    TextContent, ImageContent, EmbeddedResource,
-    GetPromptResult, TextResourceContents, BlobResourceContents, ResourceTemplate
+    BlobResourceContents,
+    EmbeddedResource,
+    GetPromptResult,
+    ImageContent,
+    Prompt,
+    Resource,
+    ResourceTemplate,
+    TextContent,
+    TextResourceContents,
+    Tool,
 )
 
-from .mixin import ProxyMCP
-from .types import LiteralProxyType, LiteralProxyAction
 from ..util.transform import tool_result_as_prompt_result, tool_result_as_resource_result
+from .mixin import ProxyMCP
+from .types import LiteralProxyAction, LiteralProxyType
 
-__all__ = "ProxyClient",
+__all__ = ("ProxyClient",)
 
 
 class ProxyClient(Client):
@@ -30,13 +38,7 @@ class ProxyClient(Client):
     - Transparent mode for redirecting standard operations through proxy
     """
 
-    def __init__(
-        self,
-        *args,
-        transparent: bool = False,
-        proxy_tool_name: str | None = None,
-        **kwds
-    ):
+    def __init__(self, *args, transparent: bool = False, proxy_tool_name: str | None = None, **kwds):
         """Initialize the proxy client.
 
         Args:
@@ -117,11 +119,10 @@ class ProxyClient(Client):
         return await self._list_for("prompt")
 
     async def _list_for(
-            self,
-            proxy_type: LiteralProxyType,
+        self,
+        proxy_type: LiteralProxyType,
     ) -> list[Tool] | list[Resource | ResourceTemplate] | list[Prompt]:
-        """List `proxy_type` through the proxy (in transparent mode).
-        """
+        """List `proxy_type` through the proxy (in transparent mode)."""
         if not self._transparent:
             super_method = f"list_{proxy_type}"
             return await getattr(super(), super_method)()
@@ -151,14 +152,12 @@ class ProxyClient(Client):
         """Call a tool through the proxy (in transparent mode)."""
         if not self._transparent:
             return await super().call_tool(
-                name,
-                arguments=arguments,
-                timeout=timeout,
-                progress_handler=progress_handler
+                name, arguments=arguments, timeout=timeout, progress_handler=progress_handler
             )
 
         result = await self.proxy(
-            "tool", "call",
+            "tool",
+            "call",
             path=name,
             arguments=arguments,
             timeout=timeout,
@@ -167,10 +166,7 @@ class ProxyClient(Client):
 
         return result
 
-    async def read_resource(
-        self,
-        uri: str
-    ) -> list[TextResourceContents | BlobResourceContents]:
+    async def read_resource(self, uri: str) -> list[TextResourceContents | BlobResourceContents]:
         """Read a resource through the proxy (in transparent mode)."""
         if not self._transparent:
             return await super().read_resource(uri)
@@ -189,11 +185,7 @@ class ProxyClient(Client):
 
         return response
 
-    async def get_prompt(
-        self,
-        name: str,
-        arguments: dict[str, Any] | None = None
-    ) -> GetPromptResult:
+    async def get_prompt(self, name: str, arguments: dict[str, Any] | None = None) -> GetPromptResult:
         """Get a prompt through the proxy (in transparent mode)."""
         if not self._transparent:
             return await super().get_prompt(name, arguments)

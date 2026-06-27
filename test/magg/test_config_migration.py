@@ -1,11 +1,12 @@
 """Test configuration functionality."""
 
-import pytest
-import tempfile
 import json
+import tempfile
 from pathlib import Path
 
-from magg.settings import ConfigManager, ServerConfig, MaggConfig
+import pytest
+
+from magg.settings import ConfigManager, MaggConfig, ServerConfig
 
 
 class TestConfigStructure:
@@ -14,7 +15,7 @@ class TestConfigStructure:
     @pytest.fixture
     def temp_config_file(self):
         """Create a temporary config file."""
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
             config_path = Path(f.name)
         yield config_path
         if config_path.exists():
@@ -31,13 +32,11 @@ class TestConfigStructure:
             source="https://github.com/example/weather-mcp",
             command="npx",
             args=["weather-mcp"],
-            prefix="weather"
+            prefix="weather",
         )
 
         server2 = ServerConfig(
-            name="filesystemserver",
-            source="https://github.com/example/filesystem-mcp",
-            uri="http://localhost:8080"
+            name="filesystemserver", source="https://github.com/example/filesystem-mcp", uri="http://localhost:8080"
         )
 
         config.add_server(server1)
@@ -74,14 +73,14 @@ class TestConfigStructure:
             env={"TEST_VAR": "value"},
             cwd="/tmp/test",
             notes="Test server for unit tests",
-            enabled=False
+            enabled=False,
         )
 
         config.add_server(server)
         config_manager.save_config(config)
 
         # Read raw JSON
-        with open(temp_config_file, 'r') as f:
+        with open(temp_config_file, "r") as f:
             raw_data = json.load(f)
 
         # Check structure
@@ -105,10 +104,7 @@ class TestConfigStructure:
         config = MaggConfig()
 
         # Minimal server - just name and source
-        server = ServerConfig(
-            name="minimal",
-            source="https://example.com"
-        )
+        server = ServerConfig(name="minimal", source="https://example.com")
 
         config.add_server(server)
         config_manager.save_config(config)
@@ -146,17 +142,10 @@ class TestConfigStructure:
         """Test handling of servers with names that need prefix generation."""
         # Write config with server that needs prefix adjustment
         invalid_config = {
-            "servers": {
-                "valid": {
-                    "source": "https://example.com"
-                },
-                "123invalid": {
-                    "source": "https://example.com"
-                }
-            }
+            "servers": {"valid": {"source": "https://example.com"}, "123invalid": {"source": "https://example.com"}}
         }
 
-        with open(temp_config_file, 'w') as f:
+        with open(temp_config_file, "w") as f:
             json.dump(invalid_config, f)
 
         config_manager = ConfigManager(str(temp_config_file))

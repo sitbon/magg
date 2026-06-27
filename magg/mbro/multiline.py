@@ -1,16 +1,17 @@
 """Multiline input handling for mbro."""
 
 import json
-from typing import Optional, Dict, Any, Callable
+from typing import Any, Callable, Dict, Optional
+
 from prompt_toolkit import PromptSession
 from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.lexers import PygmentsLexer
 from prompt_toolkit.styles import Style
-from prompt_toolkit.validation import Validator, ValidationError
-from prompt_toolkit.filters import Condition
+from prompt_toolkit.validation import ValidationError, Validator
 
 try:
     from pygments.lexers import JsonLexer
+
     PYGMENTS_AVAILABLE = True
 except ImportError:
     PYGMENTS_AVAILABLE = False
@@ -29,24 +30,24 @@ class PropertyTypeValidator(Validator):
         if not text:
             return
 
-        if self.prop_type == 'integer':
+        if self.prop_type == "integer":
             try:
                 int(text)
             except ValueError:
                 raise ValidationError(message="Must be an integer")
 
-        elif self.prop_type == 'number':
+        elif self.prop_type == "number":
             try:
                 float(text)
             except ValueError:
                 raise ValidationError(message="Must be a number")
 
-        elif self.prop_type == 'boolean':
-            if text.lower() not in ('true', 'false', 'yes', 'no', '1', '0', 'y', 'n'):
+        elif self.prop_type == "boolean":
+            if text.lower() not in ("true", "false", "yes", "no", "1", "0", "y", "n"):
                 raise ValidationError(message="Must be true/false")
 
-        if 'enum' in self.prop_info and text not in map(str, self.prop_info['enum']):
-            valid = ', '.join(str(v) for v in self.prop_info['enum'])
+        if "enum" in self.prop_info and text not in map(str, self.prop_info["enum"]):
+            valid = ", ".join(str(v) for v in self.prop_info["enum"])
             raise ValidationError(message=f"Must be one of: {valid}")
 
 
@@ -62,10 +63,7 @@ class JSONValidator(Validator):
         try:
             json.loads(text)
         except json.JSONDecodeError as e:
-            raise ValidationError(
-                message=f"Invalid JSON: {str(e)}",
-                cursor_position=len(text)
-            )
+            raise ValidationError(message=f"Invalid JSON: {str(e)}", cursor_position=len(text))
 
 
 class MultilineInputHandler:
@@ -73,33 +71,35 @@ class MultilineInputHandler:
 
     def __init__(self, formatter=None):
         self.formatter = formatter
-        self.style = Style.from_dict({
-            'prompt': '#ansiblue bold',
-            'continuation': '#ansiwhite',
-            'json-key': '#ansicyan',
-            'json-string': '#ansigreen',
-            'json-number': '#ansiyellow',
-            'json-boolean': '#ansimagenta',
-        })
+        self.style = Style.from_dict(
+            {
+                "prompt": "#ansiblue bold",
+                "continuation": "#ansiwhite",
+                "json-key": "#ansicyan",
+                "json-string": "#ansigreen",
+                "json-number": "#ansiyellow",
+                "json-boolean": "#ansimagenta",
+            }
+        )
 
     def create_bindings(self) -> KeyBindings:
         """Create key bindings for multiline mode."""
         bindings = KeyBindings()
 
-        @bindings.add('c-d')
+        @bindings.add("c-d")
         def submit(event):
             """Submit the current buffer."""
             event.app.exit()
 
-        @bindings.add('c-c')
+        @bindings.add("c-c")
         def cancel(event):
             """Cancel input."""
             event.app.exit(exception=KeyboardInterrupt)
 
-        @bindings.add('tab')
+        @bindings.add("tab")
         def indent(event):
             """Insert 2 spaces for indentation."""
-            event.current_buffer.insert_text('  ')
+            event.current_buffer.insert_text("  ")
 
         return bindings
 
@@ -107,21 +107,22 @@ class MultilineInputHandler:
         self,
         prompt: str = "",
         initial_text: str = "",
-        lexer_type: str = 'json',
+        lexer_type: str = "json",
         validator: Optional[Validator] = None,
         completer: Optional[Any] = None,
-        bottom_toolbar: Optional[Callable] = None
+        bottom_toolbar: Optional[Callable] = None,
     ) -> Optional[str]:
         """Get multiline input with syntax highlighting."""
 
         lexer = None
-        if PYGMENTS_AVAILABLE and lexer_type == 'json':
+        if PYGMENTS_AVAILABLE and lexer_type == "json":
             lexer = PygmentsLexer(JsonLexer)
 
-        if validator is None and lexer_type == 'json':
+        if validator is None and lexer_type == "json":
             validator = JSONValidator()
 
         if bottom_toolbar is None:
+
             def bottom_toolbar():
                 return " Ctrl+D: Submit | Ctrl+C: Cancel | Tab: Indent "
 
@@ -150,7 +151,7 @@ class MultilineInputHandler:
         self,
         tool_name: Optional[str] = None,
         schema: Optional[Dict[str, Any]] = None,
-        initial_value: Optional[Dict[str, Any]] = None
+        initial_value: Optional[Dict[str, Any]] = None,
     ) -> Optional[Dict[str, Any]]:
         """Get JSON input with schema awareness."""
 
@@ -160,13 +161,13 @@ class MultilineInputHandler:
         else:
             prompt_lines.append("Enter JSON:")
 
-        if schema and 'properties' in schema:
+        if schema and "properties" in schema:
             prompt_lines.append("\nExpected properties:")
-            required = schema.get('required', [])
+            required = schema.get("required", [])
 
-            for prop, info in schema['properties'].items():
-                prop_type = info.get('type', 'any')
-                desc = info.get('description', '')
+            for prop, info in schema["properties"].items():
+                prop_type = info.get("type", "any")
+                desc = info.get("description", "")
                 is_required = prop in required
 
                 line = f"  {prop}: {prop_type}"
@@ -177,25 +178,25 @@ class MultilineInputHandler:
                 prompt_lines.append(line)
 
         prompt_lines.append("\n")
-        prompt = '\n'.join(prompt_lines)
+        prompt = "\n".join(prompt_lines)
 
         if initial_value:
             initial_text = json.dumps(initial_value, indent=2)
-        elif schema and 'properties' in schema:
+        elif schema and "properties" in schema:
             template = {}
-            for prop, info in schema['properties'].items():
-                prop_type = info.get('type', 'string')
-                if prop_type == 'string':
+            for prop, info in schema["properties"].items():
+                prop_type = info.get("type", "string")
+                if prop_type == "string":
                     template[prop] = ""
-                elif prop_type == 'number':
+                elif prop_type == "number":
                     template[prop] = 0
-                elif prop_type == 'integer':
+                elif prop_type == "integer":
                     template[prop] = 0
-                elif prop_type == 'boolean':
+                elif prop_type == "boolean":
                     template[prop] = False
-                elif prop_type == 'array':
+                elif prop_type == "array":
                     template[prop] = []
-                elif prop_type == 'object':
+                elif prop_type == "object":
                     template[prop] = {}
                 else:
                     template[prop] = None
@@ -204,10 +205,7 @@ class MultilineInputHandler:
             initial_text = "{\n  \n}"
 
         result = await self.get_multiline_input(
-            prompt=prompt,
-            initial_text=initial_text,
-            lexer_type='json',
-            validator=JSONValidator() if schema else None
+            prompt=prompt, initial_text=initial_text, lexer_type="json", validator=JSONValidator() if schema else None
         )
 
         if result is None:
@@ -220,19 +218,11 @@ class MultilineInputHandler:
                 self.formatter.format_error(f"Invalid JSON: {e}")
             return None
 
-    async def edit_json(
-        self,
-        current_value: Dict[str, Any],
-        title: str = "Edit JSON"
-    ) -> Optional[Dict[str, Any]]:
+    async def edit_json(self, current_value: Dict[str, Any], title: str = "Edit JSON") -> Optional[Dict[str, Any]]:
         """Edit existing JSON data."""
         current_text = json.dumps(current_value, indent=2)
 
-        result = await self.get_multiline_input(
-            prompt=f"{title}:\n",
-            initial_text=current_text,
-            lexer_type='json'
-        )
+        result = await self.get_multiline_input(prompt=f"{title}:\n", initial_text=current_text, lexer_type="json")
 
         if result is None:
             return None
@@ -252,27 +242,24 @@ class InteractiveArgumentBuilder:
         self.formatter = formatter
 
     async def build_arguments(
-        self,
-        tool_name: str,
-        schema: Dict[str, Any],
-        session: PromptSession
+        self, tool_name: str, schema: Dict[str, Any], session: PromptSession
     ) -> Optional[Dict[str, Any]]:
         """Interactively build arguments based on schema."""
 
-        if not schema or 'properties' not in schema:
+        if not schema or "properties" not in schema:
             handler = MultilineInputHandler(self.formatter)
             return await handler.get_json_input(tool_name)
 
-        properties = schema['properties']
-        required = schema.get('required', [])
+        properties = schema["properties"]
+        required = schema.get("required", [])
         result = {}
 
         for prop_name, prop_info in properties.items():
-            prop_type = prop_info.get('type', 'string')
-            description = prop_info.get('description', '')
+            prop_type = prop_info.get("type", "string")
+            description = prop_info.get("description", "")
             is_required = prop_name in required
-            default = prop_info.get('default')
-            enum_values = prop_info.get('enum')
+            default = prop_info.get("default")
+            enum_values = prop_info.get("enum")
 
             prompt_parts = [prop_name]
             if description:
@@ -281,7 +268,7 @@ class InteractiveArgumentBuilder:
             type_hint = prop_type
             if enum_values:
                 type_hint = f"[{'/'.join(str(v) for v in enum_values)}]"
-            elif prop_type == 'boolean':
+            elif prop_type == "boolean":
                 type_hint = "[true/false]"
 
             prompt_parts.append(f"<{type_hint}>")
@@ -292,12 +279,9 @@ class InteractiveArgumentBuilder:
                 else:
                     prompt_parts.append("[optional]")
 
-            prompt = ' '.join(prompt_parts) + ': '
+            prompt = " ".join(prompt_parts) + ": "
 
-            value = await self._get_property_value(
-                session, prompt, prop_type, prop_info,
-                is_required, default
-            )
+            value = await self._get_property_value(session, prompt, prop_type, prop_info, is_required, default)
 
             if value is not None:
                 result[prop_name] = value
@@ -315,7 +299,7 @@ class InteractiveArgumentBuilder:
         prop_type: str,
         prop_info: Dict[str, Any],
         is_required: bool,
-        default: Any
+        default: Any,
     ) -> Any:
         """Get a single property value with validation."""
 
@@ -328,15 +312,15 @@ class InteractiveArgumentBuilder:
                 if not value and not is_required:
                     return default
 
-                if prop_type == 'integer':
+                if prop_type == "integer":
                     return int(value)
-                elif prop_type == 'number':
+                elif prop_type == "number":
                     return float(value)
-                elif prop_type == 'boolean':
-                    return value.lower() in ('true', 'yes', '1', 'y')
-                elif prop_type == 'array':
-                    return [v.strip() for v in value.split(',')]
-                elif prop_type == 'object':
+                elif prop_type == "boolean":
+                    return value.lower() in ("true", "yes", "1", "y")
+                elif prop_type == "array":
+                    return [v.strip() for v in value.split(",")]
+                elif prop_type == "object":
                     handler = MultilineInputHandler(self.formatter)
                     return await handler.get_json_input()
                 else:

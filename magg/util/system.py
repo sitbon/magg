@@ -11,7 +11,12 @@ try:
 except (ImportError, ModuleNotFoundError):
     pass
 
-__all__ = "initterm", "is_subdirectory", "get_project_root", "get_subprocess_environment",
+__all__ = (
+    "initterm",
+    "is_subdirectory",
+    "get_project_root",
+    "get_subprocess_environment",
+)
 
 
 def initterm(**kwds) -> Optional["console.Console"]:

@@ -1,24 +1,29 @@
 """Configuration reload functionality for Magg server."""
+
 import asyncio
 import json
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Callable, Coroutine, TypeAlias
+from typing import TYPE_CHECKING, Callable, Coroutine, TypeAlias
+
+from watchdog.events import FileSystemEventHandler
+from watchdog.observers import Observer
 
 from .settings import MaggConfig, ServerConfig
 
+if TYPE_CHECKING:
+    from .settings import ConfigManager
+
 logger = logging.getLogger(__name__)
 
-from watchdog.observers import Observer
-from watchdog.events import FileSystemEventHandler
-
-ReloadCallback: TypeAlias = Callable[['ConfigChange'], Coroutine[None, None, None]]
+ReloadCallback: TypeAlias = Callable[["ConfigChange"], Coroutine[None, None, None]]
 
 
 @dataclass
 class ServerChange:
     """Represents a change to a server configuration."""
+
     name: str
     action: str  # 'add', 'remove', 'update', 'enable', 'disable'
     old_config: ServerConfig | None = None
@@ -28,6 +33,7 @@ class ServerChange:
 @dataclass
 class ConfigChange:
     """Represents changes between two configurations."""
+
     old_config: MaggConfig
     new_config: MaggConfig
     server_changes: list[ServerChange] = field(default_factory=list)
@@ -44,15 +50,15 @@ class ConfigChange:
 
         summary = []
         for change in self.server_changes:
-            if change.action == 'add':
+            if change.action == "add":
                 summary.append(f"+ {change.name}")
-            elif change.action == 'remove':
+            elif change.action == "remove":
                 summary.append(f"- {change.name}")
-            elif change.action == 'update':
+            elif change.action == "update":
                 summary.append(f"~ {change.name}")
-            elif change.action == 'enable':
+            elif change.action == "enable":
                 summary.append(f"✓ {change.name}")
-            elif change.action == 'disable':
+            elif change.action == "disable":
                 summary.append(f"✗ {change.name}")
 
         return f"Config changes: {', '.join(summary)}"
@@ -116,11 +122,7 @@ class ConfigReloader:
         try:
             self._observer = Observer()
             self._watchdog_handler = WatchdogHandler(self.config_path, self._reload_event)
-            self._observer.schedule(
-                self._watchdog_handler,
-                str(self.config_path.parent),
-                recursive=False
-            )
+            self._observer.schedule(self._watchdog_handler, str(self.config_path.parent), recursive=False)
             self._observer.start()
             logger.debug("Started config file watcher using file system notifications (watchdog)")
         except Exception as e:
@@ -195,7 +197,7 @@ class ConfigReloader:
                         try:
                             await asyncio.wait_for(
                                 self._reload_event.wait(),
-                                timeout=60.0  # Wake up periodically to check shutdown
+                                timeout=60.0,  # Wake up periodically to check shutdown
                             )
                             self._reload_event.clear()
 
@@ -291,13 +293,13 @@ class ConfigReloader:
     def _load_config(self) -> MaggConfig | None:
         """Load configuration from disk."""
         try:
-            with self.config_path.open('r') as f:
+            with self.config_path.open("r") as f:
                 data = json.load(f)
 
             servers = {}
-            for name, server_data in data.get('servers', {}).items():
+            for name, server_data in data.get("servers", {}).items():
                 try:
-                    server_data['name'] = name
+                    server_data["name"] = name
                     servers[name] = ServerConfig.model_validate(server_data)
                 except Exception as e:
                     logger.error("Error loading server '%s': %s", name, e)
@@ -321,20 +323,12 @@ class ConfigReloader:
         # Find added servers
         for name in new_servers:
             if name not in old_servers:
-                change.server_changes.append(ServerChange(
-                    name=name,
-                    action='add',
-                    new_config=new_servers[name]
-                ))
+                change.server_changes.append(ServerChange(name=name, action="add", new_config=new_servers[name]))
 
         # Find removed servers
         for name in old_servers:
             if name not in new_servers:
-                change.server_changes.append(ServerChange(
-                    name=name,
-                    action='remove',
-                    old_config=old_servers[name]
-                ))
+                change.server_changes.append(ServerChange(name=name, action="remove", old_config=old_servers[name]))
 
         # Find modified servers
         for name in old_servers:
@@ -344,34 +338,25 @@ class ConfigReloader:
 
                 # Check if enabled state changed
                 if old_server.enabled != new_server.enabled:
-                    action = 'enable' if new_server.enabled else 'disable'
-                    change.server_changes.append(ServerChange(
-                        name=name,
-                        action=action,
-                        old_config=old_server,
-                        new_config=new_server
-                    ))
+                    action = "enable" if new_server.enabled else "disable"
+                    change.server_changes.append(
+                        ServerChange(name=name, action=action, old_config=old_server, new_config=new_server)
+                    )
                 # Check if other properties changed
                 elif self._server_config_changed(old_server, new_server):
-                    change.server_changes.append(ServerChange(
-                        name=name,
-                        action='update',
-                        old_config=old_server,
-                        new_config=new_server
-                    ))
+                    change.server_changes.append(
+                        ServerChange(name=name, action="update", old_config=old_server, new_config=new_server)
+                    )
 
         return change
 
     def _server_config_changed(self, old: ServerConfig, new: ServerConfig) -> bool:
         """Check if server configuration has changed (excluding enabled state)."""
         # Compare relevant fields
-        fields_to_check = [
-            'source', 'prefix', 'command', 'args', 'uri',
-            'env', 'cwd', 'transport'
-        ]
+        fields_to_check = ["source", "prefix", "command", "args", "uri", "env", "cwd", "transport"]
 
-        for field in fields_to_check:
-            if getattr(old, field) != getattr(new, field):
+        for field_name in fields_to_check:
+            if getattr(old, field_name) != getattr(new, field_name):
                 return True
 
         return False
@@ -394,13 +379,12 @@ class ConfigReloader:
 class ReloadManager:
     """Manages configuration reloading for ConfigManager."""
 
-    def __init__(self, config_manager: 'ConfigManager'):
+    def __init__(self, config_manager: ConfigManager):
         """Initialize the reload manager.
 
         Args:
             config_manager: The ConfigManager instance to manage reloading for
         """
-        from .settings import ConfigManager
         self.config_manager: ConfigManager = config_manager
         self._config_reloader: ConfigReloader | None = None
         self._reload_callback: ReloadCallback | None = None
@@ -424,8 +408,7 @@ class ReloadManager:
         if config.auto_reload and not self._config_reloader:
             if self.config_manager.config_path.exists():
                 self._config_reloader = ConfigReloader(
-                    config_path=self.config_manager.config_path,
-                    reload_callback=reload_callback
+                    config_path=self.config_manager.config_path, reload_callback=reload_callback
                 )
                 await self._config_reloader.start_watching(poll_interval=config.reload_poll_interval)
 
@@ -450,10 +433,8 @@ class ReloadManager:
                 logger.error("Config file does not exist: %s", self.config_manager.config_path)
                 return False
 
-            config = self.config_manager.load_config()
             reloader = ConfigReloader(
-                config_path=self.config_manager.config_path,
-                reload_callback=self._reload_callback
+                config_path=self.config_manager.config_path, reload_callback=self._reload_callback
             )
             change = await reloader.reload_config()
             return change is not None

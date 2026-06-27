@@ -1,8 +1,8 @@
 """URI utilities for Magg - handles URI parsing and directory extraction."""
 
-from pathlib import Path
-from urllib.parse import urlparse, unquote
 import os
+from pathlib import Path
+from urllib.parse import unquote, urlparse
 
 from .system import get_project_root, is_subdirectory
 
@@ -24,14 +24,14 @@ def extract_directory_from_uri(uri: str) -> Path | None:
     # Parse the URI
     parsed = urlparse(uri)
 
-    if parsed.scheme == 'file':
+    if parsed.scheme == "file":
         # file:// URI - extract the path
         path = unquote(parsed.path)
         # Remove leading slash on Windows
-        if os.name == 'nt' and path.startswith('/') and len(path) > 2 and path[2] == ':':
+        if os.name == "nt" and path.startswith("/") and len(path) > 2 and path[2] == ":":
             path = path[1:]
         return Path(path)
-    elif parsed.scheme in ('http', 'https', 'git', 'ssh'):
+    elif parsed.scheme in ("http", "https", "git", "ssh"):
         # Remote URI - no local directory
         return None
     elif not parsed.scheme:

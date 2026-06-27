@@ -1,13 +1,24 @@
-"""MCP client connectivity for mbro.
-"""
+"""MCP client connectivity for mbro."""
+
 import logging
 import os
 from typing import Any
 
 from fastmcp import Client
 from fastmcp.client import BearerAuth
-from mcp.types import TextContent, ImageContent, EmbeddedResource, BlobResourceContents, TextResourceContents, Tool, \
-    Resource, ResourceTemplate, Prompt, GetPromptResult
+from mcp.types import (
+    BlobResourceContents,
+    EmbeddedResource,
+    GetPromptResult,
+    ImageContent,
+    Prompt,
+    Resource,
+    ResourceTemplate,
+    TextContent,
+    TextResourceContents,
+    Tool,
+)
+
 from magg.util.transport import get_transport_for_command_string, is_connection_string_url
 
 logger = logging.getLogger(__name__)
@@ -81,6 +92,7 @@ class BrowserConnection:
             client = Client(url, auth=auth)
         else:
             from ..util.system import get_subprocess_environment
+
             env = get_subprocess_environment(inherit=env_pass, provided=env_vars)
 
             transport = get_transport_for_command_string(self.connection_string, env=env)
@@ -101,9 +113,9 @@ class BrowserConnection:
         self.connected = True
         return True
 
-    async def call_tool(self, tool_name: str, arguments: dict[str, Any] = None) -> list[
-        TextContent | ImageContent | EmbeddedResource
-    ]:
+    async def call_tool(
+        self, tool_name: str, arguments: dict[str, Any] = None
+    ) -> list[TextContent | ImageContent | EmbeddedResource]:
         """Call a tool on the connected MCP server."""
         if not self.client or not self.connected:
             raise RuntimeError("Not connected to server")
@@ -164,18 +176,15 @@ class BrowserConnection:
             "description": tool.description,
             "inputSchema": (
                 tool.inputSchema.model_dump(mode="json")
-                if hasattr(tool.inputSchema, 'model_dump') and tool.inputSchema
+                if hasattr(tool.inputSchema, "model_dump") and tool.inputSchema
                 else (tool.inputSchema if tool.inputSchema else {})
-            )
+            ),
         }
 
     @classmethod
     def parse_tools_list(cls, tools: list[Tool]) -> list[dict[str, Any]]:
         """Parse tools list into a more usable format."""
-        return [
-            cls.parse_tool(tool)
-            for tool in tools
-        ]
+        return [cls.parse_tool(tool) for tool in tools]
 
     @classmethod
     def parse_resource(cls, resource: Resource | ResourceTemplate) -> dict[str, Any]:
@@ -185,10 +194,7 @@ class BrowserConnection:
     @classmethod
     def parse_resources_list(cls, resources: list[Resource | ResourceTemplate]) -> list[dict[str, Any]]:
         """Parse resources list into a more usable format."""
-        return [
-            cls.parse_resource(resource)
-            for resource in resources
-        ]
+        return [cls.parse_resource(resource) for resource in resources]
 
     @classmethod
     def parse_prompt(cls, prompt: Prompt) -> dict[str, Any]:
@@ -197,26 +203,20 @@ class BrowserConnection:
             "name": prompt.name,
             "description": prompt.description,
             "arguments": [
-                {
-                    "name": arg.name,
-                    "description": arg.description,
-                    "required": arg.required
-                }
+                {"name": arg.name, "description": arg.description, "required": arg.required}
                 for arg in (prompt.arguments or [])
-            ]
+            ],
         }
 
     @classmethod
     def parse_prompts_list(cls, prompts: list[Prompt]) -> list[dict[str, Any]]:
         """Parse prompts list into a more usable format."""
-        return [
-            cls.parse_prompt(prompt)
-            for prompt in prompts
-        ]
+        return [cls.parse_prompt(prompt) for prompt in prompts]
 
 
 class BrowserClient:
     """Main MCP browser class for managing connections."""
+
     connections: dict[str, BrowserConnection]
     current_connection: str | None
     env_pass: bool
@@ -306,11 +306,13 @@ class BrowserClient:
                     logger.debug("Failed to get prompts for %s: %s", name, e)
                     extend["prompts"] = None
 
-            result.append({
-                "name": name,
-                "type": conn.connection_type,
-                "connected": conn.connected,
-                "current": name == self.current_connection,
-                **extend,
-            })
+            result.append(
+                {
+                    "name": name,
+                    "type": conn.connection_type,
+                    "connected": conn.connected,
+                    "current": name == self.current_connection,
+                    **extend,
+                }
+            )
         return result

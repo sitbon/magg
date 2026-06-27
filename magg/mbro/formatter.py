@@ -1,11 +1,11 @@
-"""Output formatters for mbro.
-"""
+"""Output formatters for mbro."""
+
 import json
 import sys
 import traceback
 from typing import Any, List
 
-from mcp.types import Content, TextResourceContents, BlobResourceContents, GetPromptResult
+from mcp.types import BlobResourceContents, Content, GetPromptResult, TextResourceContents
 from rich.console import Console
 from rich.json import JSON
 from rich.table import Table
@@ -38,7 +38,7 @@ class OutputFormatter:
                 error_data["exception"] = {
                     "type": type(exception).__name__,
                     "message": str(exception),
-                    "traceback": traceback.format_exc().splitlines()
+                    "traceback": traceback.format_exc().splitlines(),
                 }
 
             self.format_json(error_data)
@@ -57,10 +57,7 @@ class OutputFormatter:
         if self.json_only:
             self.format_json({"success": message})
         else:
-            self.print(
-                message if not self.use_rich else
-                f"[green]{message}[/green]"
-            )
+            self.print(message if not self.use_rich else f"[green]{message}[/green]")
 
     def format_info(self, message: str, key: str | None = None) -> None:
         """Format and print an info message."""
@@ -74,19 +71,16 @@ class OutputFormatter:
         if self.json_only:
             self.format_json({"warning": message})
         else:
-            self.print(
-                message if not self.use_rich else
-                f"[yellow]{message}[/yellow]"
-            )
+            self.print(message if not self.use_rich else f"[yellow]{message}[/yellow]")
 
     def print(self, *objects, **kwds) -> None:
         """Print a message using the console or standard error."""
-        file = kwds.pop('file', sys.stderr)
+        file = kwds.pop("file", sys.stderr)
 
         if self.use_rich:
             self.console.print(*objects, **kwds)
         else:
-            kwds['file'] = file
+            kwds["file"] = file
             print(*objects, **kwds)
 
     def format_resource(self, resource: TextResourceContents | BlobResourceContents):
@@ -95,7 +89,9 @@ class OutputFormatter:
 
         if self.json_only:
             if isinstance(resource_data, str):
-                resource_dict = resource.model_dump(mode="json", exclude_defaults=True, exclude_none=True, exclude_unset=True)
+                resource_dict = resource.model_dump(
+                    mode="json", exclude_defaults=True, exclude_none=True, exclude_unset=True
+                )
             else:
                 resource_dict = resource_data
 
@@ -113,7 +109,9 @@ class OutputFormatter:
 
         if self.json_only:
             if isinstance(content_data, str):
-                content_dict = content.model_dump(mode="json", exclude_defaults=True, exclude_none=True, exclude_unset=True)
+                content_dict = content.model_dump(
+                    mode="json", exclude_defaults=True, exclude_none=True, exclude_unset=True
+                )
             else:
                 content_dict = content_data
 
@@ -135,7 +133,9 @@ class OutputFormatter:
             for resource in resources:
                 decoded = self.decode_resource(resource)
                 if isinstance(decoded, str):
-                    output.append(resource.model_dump(mode="json", exclude_defaults=True, exclude_none=True, exclude_unset=True))
+                    output.append(
+                        resource.model_dump(mode="json", exclude_defaults=True, exclude_none=True, exclude_unset=True)
+                    )
                 else:
                     output.append(decoded)
 
@@ -153,7 +153,9 @@ class OutputFormatter:
             for content in contents:
                 decoded = self.decode_content(content)
                 if isinstance(decoded, str):
-                    output.append(content.model_dump(mode="json", exclude_defaults=True, exclude_none=True, exclude_unset=True))
+                    output.append(
+                        content.model_dump(mode="json", exclude_defaults=True, exclude_none=True, exclude_unset=True)
+                    )
                 else:
                     output.append(decoded)
 
@@ -164,10 +166,9 @@ class OutputFormatter:
 
     @classmethod
     def decode_resource(cls, resource: TextResourceContents | BlobResourceContents) -> str | dict[str, Any] | list:
-        """Decode a resource to a string or dict representation for display.
-        """
-        if hasattr(resource, 'text'):
-            if resource.mimeType == 'application/json':
+        """Decode a resource to a string or dict representation for display."""
+        if hasattr(resource, "text"):
+            if resource.mimeType == "application/json":
                 try:
                     return json.loads(resource.text)
                 except json.JSONDecodeError:
@@ -175,18 +176,17 @@ class OutputFormatter:
 
             return resource.text
 
-        elif hasattr(resource, 'blob'):
+        elif hasattr(resource, "blob"):
             return resource.blob
 
         return resource.model_dump(mode="json", exclude_defaults=True, exclude_none=True, exclude_unset=True)
 
     @classmethod
     def decode_content(cls, content: Content) -> str | dict[str, Any] | list:
-        """Decode content to a string or dict representation for display.
-        """
+        """Decode content to a string or dict representation for display."""
         match content.type:
             case "text":
-                if content.annotations and getattr(content.annotations, 'mimeType', '') == 'application/json':
+                if content.annotations and getattr(content.annotations, "mimeType", "") == "application/json":
                     try:
                         return json.loads(content.text)
                     except json.JSONDecodeError:
@@ -200,8 +200,7 @@ class OutputFormatter:
         return content.model_dump(mode="json", exclude_defaults=True, exclude_none=True, exclude_unset=True)
 
     def format_connections_table(self, connections: list[dict[str, Any]], *, extended: bool = False) -> None:
-        """Format connections as a table.
-        """
+        """Format connections as a table."""
         if not connections:
             self.format_info("No connections configured.")
             return
@@ -227,15 +226,20 @@ class OutputFormatter:
                 extend = []
 
                 if extended:
-                    extend.extend(map(str, [
-                        len(conn.get('tools') or []),
-                        len(conn.get('resources') or []),
-                        len(conn.get('prompts') or []),
-                    ]))
+                    extend.extend(
+                        map(
+                            str,
+                            [
+                                len(conn.get("tools") or []),
+                                len(conn.get("resources") or []),
+                                len(conn.get("prompts") or []),
+                            ],
+                        )
+                    )
 
                 table.add_row(
-                    conn['name'],
-                    conn['type'],
+                    conn["name"],
+                    conn["type"],
                     status,
                     *extend,
                 )
@@ -254,60 +258,53 @@ class OutputFormatter:
                         f"Resources: {len(conn.get('resources') or [])}, "
                         f"Prompts: {len(conn.get('prompts') or [])}"
                     )
-            self.print('\n'.join(output_lines))
+            self.print("\n".join(output_lines))
 
     def format_tool_info(self, tool: dict[str, Any]) -> None:
         """Format detailed tool information."""
         if self.json_only:
-            tool_data = {
-                "type": "tool",
-                "name": tool['name'],
-                "description": tool['description']
-            }
-            if tool.get('inputSchema'):
-                tool_data["inputSchema"] = tool['inputSchema']
+            tool_data = {"type": "tool", "name": tool["name"], "description": tool["description"]}
+            if tool.get("inputSchema"):
+                tool_data["inputSchema"] = tool["inputSchema"]
 
             self.format_json(tool_data)
             return
 
         # Tool name header
         self.print(
-            f"\nTool: {tool['name']}\n" if not self.use_rich else
-            f"\n[bold]Tool: [cyan]{tool['name']}[/cyan][/bold]\n"
+            f"\nTool: {tool['name']}\n" if not self.use_rich else f"\n[bold]Tool: [cyan]{tool['name']}[/cyan][/bold]\n"
         )
 
         # Description
-        if tool.get('description'):
+        if tool.get("description"):
             self.print("Description:")
-            desc_lines = tool['description'].strip().split('\n')
+            desc_lines = tool["description"].strip().split("\n")
             for line in desc_lines:
                 self.print(f"  {line}")
             self.print("")
 
         # Input schema
-        if tool.get('inputSchema'):
-            schema = tool['inputSchema']
-            if schema.get('properties'):
-                self.print(
-                    "Parameters:" if not self.use_rich else
-                    "[bold]Parameters:[/bold]"
-                )
-                for prop_name, prop_info in schema['properties'].items():
+        if tool.get("inputSchema"):
+            schema = tool["inputSchema"]
+            if schema.get("properties"):
+                self.print("Parameters:" if not self.use_rich else "[bold]Parameters:[/bold]")
+                for prop_name, prop_info in schema["properties"].items():
                     # Parameter name and type
-                    prop_type = prop_info.get('anyOf', prop_info.get('type', 'any'))
+                    prop_type = prop_info.get("anyOf", prop_info.get("type", "any"))
                     if isinstance(prop_type, list):
-                        prop_type = ' | '.join(x.get('type', 'any') for x in prop_type)
-                    required = prop_name in schema.get('required', [])
+                        prop_type = " | ".join(x.get("type", "any") for x in prop_type)
+                    required = prop_name in schema.get("required", [])
                     req_marker = " (required)" if required else " (optional)"
 
                     self.print(
-                        f"  {prop_name} ({prop_type}){req_marker}" if not self.use_rich else
-                        f"  [cyan]{prop_name}[/cyan] ({prop_type}){req_marker}"
+                        f"  {prop_name} ({prop_type}){req_marker}"
+                        if not self.use_rich
+                        else f"  [cyan]{prop_name}[/cyan] ({prop_type}){req_marker}"
                     )
 
                     # Parameter description
-                    if prop_info.get('description'):
-                        desc_lines = prop_info['description'].strip().split('\n')
+                    if prop_info.get("description"):
+                        desc_lines = prop_info["description"].strip().split("\n")
                         for line in desc_lines:
                             self.print(f"    {line}")
             else:
@@ -316,99 +313,89 @@ class OutputFormatter:
     def format_resource_info(self, resource: dict[str, Any]) -> None:
         """Format detailed resource information."""
         if self.json_only:
-            self.format_json({
-                "type": "resource",
-                "name": resource['name'],
-                "uri": resource.get('uri', resource.get('uriTemplate', '')),
-                "is_template": 'uriTemplate' in resource,
-                "mime_type": resource.get('mimeType', ''),
-                "description": resource.get('description', '')
-            })
+            self.format_json(
+                {
+                    "type": "resource",
+                    "name": resource["name"],
+                    "uri": resource.get("uri", resource.get("uriTemplate", "")),
+                    "is_template": "uriTemplate" in resource,
+                    "mime_type": resource.get("mimeType", ""),
+                    "description": resource.get("description", ""),
+                }
+            )
             return
 
         # Resource name header
         self.print(
-            f"\nResource: {resource['name']}\n" if not self.use_rich else
-            f"\n[bold]Resource: [cyan]{resource['name']}[/cyan][/bold]\n"
+            f"\nResource: {resource['name']}\n"
+            if not self.use_rich
+            else f"\n[bold]Resource: [cyan]{resource['name']}[/cyan][/bold]\n"
         )
 
         # URI or URI template
-        if resource.get('uri'):
+        if resource.get("uri"):
+            self.print(f"URI: {resource['uri']}" if not self.use_rich else f"[bold]URI:[/bold] {resource['uri']}")
+        elif resource.get("uriTemplate"):
             self.print(
-                f"URI: {resource['uri']}" if not self.use_rich else
-                f"[bold]URI:[/bold] {resource['uri']}"
-            )
-        elif resource.get('uriTemplate'):
-            self.print(
-                f"URI Template: {resource['uriTemplate']}" if not self.use_rich else
-                f"[bold]URI Template:[/bold] {resource['uriTemplate']}"
+                f"URI Template: {resource['uriTemplate']}"
+                if not self.use_rich
+                else f"[bold]URI Template:[/bold] {resource['uriTemplate']}"
             )
 
         # MIME type
-        if resource.get('mimeType'):
+        if resource.get("mimeType"):
             self.print(
-                f"Type: {resource['mimeType']}" if not self.use_rich else
-                f"[bold]Type:[/bold] {resource['mimeType']}"
+                f"Type: {resource['mimeType']}" if not self.use_rich else f"[bold]Type:[/bold] {resource['mimeType']}"
             )
 
         # Description
-        if resource.get('description'):
+        if resource.get("description"):
             self.print("")
-            self.print(
-                "Description:" if not self.use_rich else
-                "[bold]Description:[/bold]"
-            )
-            desc_lines = resource['description'].strip().split('\n')
+            self.print("Description:" if not self.use_rich else "[bold]Description:[/bold]")
+            desc_lines = resource["description"].strip().split("\n")
             for line in desc_lines:
                 self.print(f"  {line}")
 
     def format_prompt_info(self, prompt: dict[str, Any]) -> None:
         """Format detailed prompt information."""
         if self.json_only:
-            prompt_data = {
-                "type": "prompt",
-                "name": prompt['name'],
-                "description": prompt['description']
-            }
-            if prompt.get('arguments'):
-                prompt_data["arguments"] = prompt['arguments']
+            prompt_data = {"type": "prompt", "name": prompt["name"], "description": prompt["description"]}
+            if prompt.get("arguments"):
+                prompt_data["arguments"] = prompt["arguments"]
 
             self.format_json(prompt_data)
             return
 
         # Prompt name header
         self.print(
-            f"\nPrompt: {prompt['name']}\n" if not self.use_rich else
-            f"\n[bold]Prompt: [cyan]{prompt['name']}[/cyan][/bold]\n"
+            f"\nPrompt: {prompt['name']}\n"
+            if not self.use_rich
+            else f"\n[bold]Prompt: [cyan]{prompt['name']}[/cyan][/bold]\n"
         )
 
         # Description
-        if prompt.get('description'):
+        if prompt.get("description"):
             self.print("Description:")
-            desc_lines = prompt['description'].strip().split('\n')
+            desc_lines = prompt["description"].strip().split("\n")
             for line in desc_lines:
                 self.print(f"  {line}")
             self.print("")
 
         # Arguments
-        if prompt.get('arguments'):
-            self.print(
-                "Arguments:" if not self.use_rich else
-                "[bold]Arguments:[/bold]"
-            )
-            for arg in prompt['arguments']:
-                arg_name = arg.get('name', 'unknown')
-                required = arg.get('required', False)
+        if prompt.get("arguments"):
+            self.print("Arguments:" if not self.use_rich else "[bold]Arguments:[/bold]")
+            for arg in prompt["arguments"]:
+                arg_name = arg.get("name", "unknown")
+                required = arg.get("required", False)
                 req_marker = " (required)" if required else " (optional)"
 
                 self.print(
-                    f"  {arg_name}{req_marker}" if not self.use_rich else
-                    f"  [cyan]{arg_name}[/cyan]{req_marker}"
+                    f"  {arg_name}{req_marker}" if not self.use_rich else f"  [cyan]{arg_name}[/cyan]{req_marker}"
                 )
 
                 # Argument description
-                if arg.get('description'):
-                    desc_lines = arg['description'].strip().split('\n')
+                if arg.get("description"):
+                    desc_lines = arg["description"].strip().split("\n")
                     for line in desc_lines:
                         self.print(f"    {line}")
         else:
@@ -421,13 +408,14 @@ class OutputFormatter:
         Each message has "role" and "content" ("type" and "text" for Content, usually).
         """
         if self.json_only:
-            prompt_data = result.model_dump(mode="json", exclude_none=True, exclude_defaults=True, exclude_unset=True, by_alias=True)
+            prompt_data = result.model_dump(
+                mode="json", exclude_none=True, exclude_defaults=True, exclude_unset=True, by_alias=True
+            )
             self.format_json(prompt_data)
         else:
             if result.description:
                 self.print(
-                    f"\n{result.description}\n" if not self.use_rich else
-                    f"\n[bold]{result.description}[/bold]\n"
+                    f"\n{result.description}\n" if not self.use_rich else f"\n[bold]{result.description}[/bold]\n"
                 )
 
             for msg in result.messages:
@@ -467,30 +455,30 @@ class OutputFormatter:
             results = {
                 "query": term,
                 "total_matches": total_matches,
-                "tools": [{"name": t['name'], "description": t['description']} for t in tools],
-                "resources": [{"name": r['name'], "uri": r.get('uri', r.get('uriTemplate', '')), "description": r['description']} for r in resources],
-                "prompts": [{"name": p['name'], "description": p['description']} for p in prompts]
+                "tools": [{"name": t["name"], "description": t["description"]} for t in tools],
+                "resources": [
+                    {"name": r["name"], "uri": r.get("uri", r.get("uriTemplate", "")), "description": r["description"]}
+                    for r in resources
+                ],
+                "prompts": [{"name": p["name"], "description": p["description"]} for p in prompts],
             }
             self.format_json(results)
             return
 
         output_lines = [
-            f"\nSearch results for '{term}' ({total_matches} matches):\n" if not self.use_rich else
-            f"\n[bold]Search results for '{term}' ({total_matches} matches):[/bold]\n"
+            f"\nSearch results for '{term}' ({total_matches} matches):\n"
+            if not self.use_rich
+            else f"\n[bold]Search results for '{term}' ({total_matches} matches):[/bold]\n"
         ]
 
         if tools:
             output_lines.append(
-                f"Tools ({len(tools)}):" if not self.use_rich else
-                f"[bold]Tools ({len(tools)}):[/bold]"
+                f"Tools ({len(tools)}):" if not self.use_rich else f"[bold]Tools ({len(tools)}):[/bold]"
             )
             for tool in tools:
-                output_lines.append(
-                    f"  {tool['name']}" if not self.use_rich else
-                    f"  [cyan]{tool['name']}[/cyan]"
-                )
-                if tool.get('description'):
-                    desc_first_line = tool['description'].strip().split('\n')[0]
+                output_lines.append(f"  {tool['name']}" if not self.use_rich else f"  [cyan]{tool['name']}[/cyan]")
+                if tool.get("description"):
+                    desc_first_line = tool["description"].strip().split("\n")[0]
                     if len(desc_first_line) > 60:
                         desc_first_line = desc_first_line[:57] + "..."
                     output_lines.append(f"    {desc_first_line}")
@@ -498,16 +486,14 @@ class OutputFormatter:
 
         if resources:
             output_lines.append(
-                f"Resources ({len(resources)}):" if not self.use_rich else
-                f"[bold]Resources ({len(resources)}):[/bold]"
+                f"Resources ({len(resources)}):" if not self.use_rich else f"[bold]Resources ({len(resources)}):[/bold]"
             )
             for resource in resources:
                 output_lines.append(
-                    f"  {resource['name']}" if not self.use_rich else
-                    f"  [cyan]{resource['name']}[/cyan]"
+                    f"  {resource['name']}" if not self.use_rich else f"  [cyan]{resource['name']}[/cyan]"
                 )
-                if resource.get('description'):
-                    desc_first_line = resource['description'].strip().split('\n')[0]
+                if resource.get("description"):
+                    desc_first_line = resource["description"].strip().split("\n")[0]
                     if len(desc_first_line) > 60:
                         desc_first_line = desc_first_line[:57] + "..."
                     output_lines.append(f"    {desc_first_line}")
@@ -515,23 +501,19 @@ class OutputFormatter:
 
         if prompts:
             output_lines.append(
-                f"Prompts ({len(prompts)}):" if not self.use_rich else
-                f"[bold]Prompts ({len(prompts)}):[/bold]"
+                f"Prompts ({len(prompts)}):" if not self.use_rich else f"[bold]Prompts ({len(prompts)}):[/bold]"
             )
             for prompt in prompts:
-                output_lines.append(
-                    f"  {prompt['name']}" if not self.use_rich else
-                    f"  [cyan]{prompt['name']}[/cyan]"
-                )
-                if prompt.get('description'):
-                    desc_first_line = prompt['description'].strip().split('\n')[0]
+                output_lines.append(f"  {prompt['name']}" if not self.use_rich else f"  [cyan]{prompt['name']}[/cyan]")
+                if prompt.get("description"):
+                    desc_first_line = prompt["description"].strip().split("\n")[0]
                     if len(desc_first_line) > 60:
                         desc_first_line = desc_first_line[:57] + "..."
                     output_lines.append(f"    {desc_first_line}")
             output_lines.append("")
 
         # Single print call with joined lines
-        self.print('\n'.join(output_lines).rstrip())
+        self.print("\n".join(output_lines).rstrip())
 
     def format_help(self, *, enhanced: bool = False) -> None:
         """Format help text."""
@@ -550,13 +532,13 @@ class OutputFormatter:
                         {"command": "resources [filter]", "description": "List available resources"},
                         {"command": "prompts [filter]", "description": "List available prompts"},
                         {"command": "search <term>", "description": "Search tools, resources, and prompts"},
-                        {"command": "info <tool|resource|prompt> <name>", "description": "Show detailed info"}
+                        {"command": "info <tool|resource|prompt> <name>", "description": "Show detailed info"},
                     ],
                     "tool_interaction": [
                         {"command": "call <tool_name> [args]", "description": "Call a tool"},
                         {"command": "resource <uri>", "description": "Get a resource"},
-                        {"command": "prompt <name> [args]", "description": "Get a prompt"}
-                    ]
+                        {"command": "prompt <name> [args]", "description": "Get a prompt"},
+                    ],
                 }
             }
             self.format_json(help_data)
@@ -629,41 +611,38 @@ Note: Tab completion shows rich parameter info after connecting"""
 
         output_lines = [
             f"\nTools ({len(tools)} available):\n"
-            if not self.use_rich else
-            f"\n[bold]Tools ({len(tools)} available):[/bold]\n"
+            if not self.use_rich
+            else f"\n[bold]Tools ({len(tools)} available):[/bold]\n"
         ]
 
         for tool in tools:
             # Tool name
-            output_lines.append(
-                tool['name'] if not self.use_rich else
-                f"[cyan bold]{tool['name']}[/cyan bold]"
-            )
+            output_lines.append(tool["name"] if not self.use_rich else f"[cyan bold]{tool['name']}[/cyan bold]")
 
             # Description (may be multiline)
-            if tool.get('description'):
-                desc_lines = tool['description'].strip().split('\n')
+            if tool.get("description"):
+                desc_lines = tool["description"].strip().split("\n")
                 for line in desc_lines:
                     output_lines.append(f"  {line}")
 
             # Input schema
-            if tool.get('inputSchema'):
-                schema = tool['inputSchema']
-                if schema.get('properties'):
+            if tool.get("inputSchema"):
+                schema = tool["inputSchema"]
+                if schema.get("properties"):
                     output_lines.append("  Parameters:")
-                    for prop_name, prop_info in schema['properties'].items():
+                    for prop_name, prop_info in schema["properties"].items():
                         # Parameter name and type
-                        prop_type = prop_info.get('anyOf', prop_info.get('type', 'any'))
+                        prop_type = prop_info.get("anyOf", prop_info.get("type", "any"))
                         if isinstance(prop_type, list):
-                            prop_type = ' | '.join(x.get('type', 'any') for x in prop_type)
-                        required = prop_name in schema.get('required', [])
+                            prop_type = " | ".join(x.get("type", "any") for x in prop_type)
+                        required = prop_name in schema.get("required", [])
                         req_marker = " (required)" if required else ""
 
                         output_lines.append(f"    - {prop_name} ({prop_type}){req_marker}")
 
                         # Parameter description (may be multiline)
-                        if prop_info.get('description'):
-                            desc_lines = prop_info['description'].strip().split('\n')
+                        if prop_info.get("description"):
+                            desc_lines = prop_info["description"].strip().split("\n")
                             for line in desc_lines:
                                 output_lines.append(f"      {line}")
                 else:
@@ -672,7 +651,7 @@ Note: Tab completion shows rich parameter info after connecting"""
             output_lines.append("")
 
         # Single print call with joined lines
-        self.print('\n'.join(output_lines))
+        self.print("\n".join(output_lines))
 
     def format_resources_list(self, resources: list[dict[str, Any]]) -> None:
         """Format a list of resources."""
@@ -682,30 +661,27 @@ Note: Tab completion shows rich parameter info after connecting"""
 
         output_lines = [
             f"\nResources ({len(resources)} available):\n"
-            if not self.use_rich else
-            f"\n[bold]Resources ({len(resources)} available):[/bold]\n"
+            if not self.use_rich
+            else f"\n[bold]Resources ({len(resources)} available):[/bold]\n"
         ]
 
         for resource in resources:
             # Resource name
-            output_lines.append(
-                resource['name'] if not self.use_rich else
-                f"[cyan bold]{resource['name']}[/cyan bold]"
-            )
+            output_lines.append(resource["name"] if not self.use_rich else f"[cyan bold]{resource['name']}[/cyan bold]")
 
             # URI or URI template
-            if resource.get('uri'):
+            if resource.get("uri"):
                 output_lines.append(f"  URI: {resource['uri']}")
-            elif resource.get('uriTemplate'):
+            elif resource.get("uriTemplate"):
                 output_lines.append(f"  URI Template: {resource['uriTemplate']}")
 
             # MIME type
-            if resource.get('mimeType'):
+            if resource.get("mimeType"):
                 output_lines.append(f"  Type: {resource['mimeType']}")
 
             # Description (may be multiline)
-            if resource.get('description'):
-                desc_lines = resource['description'].strip().split('\n')
+            if resource.get("description"):
+                desc_lines = resource["description"].strip().split("\n")
                 output_lines.append("  Description:")
                 for line in desc_lines:
                     output_lines.append(f"    {line}")
@@ -713,7 +689,7 @@ Note: Tab completion shows rich parameter info after connecting"""
             output_lines.append("")  # Blank line between resources
 
         # Single print call with joined lines
-        self.print('\n'.join(output_lines))
+        self.print("\n".join(output_lines))
 
     def format_prompts_list(self, prompts: list[dict[str, Any]]) -> None:
         """Format a list of prompts."""
@@ -723,36 +699,33 @@ Note: Tab completion shows rich parameter info after connecting"""
 
         output_lines = [
             f"\nPrompts ({len(prompts)} available):\n"
-            if not self.use_rich else
-            f"\n[bold]Prompts ({len(prompts)} available):[/bold]\n"
+            if not self.use_rich
+            else f"\n[bold]Prompts ({len(prompts)} available):[/bold]\n"
         ]
 
         for prompt in prompts:
             # Prompt name
-            output_lines.append(
-                prompt['name'] if not self.use_rich else
-                f"[cyan bold]{prompt['name']}[/cyan bold]"
-            )
+            output_lines.append(prompt["name"] if not self.use_rich else f"[cyan bold]{prompt['name']}[/cyan bold]")
 
             # Description (may be multiline)
-            if prompt.get('description'):
-                desc_lines = prompt['description'].strip().split('\n')
+            if prompt.get("description"):
+                desc_lines = prompt["description"].strip().split("\n")
                 for line in desc_lines:
                     output_lines.append(f"  {line}")
 
             # Arguments
-            if prompt.get('arguments'):
+            if prompt.get("arguments"):
                 output_lines.append("  Arguments:")
-                for arg in prompt['arguments']:
-                    arg_name = arg.get('name', 'unknown')
-                    required = arg.get('required', False)
+                for arg in prompt["arguments"]:
+                    arg_name = arg.get("name", "unknown")
+                    required = arg.get("required", False)
                     req_marker = " (required)" if required else ""
 
                     output_lines.append(f"    - {arg_name}{req_marker}")
 
                     # Argument description (may be multiline)
-                    if arg.get('description'):
-                        desc_lines = arg['description'].strip().split('\n')
+                    if arg.get("description"):
+                        desc_lines = arg["description"].strip().split("\n")
                         for line in desc_lines:
                             output_lines.append(f"      {line}")
             else:
@@ -761,4 +734,4 @@ Note: Tab completion shows rich parameter info after connecting"""
             output_lines.append("")  # Blank line between prompts
 
         # Single print call with joined lines
-        self.print('\n'.join(output_lines))
+        self.print("\n".join(output_lines))

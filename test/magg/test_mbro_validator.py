@@ -1,9 +1,9 @@
 """Tests for mbro input validator."""
 
-import pytest
 from unittest.mock import MagicMock
+
+import pytest
 from prompt_toolkit.document import Document
-from prompt_toolkit.validation import ValidationError
 
 from magg.mbro.validator import InputValidator
 

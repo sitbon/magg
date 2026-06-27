@@ -17,14 +17,13 @@ import json
 from anthropic import AsyncAnthropic
 from fastmcp.client import Client
 from fastmcp.client.sampling import (
-    SamplingMessage,
-    SamplingParams,
     RequestContext,
+    SamplingMessage,
 )
 from mcp.types import CreateMessageRequestParams
 from rich.traceback import install
 
-from magg.util.transform import is_mcp_result_json_typed, extract_mcp_result_json, get_mcp_result_contents
+from magg.util.transform import extract_mcp_result_json, get_mcp_result_contents, is_mcp_result_json_typed
 
 mcp_url = "http://localhost:8000/mcp"
 
@@ -32,17 +31,15 @@ mcp_url = "http://localhost:8000/mcp"
 install(show_locals=True)
 
 
-
 async def claude_sampling_handler(
-        messages: list[SamplingMessage],
-        params: CreateMessageRequestParams,
-        context: RequestContext,
+    messages: list[SamplingMessage],
+    params: CreateMessageRequestParams,
+    context: RequestContext,
 ):
     client = AsyncAnthropic()
 
     claude_messages = [
-        {"role": msg.role, "content": msg.content.text}
-        for msg in messages if hasattr(msg.content, 'text')
+        {"role": msg.role, "content": msg.content.text} for msg in messages if hasattr(msg.content, "text")
     ]
 
     response = await client.messages.create(
@@ -62,9 +59,7 @@ async def main():
         # Call a tool that uses sampling
         result = await client.call_tool(
             name="magg_smart_configure",
-            arguments={
-                "source": "https://github.com/wrtnlabs/calculator-mcp"
-            },
+            arguments={"source": "https://github.com/wrtnlabs/calculator-mcp"},
         )
 
         for content in result:

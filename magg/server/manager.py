@@ -1,5 +1,5 @@
-"""Server management for Magg - mounting, unmounting, and tracking MCP servers.
-"""
+"""Server management for Magg - mounting, unmounting, and tracking MCP servers."""
+
 import asyncio
 import logging
 import os
@@ -7,19 +7,19 @@ from dataclasses import dataclass
 from functools import cached_property
 from typing import Annotated
 
-from fastmcp import FastMCP, Client
+from fastmcp import Client, FastMCP
 from fastmcp.server import create_proxy
 from pydantic import Field
 
-from .defaults import MAGG_INSTRUCTIONS
-from .response import MaggResponse
 from ..auth import BearerAuthManager
 from ..kit import KitManager
-from ..proxy.server import ProxyFastMCP, BackendMessageHandler
+from ..proxy.server import BackendMessageHandler, ProxyFastMCP
 from ..reload import ConfigChange, ServerChange
 from ..settings import ConfigManager, MaggConfig, ServerConfig
 from ..util.stdio_patch import patch_stdio_transport_stderr
 from ..util.transport import get_transport_for_command, get_transport_for_uri
+from .defaults import MAGG_INSTRUCTIONS
+from .response import MaggResponse
 
 logger = logging.getLogger(__name__)
 
@@ -27,12 +27,14 @@ logger = logging.getLogger(__name__)
 @dataclass
 class MountedServer:
     """Information about a mounted MCP server."""
+
     proxy: FastMCP
     client: Client
 
 
 class ServerManager:
     """Manages MCP servers - mounting, unmounting, and tracking."""
+
     config_manager: ConfigManager
     mcp: ProxyFastMCP
     mounted_servers: dict[str, MountedServer]
@@ -56,7 +58,7 @@ class ServerManager:
         self.mcp = ProxyFastMCP(
             name=self.self_prefix,
             instructions=MAGG_INSTRUCTIONS.format(self_prefix=self.self_prefix),
-            auth=auth_provider
+            auth=auth_provider,
         )
         self.mounted_servers = {}
 
@@ -92,10 +94,7 @@ class ServerManager:
             return False
 
         try:
-            message_handler = BackendMessageHandler(
-                server_id=server.name,
-                coordinator=self.mcp.message_coordinator
-            )
+            message_handler = BackendMessageHandler(server_id=server.name, coordinator=self.mcp.message_coordinator)
 
             if server.command:
                 env = None
@@ -114,7 +113,7 @@ class ServerManager:
                     args=server.args or [],
                     env=env,
                     cwd=server.cwd,
-                    transport_config=server.transport
+                    transport_config=server.transport,
                 )
 
                 if not self.config.stderr_show:
@@ -123,10 +122,7 @@ class ServerManager:
                 client = Client(transport, message_handler=message_handler)
 
             elif server.uri:
-                transport = get_transport_for_uri(
-                    uri=server.uri,
-                    transport_config=server.transport
-                )
+                transport = get_transport_for_uri(uri=server.uri, transport_config=server.transport)
 
                 client = Client(transport, message_handler=message_handler)
 
@@ -137,10 +133,7 @@ class ServerManager:
             proxy_server = create_proxy(client, name=server.name)
             self.mcp.mount(server=proxy_server, namespace=server.prefix)
 
-            self.mounted_servers[server.name] = MountedServer(
-                proxy=proxy_server,
-                client=client
-            )
+            self.mounted_servers[server.name] = MountedServer(proxy=proxy_server, client=client)
 
             logger.debug("Mounted server %s with prefix %r", server.name, server.prefix)
             return True
@@ -159,30 +152,30 @@ class ServerManager:
         found = False
 
         # Check tool manager
-        if hasattr(self.mcp, '_tool_manager') and hasattr(self.mcp._tool_manager, '_mounted_servers'):
+        if hasattr(self.mcp, "_tool_manager") and hasattr(self.mcp._tool_manager, "_mounted_servers"):
             mounted_servers = self.mcp._tool_manager._mounted_servers
             for i, ms in enumerate(mounted_servers):
-                if hasattr(ms, 'server') and hasattr(ms.server, 'name') and ms.server.name == server_name:
+                if hasattr(ms, "server") and hasattr(ms.server, "name") and ms.server.name == server_name:
                     mounted_servers.pop(i)
                     found = True
                     logger.debug("Removed server %s from tool manager", server_name)
                     break
 
         # Check resource manager
-        if hasattr(self.mcp, '_resource_manager') and hasattr(self.mcp._resource_manager, '_mounted_servers'):
+        if hasattr(self.mcp, "_resource_manager") and hasattr(self.mcp._resource_manager, "_mounted_servers"):
             mounted_servers = self.mcp._resource_manager._mounted_servers
             for i, ms in enumerate(mounted_servers):
-                if hasattr(ms, 'server') and hasattr(ms.server, 'name') and ms.server.name == server_name:
+                if hasattr(ms, "server") and hasattr(ms.server, "name") and ms.server.name == server_name:
                     mounted_servers.pop(i)
                     found = True
                     logger.debug("Removed server %s from resource manager", server_name)
                     break
 
         # Check prompt manager
-        if hasattr(self.mcp, '_prompt_manager') and hasattr(self.mcp._prompt_manager, '_mounted_servers'):
+        if hasattr(self.mcp, "_prompt_manager") and hasattr(self.mcp._prompt_manager, "_mounted_servers"):
             mounted_servers = self.mcp._prompt_manager._mounted_servers
             for i, ms in enumerate(mounted_servers):
-                if hasattr(ms, 'server') and hasattr(ms.server, 'name') and ms.server.name == server_name:
+                if hasattr(ms, "server") and hasattr(ms.server, "name") and ms.server.name == server_name:
                     mounted_servers.pop(i)
                     found = True
                     logger.debug("Removed server %s from prompt manager", server_name)
@@ -239,9 +232,9 @@ class ServerManager:
         failed = [name for name, success in results if not success]
 
         if successful:
-            logger.debug("Successfully mounted: %s", ', '.join(successful))
+            logger.debug("Successfully mounted: %s", ", ".join(successful))
         if failed:
-            logger.warning("Failed to mount: %s", ', '.join(failed))
+            logger.warning("Failed to mount: %s", ", ".join(failed))
 
     async def handle_config_reload(self, config_change: ConfigChange) -> None:
         """Handle configuration changes by applying server updates.
@@ -255,23 +248,23 @@ class ServerManager:
         # This ensures clean transitions
 
         for change in config_change.server_changes:
-            if change.action == 'remove':
+            if change.action == "remove":
                 await self._handle_server_remove(change)
 
         for change in config_change.server_changes:
-            if change.action == 'disable':
+            if change.action == "disable":
                 await self._handle_server_disable(change)
 
         for change in config_change.server_changes:
-            if change.action == 'update':
+            if change.action == "update":
                 await self._handle_server_update(change)
 
         for change in config_change.server_changes:
-            if change.action == 'enable':
+            if change.action == "enable":
                 await self._handle_server_enable(change)
 
         for change in config_change.server_changes:
-            if change.action == 'add':
+            if change.action == "add":
                 await self._handle_server_add(change)
 
         logger.debug("Configuration reload complete")
@@ -354,8 +347,7 @@ class ManagedServer:
 
     @property
     def config(self) -> MaggConfig:
-        """Get the current Magg configuration.
-        """
+        """Get the current Magg configuration."""
         return self.server_manager.config
 
     @cached_property
@@ -368,8 +360,7 @@ class ManagedServer:
 
     @cached_property
     def self_prefix_(self) -> str:
-        """self_prefix with trailing separator if prefix exists.
-        """
+        """self_prefix with trailing separator if prefix exists."""
         prefix = self.self_prefix
         if prefix:
             return f"{prefix}{self.server_manager.prefix_separator}"
@@ -429,26 +420,21 @@ class ManagedServer:
             await self.server_manager.mount_all_enabled()
 
             if self._enable_config_reload:
-                await self.server_manager.config_manager.setup_config_reload(
-                    self.server_manager.handle_config_reload
-                )
+                await self.server_manager.config_manager.setup_config_reload(self.server_manager.handle_config_reload)
 
     async def run_stdio(self):
-        """Run Magg in stdio mode.
-        """
+        """Run Magg in stdio mode."""
         await self.setup()
         await self.mcp.run_stdio_async(show_banner=False)
 
     async def run_http(self, host: str = "localhost", port: int = 8000, log_level: str | None = None):
-        """Run Magg in HTTP mode.
-        """
+        """Run Magg in HTTP mode."""
         log_level = log_level or os.getenv("FASTMCP_LOG_LEVEL", "CRITICAL").upper() or "CRITICAL"
         await self.setup()
         await self.mcp.run_http_async(host=host, port=port, log_level=log_level, show_banner=False)
 
     async def run_hybrid(self, host: str = "localhost", port: int = 8000, log_level: str | None = None):
-        """Run Magg in hybrid mode - both stdio and HTTP simultaneously.
-        """
+        """Run Magg in hybrid mode - both stdio and HTTP simultaneously."""
         log_level = log_level or os.getenv("FASTMCP_LOG_LEVEL", "CRITICAL").upper() or "CRITICAL"
 
         await self.setup()
@@ -457,15 +443,10 @@ class ManagedServer:
             self.mcp.run_http_async(host=host, port=port, log_level=log_level, show_banner=False)
         )
 
-        stdio_task = asyncio.create_task(
-            self.mcp.run_stdio_async(show_banner=False)
-        )
+        stdio_task = asyncio.create_task(self.mcp.run_stdio_async(show_banner=False))
 
         try:
-            done, pending = await asyncio.wait(
-                [http_task, stdio_task],
-                return_when=asyncio.FIRST_COMPLETED
-            )
+            done, pending = await asyncio.wait([http_task, stdio_task], return_when=asyncio.FIRST_COMPLETED)
 
             for task in pending:
                 task.cancel()
@@ -491,9 +472,7 @@ class ManagedServer:
             True if reload was successful, False otherwise
         """
         if not self._enable_config_reload:
-            await self.server_manager.config_manager.setup_config_reload(
-                self.server_manager.handle_config_reload
-            )
+            await self.server_manager.config_manager.setup_config_reload(self.server_manager.handle_config_reload)
 
         return await self.server_manager.config_manager.reload_config()
 
@@ -501,14 +480,13 @@ class ManagedServer:
     # endregion
     # ============================================================================
 
-
     # ============================================================================
     # region Kit Management Tools
     # ============================================================================
 
     async def load_kit(
-            self,
-            name: Annotated[str, Field(description="Kit name to load (filename without .json)")],
+        self,
+        name: Annotated[str, Field(description="Kit name to load (filename without .json)")],
     ) -> MaggResponse:
         """Load a kit and its servers into the configuration."""
         try:
@@ -523,11 +501,7 @@ class ManagedServer:
                     if server.enabled and server_name not in self.server_manager.mounted_servers:
                         await self.server_manager.mount_server(server)
 
-                return MaggResponse.success({
-                    "action": "kit_loaded",
-                    "kit": name,
-                    "message": message
-                })
+                return MaggResponse.success({"action": "kit_loaded", "kit": name, "message": message})
             else:
                 return MaggResponse.error(message)
 
@@ -535,8 +509,8 @@ class ManagedServer:
             return MaggResponse.error(f"Failed to load kit: {str(e)}")
 
     async def unload_kit(
-            self,
-            name: Annotated[str, Field(description="Kit name to unload")],
+        self,
+        name: Annotated[str, Field(description="Kit name to unload")],
     ) -> MaggResponse:
         """Unload a kit and optionally its servers from the configuration."""
         try:
@@ -556,11 +530,7 @@ class ManagedServer:
                     if server_name in self.server_manager.mounted_servers:
                         await self.server_manager.unmount_server(server_name)
 
-                return MaggResponse.success({
-                    "action": "kit_unloaded",
-                    "kit": name,
-                    "message": message
-                })
+                return MaggResponse.success({"action": "kit_unloaded", "kit": name, "message": message})
             else:
                 return MaggResponse.error(message)
 
@@ -572,21 +542,23 @@ class ManagedServer:
         try:
             kits = self.kit_manager.list_all_kits()
 
-            return MaggResponse.success({
-                "kits": kits,
-                "summary": {
-                    "total": len(kits),
-                    "loaded": len([k for k in kits.values() if k['loaded']]),
-                    "available": len([k for k in kits.values() if not k['loaded']])
+            return MaggResponse.success(
+                {
+                    "kits": kits,
+                    "summary": {
+                        "total": len(kits),
+                        "loaded": len([k for k in kits.values() if k["loaded"]]),
+                        "available": len([k for k in kits.values() if not k["loaded"]]),
+                    },
                 }
-            })
+            )
 
         except Exception as e:
             return MaggResponse.error(f"Failed to list kits: {str(e)}")
 
     async def kit_info(
-            self,
-            name: Annotated[str, Field(description="Kit name to get information about")],
+        self,
+        name: Annotated[str, Field(description="Kit name to get information about")],
     ) -> MaggResponse:
         """Get detailed information about a specific kit."""
         try:
@@ -618,11 +590,7 @@ class ManagedServer:
         kit_config = loaded_kits[name]
 
         return kit_config.model_dump(
-            mode="json",
-            exclude_none=True,
-            exclude_defaults=True,
-            exclude_unset=True,
-            by_alias=True
+            mode="json", exclude_none=True, exclude_defaults=True, exclude_unset=True, by_alias=True
         )
 
     async def get_all_kits_metadata(self) -> dict[str, dict]:
@@ -634,11 +602,7 @@ class ManagedServer:
 
         for kit_name, kit_config in self.kit_manager.kits.items():
             result[kit_name] = kit_config.model_dump(
-                mode="json",
-                exclude_none=True,
-                exclude_defaults=True,
-                exclude_unset=True,
-                by_alias=True
+                mode="json", exclude_none=True, exclude_defaults=True, exclude_unset=True, by_alias=True
             )
 
         return result

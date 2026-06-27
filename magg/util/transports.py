@@ -3,7 +3,8 @@
 These transports pass through script arguments without validation,
 letting the underlying command fail if the script doesn't exist.
 """
-from fastmcp.client import PythonStdioTransport, StdioTransport, NodeStdioTransport, NpxStdioTransport
+
+from fastmcp.client import NodeStdioTransport, NpxStdioTransport, PythonStdioTransport, StdioTransport
 
 __all__ = "NoValidatePythonStdioTransport", "NoValidateNodeStdioTransport", "NoValidateNpxStdioTransport"
 
@@ -18,7 +19,7 @@ class NoValidatePythonStdioTransport(PythonStdioTransport):
         python_cmd: str = "python",
         env: dict[str, str] | None = None,
         cwd: str | None = None,
-        keep_alive: bool = True
+        keep_alive: bool = True,
     ):
         """Initialize without script validation.
 
@@ -34,14 +35,7 @@ class NoValidatePythonStdioTransport(PythonStdioTransport):
         if args:
             full_args.extend(args)
 
-        StdioTransport.__init__(
-            self,
-            command=python_cmd,
-            args=full_args,
-            env=env,
-            cwd=cwd,
-            keep_alive=keep_alive
-        )
+        StdioTransport.__init__(self, command=python_cmd, args=full_args, env=env, cwd=cwd, keep_alive=keep_alive)
 
 
 class NoValidateNodeStdioTransport(NodeStdioTransport):
@@ -54,7 +48,7 @@ class NoValidateNodeStdioTransport(NodeStdioTransport):
         node_cmd: str = "node",
         env: dict[str, str] | None = None,
         cwd: str | None = None,
-        keep_alive: bool = True
+        keep_alive: bool = True,
     ):
         """Initialize without script validation.
 
@@ -70,14 +64,7 @@ class NoValidateNodeStdioTransport(NodeStdioTransport):
         if args:
             full_args.extend(args)
 
-        StdioTransport.__init__(
-            self,
-            command=node_cmd,
-            args=full_args,
-            env=env,
-            cwd=cwd,
-            keep_alive=keep_alive
-        )
+        StdioTransport.__init__(self, command=node_cmd, args=full_args, env=env, cwd=cwd, keep_alive=keep_alive)
 
 
 class NoValidateNpxStdioTransport(NpxStdioTransport):
@@ -94,7 +81,7 @@ class NoValidateNpxStdioTransport(NpxStdioTransport):
         project_directory: str | None = None,
         env_vars: dict[str, str] | None = None,
         use_package_lock: bool = True,
-        keep_alive: bool = True
+        keep_alive: bool = True,
     ):
         """Initialize without validating npx presence.
 
@@ -112,11 +99,6 @@ class NoValidateNpxStdioTransport(NpxStdioTransport):
             npx_args.extend(args)
 
         StdioTransport.__init__(
-            self,
-            command="npx",
-            args=npx_args,
-            env=env_vars,
-            cwd=project_directory,
-            keep_alive=keep_alive
+            self, command="npx", args=npx_args, env=env_vars, cwd=project_directory, keep_alive=keep_alive
         )
         self.package = package

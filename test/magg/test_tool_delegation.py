@@ -1,7 +1,8 @@
 """Test tool delegation functionality for Magg."""
 
 import pytest
-from fastmcp import FastMCP, Client
+from fastmcp import Client, FastMCP
+
 from magg.settings import ServerConfig
 
 
@@ -39,48 +40,29 @@ class TestToolDelegation:
             assert tools[0].name == "delegate_test"
 
             result = await client.call_tool("delegate_test", {"query": "test"})
-            assert hasattr(result, 'content')
+            assert hasattr(result, "content")
             assert len(result.content) > 0
             assert "Delegated result: test" in result.content[0].text
 
     def test_tool_prefix_handling(self):
         """Test that tool prefixes are handled correctly."""
         # Create server with specific prefix
-        server = ServerConfig(
-            name="prefixedserver",
-            source="https://example.com",
-            prefix="custom",
-            command="echo"
-        )
+        server = ServerConfig(name="prefixedserver", source="https://example.com", prefix="custom", command="echo")
 
         # Test prefix validation
         assert server.prefix == "custom"
 
         # Test that default prefix is now None
-        server2 = ServerConfig(
-            name="test-server",
-            source="https://example.com",
-            command="echo"
-        )
+        server2 = ServerConfig(name="test-server", source="https://example.com", command="echo")
         assert server2.prefix is None  # Default is None now
 
     def test_tool_name_collision_handling(self):
         """Test handling of tool name collisions."""
         # In FastMCP, tools are prefixed by mount point
         # This prevents collisions automatically
-        server1 = ServerConfig(
-            name="server1",
-            source="https://example.com",
-            prefix="srv1",
-            command="echo"
-        )
+        server1 = ServerConfig(name="server1", source="https://example.com", prefix="srv1", command="echo")
 
-        server2 = ServerConfig(
-            name="server2",
-            source="https://example.com",
-            prefix="srv2",
-            command="echo"
-        )
+        server2 = ServerConfig(name="server2", source="https://example.com", prefix="srv2", command="echo")
 
         # Different prefixes prevent collision
         assert server1.prefix != server2.prefix

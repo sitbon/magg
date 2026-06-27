@@ -1,18 +1,19 @@
 """Unit tests for transport utilities."""
 
-from unittest.mock import patch, MagicMock
-import tempfile
 import os
+import tempfile
+from unittest.mock import MagicMock, patch
+
+from fastmcp.client.transports import (
+    NpxStdioTransport,
+    SSETransport,
+    StdioTransport,
+    StreamableHttpTransport,
+    UvxStdioTransport,
+)
 
 from magg.util.transport import get_transport_for_command, get_transport_for_uri
-from magg.util.transports import NoValidatePythonStdioTransport, NoValidateNodeStdioTransport
-from fastmcp.client.transports import (
-    StdioTransport,
-    NpxStdioTransport,
-    UvxStdioTransport,
-    SSETransport,
-    StreamableHttpTransport
-)
+from magg.util.transports import NoValidateNodeStdioTransport, NoValidatePythonStdioTransport
 
 
 class TestGetTransportForCommand:
@@ -21,15 +22,13 @@ class TestGetTransportForCommand:
     def test_python_command_with_script(self):
         """Test Python transport for script execution."""
         # Create a temporary script file
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
             f.write("print('test')")
             script_path = f.name
 
         try:
             transport = get_transport_for_command(
-                command="python",
-                args=[script_path, "--port", "8080"],
-                cwd="/tmp/test"
+                command="python", args=[script_path, "--port", "8080"], cwd="/tmp/test"
             )
 
             assert isinstance(transport, NoValidatePythonStdioTransport)
@@ -44,9 +43,7 @@ class TestGetTransportForCommand:
         """Test Python transport for module execution (-m)."""
         # Our custom transport doesn't validate, so -m works fine
         transport = get_transport_for_command(
-            command="python",
-            args=["-m", "mymodule.server", "--debug"],
-            cwd="/tmp/test"
+            command="python", args=["-m", "mymodule.server", "--debug"], cwd="/tmp/test"
         )
 
         assert isinstance(transport, NoValidatePythonStdioTransport)
@@ -57,7 +54,7 @@ class TestGetTransportForCommand:
 
     def test_python_command_with_transport_config(self):
         """Test Python transport with custom config."""
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
             f.write("print('test')")
             script_path = f.name
 
@@ -65,7 +62,7 @@ class TestGetTransportForCommand:
             transport = get_transport_for_command(
                 command="python",
                 args=[script_path],
-                transport_config={"python_cmd": "/usr/bin/python3.11", "keep_alive": False}
+                transport_config={"python_cmd": "/usr/bin/python3.11", "keep_alive": False},
             )
 
             assert isinstance(transport, NoValidatePythonStdioTransport)
@@ -77,15 +74,13 @@ class TestGetTransportForCommand:
 
     def test_node_command(self):
         """Test Node.js transport."""
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.js', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".js", delete=False) as f:
             f.write("console.log('test')")
             script_path = f.name
 
         try:
             transport = get_transport_for_command(
-                command="node",
-                args=[script_path, "--experimental-modules"],
-                env={"NODE_ENV": "production"}
+                command="node", args=[script_path, "--experimental-modules"], env={"NODE_ENV": "production"}
             )
 
             assert isinstance(transport, NoValidateNodeStdioTransport)
@@ -99,9 +94,7 @@ class TestGetTransportForCommand:
         """Test NPX transport."""
         with tempfile.TemporaryDirectory() as tmpdir:
             transport = get_transport_for_command(
-                command="npx",
-                args=["@modelcontextprotocol/server-calculator"],
-                cwd=tmpdir
+                command="npx", args=["@modelcontextprotocol/server-calculator"], cwd=tmpdir
             )
 
             assert isinstance(transport, NpxStdioTransport)
@@ -113,7 +106,7 @@ class TestGetTransportForCommand:
         transport = get_transport_for_command(
             command="uvx",
             args=["myserver", "--config", "prod.conf"],
-            transport_config={"python_version": "3.11", "with_packages": ["requests"]}
+            transport_config={"python_version": "3.11", "with_packages": ["requests"]},
         )
 
         assert isinstance(transport, UvxStdioTransport)
@@ -127,9 +120,7 @@ class TestGetTransportForCommand:
     def test_generic_command(self):
         """Test fallback to generic StdioTransport."""
         transport = get_transport_for_command(
-            command="/usr/local/bin/custom-server",
-            args=["--mode", "production"],
-            env={"CUSTOM_VAR": "value"}
+            command="/usr/local/bin/custom-server", args=["--mode", "production"], env={"CUSTOM_VAR": "value"}
         )
 
         assert isinstance(transport, StdioTransport)
@@ -169,10 +160,7 @@ class TestGetTransportForUri:
         """Test transport with authentication config."""
         transport = get_transport_for_uri(
             "https://api.example.com/mcp",
-            transport_config={
-                "auth": "Bearer token123",
-                "headers": {"X-Custom": "value"}
-            }
+            transport_config={"auth": "Bearer token123", "headers": {"X-Custom": "value"}},
         )
 
         assert isinstance(transport, StreamableHttpTransport)
@@ -180,7 +168,7 @@ class TestGetTransportForUri:
         assert transport.auth is not None
         assert transport.headers == {"X-Custom": "value"}
 
-    @patch('magg.util.transport.infer_transport')
+    @patch("magg.util.transport.infer_transport")
     def test_unknown_uri_scheme(self, mock_infer):
         """Test fallback to infer_transport for unknown schemes."""
         mock_transport = MagicMock()

@@ -1,5 +1,5 @@
-"""Magg - MCP Aggregator Server - Main Implementation
-"""
+"""Magg - MCP Aggregator Server - Main Implementation"""
+
 import asyncio
 import json
 import logging
@@ -8,41 +8,40 @@ import re
 import shlex
 from functools import wraps
 from pathlib import Path
-from typing import Any, Annotated, Literal
+from typing import Annotated, Any, Literal
 
 from fastmcp import Context
 from mcp.types import PromptMessage, TextContent
-from pydantic import Field, AnyUrl
+from pydantic import AnyUrl, Field
 
+from ..discovery.metadata import CatalogManager, SourceMetadataCollector
+from ..settings import ConfigManager, ServerConfig
+from ..util.transform import json_to_dict
+from ..util.transport import TRANSPORT_DOCS
+from ..util.uri import validate_working_directory
 from .defaults import MAGG_ADD_SERVER_DOC, PROXY_TOOL_DOC
 from .manager import ManagedServer, ServerManager
 from .response import MaggResponse
-from ..discovery.metadata import CatalogManager, SourceMetadataCollector
-from ..settings import ServerConfig, ConfigManager
-from ..util.transport import TRANSPORT_DOCS
-from ..util.uri import validate_working_directory
-from ..util.transform import json_to_dict
 
 logger = logging.getLogger(__name__)
 
 
 class MaggServer(ManagedServer):
-    """Main Magg server with tools for managing other MCP servers.
-    """
+    """Main Magg server with tools for managing other MCP servers."""
+
     def __init__(
-            self,
-            config_path: Path | str | None = None,
-            *,
-            enable_config_reload: bool | None = None,
-            env: dict | None = None,
+        self,
+        config_path: Path | str | None = None,
+        *,
+        enable_config_reload: bool | None = None,
+        env: dict | None = None,
     ):
         config_manager = ConfigManager(config_path)
         server_manager = ServerManager(config_manager, env=env)
         super().__init__(server_manager, enable_config_reload=enable_config_reload)
 
     def _register_tools(self):
-        """Register all Magg management tools programmatically.
-        """
+        """Register all Magg management tools programmatically."""
         self_prefix_ = self.self_prefix_
 
         tools = [
@@ -115,7 +114,9 @@ class MaggServer(ManagedServer):
 
         if name in config.servers:
             server = config.servers[name]
-            return server.model_dump(mode="json", exclude_none=True, exclude_defaults=True, exclude_unset=True, by_alias=True)
+            return server.model_dump(
+                mode="json", exclude_none=True, exclude_defaults=True, exclude_unset=True, by_alias=True
+            )
 
         raise ValueError(f"Server '{name}' not found in configuration")
 
@@ -125,11 +126,7 @@ class MaggServer(ManagedServer):
 
         return {
             name: server.model_dump(
-                mode="json",
-                exclude_none=True,
-                exclude_defaults=True,
-                exclude_unset=True,
-                by_alias=True
+                mode="json", exclude_none=True, exclude_defaults=True, exclude_unset=True, by_alias=True
             )
             for name, server in config.servers.items()
         }
@@ -194,7 +191,7 @@ class MaggServer(ManagedServer):
             role="assistant",
             content=TextContent(
                 type="text",
-                text="You are an expert at configuring MCP servers. Analyze the provided URL and metadata to generate optimal server configuration."
+                text="You are an expert at configuring MCP servers. Analyze the provided URL and metadata to generate optimal server configuration.",
             ),
         )
 
@@ -202,7 +199,7 @@ class MaggServer(ManagedServer):
 
         user_prompt = f"""Configure an MCP server for: {source}
 
-Server name: {server_name or 'auto-generate'}
+Server name: {server_name or "auto-generate"}
 
 Collected Metadata:
 {metadata_info}
@@ -254,17 +251,23 @@ Documentation for proxy tool:
         name: Annotated[str, Field(description="Unique server name")],
         source: Annotated[str, Field(description="URL of the server package/repository")],
         prefix: Annotated[str | None, Field(description="Tool prefix (defaults to conformed server name)")] = None,
-        command: Annotated[str | None, Field(
-            description="Full command to run (e.g., 'python server.py', 'npx @playwright/mcp@latest')"
-        )] = None,
+        command: Annotated[
+            str | None,
+            Field(description="Full command to run (e.g., 'python server.py', 'npx @playwright/mcp@latest')"),
+        ] = None,
         uri: Annotated[AnyUrl | None, Field(description="URI for HTTP servers")] = None,
-        env: Annotated[dict[str, str] | str | None, Field(description="Environment variables (dict or JSON string)")] = None,
+        env: Annotated[
+            dict[str, str] | str | None, Field(description="Environment variables (dict or JSON string)")
+        ] = None,
         cwd: Annotated[str | None, Field(description="Working directory (for commands)")] = None,
         notes: Annotated[str | None, Field(description="Setup notes")] = None,
-        enable: Annotated[bool | None, Field(description="Whether to enable the server immediately (default: True)")] = True,
-        transport: Annotated[dict[str, Any] | str | None, Field(
-            description=f"Transport-specific configuration (dict or JSON string){TRANSPORT_DOCS}"
-        )] = None,
+        enable: Annotated[
+            bool | None, Field(description="Whether to enable the server immediately (default: True)")
+        ] = True,
+        transport: Annotated[
+            dict[str, Any] | str | None,
+            Field(description=f"Transport-specific configuration (dict or JSON string){TRANSPORT_DOCS}"),
+        ] = None,
     ) -> MaggResponse:
         """Add a new MCP server."""
         try:
@@ -320,23 +323,26 @@ Documentation for proxy tool:
             if not self.save_config(config):
                 return MaggResponse.error(f"Failed to save configuration for added server '{name}'")
 
-            return MaggResponse.success({
-                "action": "server_added",
-                "server": {
-                    "name": server.name,
-                    "source": server.source,
-                    "prefix": server.prefix,
-                    "command": (
-                        f"{server.command} {' '.join(server.args) if server.args else ''}".strip()
-                        if server.command else None
-                    ),
-                    "uri": server.uri,
-                    "cwd": server.cwd,
-                    "notes": server.notes,
-                    "enabled": server.enabled,
-                    "mounted": mount_success
+            return MaggResponse.success(
+                {
+                    "action": "server_added",
+                    "server": {
+                        "name": server.name,
+                        "source": server.source,
+                        "prefix": server.prefix,
+                        "command": (
+                            f"{server.command} {' '.join(server.args) if server.args else ''}".strip()
+                            if server.command
+                            else None
+                        ),
+                        "uri": server.uri,
+                        "cwd": server.cwd,
+                        "notes": server.notes,
+                        "enabled": server.enabled,
+                        "mounted": mount_success,
+                    },
                 }
-            })
+            )
 
         except Exception as e:
             return MaggResponse.error(f"Failed to add server: {str(e)}")
@@ -356,10 +362,7 @@ Documentation for proxy tool:
                     return MaggResponse.error(f"Failed to save configuration after removing server '{name}'")
 
                 await self.server_manager.unmount_server(name)
-                return MaggResponse.success({
-                    "action": "server_removed",
-                    "server": {"name": name}
-                })
+                return MaggResponse.success({"action": "server_removed", "server": {"name": name}})
             else:
                 return MaggResponse.error(f"Server '{name}' not found")
 
@@ -424,11 +427,7 @@ Documentation for proxy tool:
 
             success = await self.server_manager.mount_server(server)
 
-            return MaggResponse.success({
-                "action": "server_enabled",
-                "server": {"name": name},
-                "mounted": success
-            })
+            return MaggResponse.success({"action": "server_enabled", "server": {"name": name}, "mounted": success})
 
         except Exception as e:
             return MaggResponse.error(f"Failed to enable server: {str(e)}")
@@ -456,10 +455,7 @@ Documentation for proxy tool:
 
             await self.server_manager.unmount_server(name)
 
-            return MaggResponse.success({
-                "action": "server_disabled",
-                "server": {"name": name}
-            })
+            return MaggResponse.success({"action": "server_disabled", "server": {"name": name}})
 
         except Exception as e:
             return MaggResponse.error(f"Failed to disable server: {str(e)}")
@@ -467,12 +463,12 @@ Documentation for proxy tool:
     async def smart_configure(
         self,
         source: Annotated[str, Field(description="URL of the server package/repository")],
-        server_name: Annotated[str | None, Field(
-            description="Optional server name (auto-generated if not provided)"
-        )] = None,
-        allow_add: Annotated[bool, Field(
-            description="Whether to automatically add the server after configuration (default: False)"
-        )] = False,
+        server_name: Annotated[
+            str | None, Field(description="Optional server name (auto-generated if not provided)")
+        ] = None,
+        allow_add: Annotated[
+            bool, Field(description="Whether to automatically add the server after configuration (default: False)")
+        ] = False,
         context: Context | None = None,
     ) -> MaggResponse:
         """Use LLM sampling to intelligently configure and add a server from a URL.
@@ -511,11 +507,10 @@ Documentation for proxy tool:
                 elif entry_source == "http_check" and data.get("is_mcp_server"):
                     metadata_summary.append("Direct MCP server detected via HTTP")
 
-
             if not context:
                 config_suggestion = {
-                    "name": server_name or Path(source).stem.replace('-', '').replace('_', ''),
-                    "source": source
+                    "name": server_name or Path(source).stem.replace("-", "").replace("_", ""),
+                    "source": source,
                 }
 
                 for entry in metadata_entries:
@@ -529,17 +524,19 @@ Documentation for proxy tool:
                             config_suggestion["command"] = "python"
                             config_suggestion["args"] = ["-m", server_name or Path(source).stem]
 
-                return MaggResponse.success({
-                    "action": "metadata_based_config",
-                    "metadata": metadata_summary,
-                    "suggested_config": config_suggestion
-                })
+                return MaggResponse.success(
+                    {
+                        "action": "metadata_based_config",
+                        "metadata": metadata_summary,
+                        "suggested_config": config_suggestion,
+                    }
+                )
 
             prompt = f"""You are being asked by the Magg smart_configure tool to analyze metadata and generate an optimal MCP server configuration.
 
 Configure an MCP server for: {source}
 
-Server name requested: {server_name or '<auto-generate based on source>'}
+Server name requested: {server_name or "<auto-generate based on source>"}
 
 === METADATA COLLECTED ===
 {os.linesep.join(f"- {item}" for item in metadata_summary) if metadata_summary else "No metadata available"}
@@ -581,7 +578,7 @@ Documentation for proxy tool:
                     return MaggResponse.error("Failed to get configuration from LLM")
 
                 try:
-                    json_match = re.search(r'{.*}', result.text, re.DOTALL)
+                    json_match = re.search(r"{.*}", result.text, re.DOTALL)
                     if not json_match:
                         return MaggResponse.error("No valid JSON configuration found in LLM response")
 
@@ -601,11 +598,13 @@ Documentation for proxy tool:
                     )
 
                     if add_result.is_success:
-                        return MaggResponse.success({
-                            "action": "smart_configured",
-                            "server": add_result.output["server"],
-                            "llm_config": config_data
-                        })
+                        return MaggResponse.success(
+                            {
+                                "action": "smart_configured",
+                                "server": add_result.output["server"],
+                                "llm_config": config_data,
+                            }
+                        )
                     else:
                         return add_result
 
@@ -613,7 +612,7 @@ Documentation for proxy tool:
                     return MaggResponse.error(f"Failed to parse LLM configuration: {str(e)}")
 
             else:
-                if result and hasattr(result, 'text'):
+                if result and hasattr(result, "text"):
                     output = result.text
 
                     try:
@@ -623,12 +622,14 @@ Documentation for proxy tool:
                 else:
                     output = "No valid configuration generated by LLM"
 
-                return MaggResponse.success({
-                    "action": "smart_configure_prompt",
-                    "source": source,
-                    "metadata": metadata_summary,
-                    "response": output,
-                })
+                return MaggResponse.success(
+                    {
+                        "action": "smart_configure_prompt",
+                        "source": source,
+                        "metadata": metadata_summary,
+                        "response": output,
+                    }
+                )
 
         except Exception as e:
             return MaggResponse.error(f"Smart configuration failed: {str(e)}")
@@ -646,22 +647,14 @@ Documentation for proxy tool:
             search_results = []
             for source, items in results.items():
                 for item in items:
-                    result_data = {
-                        "source": source,
-                        "name": item.name,
-                        "description": item.description
-                    }
+                    result_data = {"source": source, "name": item.name, "description": item.description}
                     if item.url:
                         result_data["url"] = item.url
-                    if hasattr(item, 'install_command') and item.install_command:
+                    if hasattr(item, "install_command") and item.install_command:
                         result_data["install_command"] = item.install_command
                     search_results.append(result_data)
 
-            return MaggResponse.success({
-                "query": query,
-                "results": search_results,
-                "total": len(search_results)
-            })
+            return MaggResponse.success({"query": query, "results": search_results, "total": len(search_results)})
 
         except Exception as e:
             return MaggResponse.error(f"Failed to search servers: {str(e)}")
@@ -675,15 +668,15 @@ Documentation for proxy tool:
             config = self.config
 
             if not config.servers:
-                return MaggResponse.success({
-                    "analysis": f"No servers configured yet. Use {self.self_prefix_}add_server to add servers."
-                })
+                return MaggResponse.success(
+                    {"analysis": f"No servers configured yet. Use {self.self_prefix_}add_server to add servers."}
+                )
 
             analysis_data = {
                 "total_servers": len(config.servers),
                 "enabled_servers": len(config.get_enabled_servers()),
                 "mounted_servers": len(self.server_manager.mounted_servers),
-                "servers": {}
+                "servers": {},
             }
 
             for name, server in config.servers.items():
@@ -694,7 +687,7 @@ Documentation for proxy tool:
                     "command": server.command,
                     "uri": server.uri,
                     "prefix": server.prefix,
-                    "notes": server.notes
+                    "notes": server.notes,
                 }
                 analysis_data["servers"][name] = server_info
 
@@ -709,10 +702,7 @@ Please provide:
 3. Suggestions for optimization
 4. Missing capabilities that could be added"""
 
-                result = await ctx.sample(
-                    messages=prompt,
-                    max_tokens=1000
-                )
+                result = await ctx.sample(messages=prompt, max_tokens=1000)
 
                 if result and result.text:
                     analysis_data["insights"] = result.text
@@ -733,12 +723,16 @@ Please provide:
                     "total": len(config.servers),
                     "enabled": len(config.get_enabled_servers()),
                     "mounted": len(self.server_manager.mounted_servers),
-                    "disabled": len(config.servers) - len(config.get_enabled_servers())
+                    "disabled": len(config.servers) - len(config.get_enabled_servers()),
                 },
                 "tools": {
                     "total": total_tools,
                 },
-                "prefixes": {name: config.servers[name].prefix for name in self.server_manager.mounted_servers if name in config.servers and config.servers[name].prefix}
+                "prefixes": {
+                    name: config.servers[name].prefix
+                    for name in self.server_manager.mounted_servers
+                    if name in config.servers and config.servers[name].prefix
+                },
             }
 
             return MaggResponse.success(status_data)
@@ -758,24 +752,22 @@ Please provide:
         Config reload can also be triggered via SIGHUP signal on Unix systems.
         """
         if not self.config.auto_reload:
-            return MaggResponse.error(
-                "Configuration reload is disabled. Set MAGG_AUTO_RELOAD=true to enable."
-            )
+            return MaggResponse.error("Configuration reload is disabled. Set MAGG_AUTO_RELOAD=true to enable.")
 
         if self.config.read_only:
-            return MaggResponse.error(
-                "Configuration reload is not allowed in read-only mode."
-            )
+            return MaggResponse.error("Configuration reload is not allowed in read-only mode.")
 
         try:
             success = await self.reload_config()
 
             if success:
-                return MaggResponse.success({
-                    "message": "Configuration reloaded successfully",
-                    "config_path": str(self.server_manager.config_manager.config_path),
-                    "read_only": self.config.read_only
-                })
+                return MaggResponse.success(
+                    {
+                        "message": "Configuration reloaded successfully",
+                        "config_path": str(self.server_manager.config_manager.config_path),
+                        "read_only": self.config.read_only,
+                    }
+                )
             else:
                 return MaggResponse.error("Configuration reload failed - check logs for details")
 
@@ -785,12 +777,13 @@ Please provide:
 
     async def check(
         self,
-        action: Annotated[Literal["report", "remount", "unmount", "disable"], Field(
-            description="Action to take for unresponsive servers: 'report' (default), 'remount', 'unmount', or 'disable'"
-        )] = "report",
-        timeout: Annotated[float, Field(
-            description="Timeout in seconds for health check per server"
-        )] = 2.5,
+        action: Annotated[
+            Literal["report", "remount", "unmount", "disable"],
+            Field(
+                description="Action to take for unresponsive servers: 'report' (default), 'remount', 'unmount', or 'disable'"
+            ),
+        ] = "report",
+        timeout: Annotated[float, Field(description="Timeout in seconds for health check per server")] = 2.5,
     ) -> MaggResponse:
         """Check health of all mounted servers and handle unresponsive ones."""
         try:
@@ -798,7 +791,7 @@ Please provide:
             unresponsive_servers = []
 
             for server_name, server_info in self.server_manager.mounted_servers.items():
-                client = server_info.get('client')
+                client = server_info.get("client")
                 if not client:
                     results[server_name] = {"status": "error", "reason": "No client found"}
                     unresponsive_servers.append(server_name)
@@ -808,10 +801,7 @@ Please provide:
                     async with asyncio.timeout(timeout):
                         async with client:
                             tools = await client.list_tools()
-                    results[server_name] = {
-                        "status": "healthy",
-                        "tools_count": len(tools)
-                    }
+                    results[server_name] = {"status": "healthy", "tools_count": len(tools)}
                 except asyncio.TimeoutError:
                     results[server_name] = {"status": "timeout", "reason": f"No response within {timeout}s"}
                     unresponsive_servers.append(server_name)
@@ -864,13 +854,15 @@ Please provide:
                             actions_taken.append(f"Unmounted {server_name}")
                             results[server_name]["action"] = "unmounted"
 
-            return MaggResponse.success({
-                "servers_checked": len(results),
-                "healthy": len([r for r in results.values() if r["status"] == "healthy"]),
-                "unresponsive": len(unresponsive_servers),
-                "results": results,
-                "actions_taken": actions_taken if actions_taken else None
-            })
+            return MaggResponse.success(
+                {
+                    "servers_checked": len(results),
+                    "healthy": len([r for r in results.values() if r["status"] == "healthy"]),
+                    "unresponsive": len(unresponsive_servers),
+                    "results": results,
+                    "actions_taken": actions_taken if actions_taken else None,
+                }
+            )
 
         except Exception as e:
             return MaggResponse.error(f"Failed to check servers: {str(e)}")

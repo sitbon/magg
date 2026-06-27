@@ -1,7 +1,6 @@
 """Source metadata collection and analysis."""
 
 import asyncio
-import aiohttp
 import base64
 import json
 import logging
@@ -9,8 +8,10 @@ import re
 import tomllib
 from datetime import datetime
 from pathlib import Path
-from urllib.parse import urlparse
 from typing import Any
+from urllib.parse import urlparse
+
+import aiohttp
 
 from .catalog import CatalogManager
 
@@ -26,7 +27,7 @@ class SourceMetadataCollector:
         """Collect metadata from all available sources."""
         metadata = []
 
-        if url.startswith('file://') or (not url.startswith('http') and '/' in url):
+        if url.startswith("file://") or (not url.startswith("http") and "/" in url):
             tasks = [
                 self._collect_filesystem_metadata(url),
                 self._collect_search_metadata(url, name),
@@ -53,8 +54,14 @@ class SourceMetadataCollector:
         try:
             # Skip HTTP check for known non-MCP domains
             known_non_mcp_domains = [
-                'npmjs.com', 'github.com', 'gitlab.com', 'bitbucket.org',
-                'pypi.org', 'crates.io', 'packagist.org', 'nuget.org'
+                "npmjs.com",
+                "github.com",
+                "gitlab.com",
+                "bitbucket.org",
+                "pypi.org",
+                "crates.io",
+                "packagist.org",
+                "nuget.org",
             ]
 
             parsed_url = urlparse(url)
@@ -65,8 +72,8 @@ class SourceMetadataCollector:
                     "data": {
                         "is_mcp_server": False,
                         "skipped_reason": f"Known non-MCP domain: {parsed_url.netloc}",
-                        "accessible": "unknown"
-                    }
+                        "accessible": "unknown",
+                    },
                 }
 
             if not self._looks_like_server_url(url):
@@ -76,28 +83,33 @@ class SourceMetadataCollector:
                     "data": {
                         "is_mcp_server": False,
                         "skipped_reason": "URL doesn't look like a server endpoint",
-                        "accessible": "unknown"
-                    }
+                        "accessible": "unknown",
+                    },
                 }
 
             async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=5)) as session:
                 # Try MCP-specific endpoint first
-                mcp_endpoint = url.rstrip('/') + '/mcp'
+                mcp_endpoint = url.rstrip("/") + "/mcp"
                 try:
-                    async with session.post(mcp_endpoint, json={
-                        "jsonrpc": "2.0",
-                        "id": 1,
-                        "method": "initialize",
-                        "params": {"protocolVersion": "2024-11-05", "capabilities": {}}
-                    }) as response:
+                    async with session.post(
+                        mcp_endpoint,
+                        json={
+                            "jsonrpc": "2.0",
+                            "id": 1,
+                            "method": "initialize",
+                            "params": {"protocolVersion": "2024-11-05", "capabilities": {}},
+                        },
+                    ) as response:
                         if response.status == 200:
                             content = await response.text()
                             try:
                                 data = json.loads(content)
                                 # Valid MCP response should have jsonrpc and result
-                                if (data.get("jsonrpc") == "2.0" and
-                                    "result" in data and
-                                    isinstance(data["result"], dict)):
+                                if (
+                                    data.get("jsonrpc") == "2.0"
+                                    and "result" in data
+                                    and isinstance(data["result"], dict)
+                                ):
                                     return {
                                         "source": "http_check",
                                         "collected_at": datetime.now().isoformat(),
@@ -105,8 +117,8 @@ class SourceMetadataCollector:
                                             "is_mcp_server": True,
                                             "verification": "Responded to MCP initialize request",
                                             "mcp_endpoint": mcp_endpoint,
-                                            "accessible": True
-                                        }
+                                            "accessible": True,
+                                        },
                                     }
                             except json.JSONDecodeError:
                                 pass
@@ -120,19 +132,15 @@ class SourceMetadataCollector:
                     "data": {
                         "is_mcp_server": False,
                         "verification": "No response to MCP initialize request",
-                        "accessible": True
-                    }
+                        "accessible": True,
+                    },
                 }
 
         except Exception as e:
             return {
                 "source": "http_check",
                 "collected_at": datetime.now().isoformat(),
-                "data": {
-                    "is_mcp_server": False,
-                    "error": str(e),
-                    "accessible": False
-                }
+                "data": {"is_mcp_server": False, "error": str(e), "accessible": False},
             }
 
     @classmethod
@@ -141,35 +149,34 @@ class SourceMetadataCollector:
         parsed = urlparse(url)
 
         # Skip if it looks like a package page or repository
-        path_parts = parsed.path.lower().split('/')
+        path_parts = parsed.path.lower().split("/")
 
         # NPM package paths
-        if 'package' in path_parts:
+        if "package" in path_parts:
             return False
 
         # GitHub repository paths
-        if len(path_parts) >= 3 and parsed.netloc == 'github.com':
+        if len(path_parts) >= 3 and parsed.netloc == "github.com":
             return False
 
         # PyPI package paths
-        if 'project' in path_parts and parsed.netloc == 'pypi.org':
+        if "project" in path_parts and parsed.netloc == "pypi.org":
             return False
 
         # URLs with ports or localhost are more likely to be servers
-        if parsed.port or 'localhost' in parsed.netloc or '127.0.0.1' in parsed.netloc:
+        if parsed.port or "localhost" in parsed.netloc or "127.0.0.1" in parsed.netloc:
             return True
 
         # URLs ending in common server paths
-        server_path_indicators = ['/mcp', '/server', '/api', '/rpc']
+        server_path_indicators = ["/mcp", "/server", "/api", "/rpc"]
         if any(indicator in parsed.path for indicator in server_path_indicators):
             return True
 
         # Base domain without path - could be a server
-        if not parsed.path or parsed.path == '/':
+        if not parsed.path or parsed.path == "/":
             return True
 
         return False
-
 
     async def _collect_search_metadata(self, url: str, name: str | None = None) -> dict[str, Any]:
         """Collect metadata from search results."""
@@ -187,15 +194,17 @@ class SourceMetadataCollector:
             for source_name, results in search_results.items():
                 for result in results:
                     if result.url and (url in result.url or result.url in url):
-                        matching_results.append({
-                            "search_source": source_name,
-                            "name": result.name,
-                            "description": result.description,
-                            "url": result.url,
-                            "install_command": result.install_command,
-                            "rating": result.rating,
-                            "tags": getattr(result, 'tags', [])
-                        })
+                        matching_results.append(
+                            {
+                                "search_source": source_name,
+                                "name": result.name,
+                                "description": result.description,
+                                "url": result.url,
+                                "install_command": result.install_command,
+                                "rating": result.rating,
+                                "tags": getattr(result, "tags", []),
+                            }
+                        )
 
             if matching_results:
                 return {
@@ -204,8 +213,8 @@ class SourceMetadataCollector:
                     "data": {
                         "search_term": search_term,
                         "matches": matching_results,
-                        "total_matches": len(matching_results)
-                    }
+                        "total_matches": len(matching_results),
+                    },
                 }
 
         except Exception as e:
@@ -215,13 +224,13 @@ class SourceMetadataCollector:
 
     async def _collect_github_metadata(self, url: str) -> dict[str, Any]:
         """Collect metadata from GitHub if it's a GitHub URL."""
-        if 'github.com' not in url:
+        if "github.com" not in url:
             return {}
 
         try:
             # Extract owner/repo from GitHub URL
             parsed = urlparse(url)
-            path_parts = parsed.path.strip('/').split('/')
+            path_parts = parsed.path.strip("/").split("/")
             if len(path_parts) < 2:
                 return {}
 
@@ -249,12 +258,14 @@ class SourceMetadataCollector:
                                 "stars": repo_data.get("stargazers_count"),
                                 "forks": repo_data.get("forks_count"),
                                 "topics": repo_data.get("topics", []),
-                                "license": repo_data.get("license", {}).get("name") if repo_data.get("license") else None,
+                                "license": repo_data.get("license", {}).get("name")
+                                if repo_data.get("license")
+                                else None,
                                 "updated_at": repo_data.get("updated_at"),
                                 "setup_instructions": setup_hints,
                                 "clone_url": repo_data.get("clone_url"),
-                                "default_branch": repo_data.get("default_branch", "main")
-                            }
+                                "default_branch": repo_data.get("default_branch", "main"),
+                            },
                         }
 
         except Exception as e:
@@ -274,7 +285,7 @@ class SourceMetadataCollector:
                     if response.status == 200:
                         data = await response.json()
                         if data.get("content"):
-                            content = base64.b64decode(data["content"]).decode('utf-8')
+                            content = base64.b64decode(data["content"]).decode("utf-8")
                             return content
             except:
                 continue
@@ -300,7 +311,7 @@ class SourceMetadataCollector:
             matches = re.finditer(pattern, readme_content, re.IGNORECASE | re.DOTALL)
             for match in matches:
                 text = match.group(1) if match.groups() else match.group(0)
-                if any(keyword in text.lower() for keyword in ['npm', 'pip', 'install', 'run', 'start']):
+                if any(keyword in text.lower() for keyword in ["npm", "pip", "install", "run", "start"]):
                     instructions.append(text.strip())
 
         # Extract command-like patterns
@@ -323,13 +334,13 @@ class SourceMetadataCollector:
         """Extract a searchable name from the URL."""
         parsed = urlparse(url)
         host = parsed.netloc.lower()
-        if host == 'github.com' or host.endswith('.github.com'):
-            parts = parsed.path.strip('/').split('/')
+        if host == "github.com" or host.endswith(".github.com"):
+            parts = parsed.path.strip("/").split("/")
             if len(parts) >= 2:
                 return parts[1]  # repo name
-        elif host == 'npmjs.com' or host.endswith('.npmjs.com'):
-            if '/package/' in parsed.path:
-                return parsed.path.split('/package/')[-1].split('/')[0]
+        elif host == "npmjs.com" or host.endswith(".npmjs.com"):
+            if "/package/" in parsed.path:
+                return parsed.path.split("/package/")[-1].split("/")[0]
 
         return None
 
@@ -337,7 +348,7 @@ class SourceMetadataCollector:
         """Collect metadata from local filesystem source."""
         try:
             # Handle file:// URLs and local paths
-            if url.startswith('file://'):
+            if url.startswith("file://"):
                 parsed = urlparse(url)
                 local_path = Path(parsed.path)
             else:
@@ -348,10 +359,7 @@ class SourceMetadataCollector:
                 return {
                     "source": "filesystem",
                     "collected_at": datetime.now().isoformat(),
-                    "data": {
-                        "exists": False,
-                        "error": f"Path does not exist: {local_path}"
-                    }
+                    "data": {"exists": False, "error": f"Path does not exist: {local_path}"},
                 }
 
             metadata = {
@@ -362,7 +370,7 @@ class SourceMetadataCollector:
                     "path": str(local_path),
                     "is_directory": local_path.is_dir(),
                     "is_file": local_path.is_file(),
-                }
+                },
             }
 
             if local_path.is_dir():
@@ -380,10 +388,7 @@ class SourceMetadataCollector:
             return {
                 "source": "filesystem",
                 "collected_at": datetime.now().isoformat(),
-                "data": {
-                    "exists": False,
-                    "error": f"Filesystem analysis failed: {str(e)}"
-                }
+                "data": {"exists": False, "error": f"Filesystem analysis failed: {str(e)}"},
             }
 
     async def _analyze_directory(self, dir_path: Path) -> dict[str, Any]:
@@ -394,7 +399,7 @@ class SourceMetadataCollector:
             "documentation": {},
             "potential_commands": [],
             "setup_indicators": [],
-            "project_type": "unknown"
+            "project_type": "unknown",
         }
 
         try:
@@ -411,13 +416,11 @@ class SourceMetadataCollector:
                 "Cargo.toml": "rust_project",
                 "pom.xml": "java_project",
                 "build.gradle": "java_project",
-
                 # Build/Make files
                 "Makefile": "make_project",
                 "makefile": "make_project",
                 "CMakeLists.txt": "cmake_project",
                 "Dockerfile": "docker_project",
-
                 # Documentation
                 "README.md": "documentation",
                 "README.rst": "documentation",
@@ -425,7 +428,6 @@ class SourceMetadataCollector:
                 "README": "documentation",
                 "CLAUDE.md": "claude_instructions",
                 ".claude.md": "claude_instructions",
-
                 # MCP specific
                 "mcp.json": "mcp_config",
                 ".mcp.json": "mcp_config",
@@ -448,10 +450,10 @@ class SourceMetadataCollector:
                         found_files[filename] = {
                             "type": file_type,
                             "path": str(file_path),
-                            "size": file_path.stat().st_size
+                            "size": file_path.stat().st_size,
                         }
 
-                        if file_type.endswith('_project'):
+                        if file_type.endswith("_project"):
                             project_types.add(file_type)
 
             analysis["project_files"] = found_files
@@ -460,8 +462,12 @@ class SourceMetadataCollector:
             if project_types:
                 # Priority order for project type detection
                 type_priority = [
-                    "node_project", "python_project", "go_project",
-                    "rust_project", "java_project", "make_project"
+                    "node_project",
+                    "python_project",
+                    "go_project",
+                    "rust_project",
+                    "java_project",
+                    "make_project",
                 ]
                 for ptype in type_priority:
                     if ptype in project_types:
@@ -515,16 +521,16 @@ class SourceMetadataCollector:
             "filename": file_path.name,
             "size": file_path.stat().st_size,
             "extension": file_path.suffix,
-            "file_type": "unknown"
+            "file_type": "unknown",
         }
 
         # Determine file type
-        if file_path.suffix in ['.py', '.js', '.ts', '.go', '.rs', '.java']:
+        if file_path.suffix in [".py", ".js", ".ts", ".go", ".rs", ".java"]:
             analysis["file_type"] = "executable"
             analysis["language"] = file_path.suffix[1:]  # Remove dot
-        elif file_path.suffix in ['.json', '.toml', '.yaml', '.yml']:
+        elif file_path.suffix in [".json", ".toml", ".yaml", ".yml"]:
             analysis["file_type"] = "config"
-        elif file_path.suffix in ['.md', '.rst', '.txt']:
+        elif file_path.suffix in [".md", ".rst", ".txt"]:
             analysis["file_type"] = "documentation"
 
         return analysis
@@ -533,7 +539,7 @@ class SourceMetadataCollector:
     async def _analyze_package_json(cls, package_path: Path) -> dict[str, Any]:
         """Analyze package.json for Node.js projects."""
         try:
-            with open(package_path, 'r') as f:
+            with open(package_path, "r") as f:
                 package_data = json.load(f)
 
             analysis = {
@@ -543,18 +549,18 @@ class SourceMetadataCollector:
                 "main": package_data.get("main", "index.js"),
                 "scripts": [],
                 "dependencies": list(package_data.get("dependencies", {}).keys()),
-                "dev_dependencies": list(package_data.get("devDependencies", {}).keys())
+                "dev_dependencies": list(package_data.get("devDependencies", {}).keys()),
             }
 
             # Extract relevant scripts
             scripts = package_data.get("scripts", {})
             for script_name, script_cmd in scripts.items():
-                if any(keyword in script_name.lower() for keyword in ['start', 'serve', 'server', 'mcp']):
+                if any(keyword in script_name.lower() for keyword in ["start", "serve", "server", "mcp"]):
                     analysis["scripts"].append(f"npm run {script_name}")
 
             # Check for MCP-related dependencies
             all_deps = analysis["dependencies"] + analysis["dev_dependencies"]
-            mcp_deps = [dep for dep in all_deps if 'mcp' in dep.lower()]
+            mcp_deps = [dep for dep in all_deps if "mcp" in dep.lower()]
             if mcp_deps:
                 analysis["mcp_dependencies"] = mcp_deps
 
@@ -567,24 +573,22 @@ class SourceMetadataCollector:
     async def _analyze_pyproject_toml(cls, pyproject_path: Path) -> dict[str, Any]:
         """Analyze pyproject.toml for Python projects."""
         try:
-            with open(pyproject_path, 'rb') as f:
+            with open(pyproject_path, "rb") as f:
                 pyproject_data = tomllib.load(f)
 
-            analysis = {
-                "scripts": [],
-                "dependencies": [],
-                "dev_dependencies": []
-            }
+            analysis = {"scripts": [], "dependencies": [], "dev_dependencies": []}
 
             # Extract project info
             if "project" in pyproject_data:
                 project = pyproject_data["project"]
-                analysis.update({
-                    "name": project.get("name"),
-                    "description": project.get("description"),
-                    "version": project.get("version"),
-                    "dependencies": project.get("dependencies", [])
-                })
+                analysis.update(
+                    {
+                        "name": project.get("name"),
+                        "description": project.get("description"),
+                        "version": project.get("version"),
+                        "dependencies": project.get("dependencies", []),
+                    }
+                )
 
             # Extract scripts from tool.poetry or project.scripts
             if "project" in pyproject_data and "scripts" in pyproject_data["project"]:
@@ -594,7 +598,7 @@ class SourceMetadataCollector:
 
             # Check for MCP dependencies
             deps = analysis["dependencies"]
-            mcp_deps = [dep for dep in deps if 'mcp' in dep.lower()]
+            mcp_deps = [dep for dep in deps if "mcp" in dep.lower()]
             if mcp_deps:
                 analysis["mcp_dependencies"] = mcp_deps
 
@@ -607,24 +611,21 @@ class SourceMetadataCollector:
     async def _analyze_requirements_txt(cls, req_path: Path) -> dict[str, Any]:
         """Analyze requirements.txt for Python projects."""
         try:
-            with open(req_path, 'r') as f:
+            with open(req_path, "r") as f:
                 lines = f.readlines()
 
             dependencies = []
             for line in lines:
                 line = line.strip()
-                if line and not line.startswith('#'):
+                if line and not line.startswith("#"):
                     # Extract package name (before ==, >=, etc.)
-                    package = line.split('==')[0].split('>=')[0].split('<=')[0].split('~=')[0].strip()
+                    package = line.split("==")[0].split(">=")[0].split("<=")[0].split("~=")[0].strip()
                     dependencies.append(package)
 
-            analysis = {
-                "dependencies": dependencies,
-                "total_dependencies": len(dependencies)
-            }
+            analysis = {"dependencies": dependencies, "total_dependencies": len(dependencies)}
 
             # Check for MCP dependencies
-            mcp_deps = [dep for dep in dependencies if 'mcp' in dep.lower()]
+            mcp_deps = [dep for dep in dependencies if "mcp" in dep.lower()]
             if mcp_deps:
                 analysis["mcp_dependencies"] = mcp_deps
 
@@ -636,7 +637,7 @@ class SourceMetadataCollector:
     async def _analyze_readme_file(self, readme_path: Path) -> dict[str, Any]:
         """Analyze README file for setup instructions."""
         try:
-            with open(readme_path, 'r', encoding='utf-8') as f:
+            with open(readme_path, "r", encoding="utf-8") as f:
                 content = f.read()
 
             # Use existing README analysis from parent class
@@ -646,10 +647,9 @@ class SourceMetadataCollector:
                 "length": len(content),
                 "setup_commands": setup_commands,
                 "has_installation_section": any(
-                    section in content.lower()
-                    for section in ['installation', 'install', 'setup', 'getting started']
+                    section in content.lower() for section in ["installation", "install", "setup", "getting started"]
                 ),
-                "mentions_mcp": 'mcp' in content.lower() or 'model context protocol' in content.lower()
+                "mentions_mcp": "mcp" in content.lower() or "model context protocol" in content.lower(),
             }
 
             return analysis
@@ -661,18 +661,17 @@ class SourceMetadataCollector:
     async def _analyze_claude_file(cls, claude_path: Path) -> dict[str, Any]:
         """Analyze CLAUDE.md file for AI instructions."""
         try:
-            with open(claude_path, 'r', encoding='utf-8') as f:
+            with open(claude_path, "r", encoding="utf-8") as f:
                 content = f.read()
 
             analysis = {
                 "length": len(content),
                 "instructions": [],
-                "mentions_mcp": 'mcp' in content.lower(),
-                "mentions_server": 'server' in content.lower(),
+                "mentions_mcp": "mcp" in content.lower(),
+                "mentions_server": "server" in content.lower(),
                 "has_setup_info": any(
-                    keyword in content.lower()
-                    for keyword in ['install', 'setup', 'run', 'start', 'command']
-                )
+                    keyword in content.lower() for keyword in ["install", "setup", "run", "start", "command"]
+                ),
             }
 
             # Extract command-like patterns from CLAUDE.md

@@ -1,5 +1,5 @@
-"""Server runner utilities for Magg with proper signal handling.
-"""
+"""Server runner utilities for Magg with proper signal handling."""
+
 import asyncio
 import logging
 import signal
@@ -18,6 +18,7 @@ logger = logging.getLogger(__name__)
 
 class MaggRunner:
     """Manages Magg server lifecycle with proper signal handling."""
+
     _server: MaggServer
     _shutdown_event: asyncio.Event
     _reload_event: asyncio.Event
@@ -84,7 +85,7 @@ class MaggRunner:
             self._original_sigint = signal.signal(signal.SIGINT, self._handle_signal)
             self._original_sigterm = signal.signal(signal.SIGTERM, self._handle_signal)
             # SIGHUP for config reload (Unix-like systems only)
-            if hasattr(signal, 'SIGHUP'):
+            if hasattr(signal, "SIGHUP"):
                 self._original_sighup = signal.signal(signal.SIGHUP, self._handle_reload_signal)
             self._hooked_signals = True
 
@@ -95,7 +96,7 @@ class MaggRunner:
                 signal.signal(signal.SIGINT, self._original_sigint)
             if self._original_sigterm:
                 signal.signal(signal.SIGTERM, self._original_sigterm)
-            if hasattr(signal, 'SIGHUP') and self._original_sighup:
+            if hasattr(signal, "SIGHUP") and self._original_sighup:
                 signal.signal(signal.SIGHUP, self._original_sighup)
             self._hooked_signals = False
 
@@ -115,10 +116,7 @@ class MaggRunner:
         shutdown_task = asyncio.create_task(self._shutdown_event.wait())
         reload_task = asyncio.create_task(self._handle_reload_events())
 
-        done, pending = await asyncio.wait(
-            [server_task, shutdown_task],
-            return_when=asyncio.FIRST_COMPLETED
-        )
+        done, pending = await asyncio.wait([server_task, shutdown_task], return_when=asyncio.FIRST_COMPLETED)
 
         # Cancel reload task
         reload_task.cancel()

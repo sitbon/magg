@@ -1,6 +1,8 @@
 """Test in-memory Magg server functionality via FastMCPTransport."""
+
 import json
 import sys
+
 import pytest
 from fastmcp import Client
 from fastmcp.client import FastMCPTransport
@@ -35,7 +37,7 @@ async def test_in_memory_basic_tools(tmp_path):
 
         # Test listing servers (should be empty)
         result = await client.call_tool("magg_list_servers", {})
-        assert hasattr(result, 'content')
+        assert hasattr(result, "content")
         assert len(result.content) == 1
         assert result.content[0].type == "text"
         assert "[]" in result.content[0].text  # Empty list
@@ -54,20 +56,23 @@ async def test_in_memory_server_management(tmp_path):
 
     async with client:
         # Add a test server
-        result = await client.call_tool("magg_add_server", {
-            "name": "test-server",
-            "source": "https://example.com/test",
-            "command": "echo test",  # Full command string
-            "enable": False  # Don't try to actually mount
-        })
+        result = await client.call_tool(
+            "magg_add_server",
+            {
+                "name": "test-server",
+                "source": "https://example.com/test",
+                "command": "echo test",  # Full command string
+                "enable": False,  # Don't try to actually mount
+            },
+        )
 
-        assert hasattr(result, 'content')
+        assert hasattr(result, "content")
         assert len(result.content) == 1
         assert "server_added" in result.content[0].text
 
         # List servers
         result = await client.call_tool("magg_list_servers", {})
-        assert hasattr(result, 'content')
+        assert hasattr(result, "content")
         assert len(result.content) == 1
         response = json.loads(result.content[0].text)
         assert response["errors"] is None
@@ -77,9 +82,7 @@ async def test_in_memory_server_management(tmp_path):
         assert servers[0]["enabled"] is False
 
         # Remove server
-        result = await client.call_tool("magg_remove_server", {
-            "name": "test-server"
-        })
+        result = await client.call_tool("magg_remove_server", {"name": "test-server"})
         assert "server_removed" in result.content[0].text
 
 
@@ -96,13 +99,10 @@ async def test_in_memory_proxy_tool(tmp_path):
 
     async with client:
         # Use proxy to list tools
-        result = await client.call_tool("proxy", {
-            "action": "list",
-            "type": "tool"
-        })
+        result = await client.call_tool("proxy", {"action": "list", "type": "tool"})
 
         # Should return embedded resource with tool list
-        assert hasattr(result, 'content')
+        assert hasattr(result, "content")
         assert len(result.content) == 1
         assert result.content[0].type == "resource"
         assert result.content[0].resource.mimeType == "application/json"
@@ -141,7 +141,7 @@ if __name__ == "__main__":
                 "prefix": "test",
                 "command": sys.executable,
                 "args": [str(test_server)],
-                "enabled": True
+                "enabled": True,
             }
         }
     }
@@ -153,14 +153,11 @@ if __name__ == "__main__":
     client = Client(FastMCPTransport(server.mcp))
 
     async with client:
-        result = await client.call_tool("proxy", {
-            "action": "call",
-            "type": "tool",
-            "path": "test_test_add",
-            "args": {"a": 5, "b": 3}
-        })
+        result = await client.call_tool(
+            "proxy", {"action": "call", "type": "tool", "path": "test_test_add", "args": {"a": 5, "b": 3}}
+        )
 
-        assert hasattr(result, 'content')
+        assert hasattr(result, "content")
         assert len(result.content) >= 1
         assert "Result: 8" in result.content[0].text
         assert result.content[0].annotations.proxyAction == "call"
@@ -198,7 +195,7 @@ if __name__ == "__main__":
                 "prefix": "test",
                 "command": sys.executable,
                 "args": [str(test_server)],
-                "enabled": True
+                "enabled": True,
             }
         }
     }
@@ -233,6 +230,6 @@ if __name__ == "__main__":
 
         # Call the tool - should work
         result = await client_after.call_tool("test_test_add", {"a": 5, "b": 3})
-        assert hasattr(result, 'content')
+        assert hasattr(result, "content")
         assert len(result.content) == 1
         assert result.content[0].text == "Result: 8"

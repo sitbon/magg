@@ -1,11 +1,8 @@
 """Tests for KitInfo model and kit metadata functionality."""
 
 import json
-import pytest
-import tempfile
-from pathlib import Path
 
-from magg.settings import KitInfo, MaggConfig, ConfigManager
+from magg.settings import ConfigManager, KitInfo, MaggConfig
 
 
 class TestKitInfo:
@@ -13,12 +10,7 @@ class TestKitInfo:
 
     def test_kit_info_creation(self):
         """Test creating KitInfo with all fields."""
-        kit_info = KitInfo(
-            name="test-kit",
-            description="Test kit description",
-            path="/path/to/kit.json",
-            source="file"
-        )
+        kit_info = KitInfo(name="test-kit", description="Test kit description", path="/path/to/kit.json", source="file")
 
         assert kit_info.name == "test-kit"
         assert kit_info.description == "Test kit description"
@@ -36,11 +28,7 @@ class TestKitInfo:
 
     def test_kit_info_inline_source(self):
         """Test creating KitInfo for inline kit (no file)."""
-        kit_info = KitInfo(
-            name="inline-kit",
-            description="Kit created programmatically",
-            source="inline"
-        )
+        kit_info = KitInfo(name="inline-kit", description="Kit created programmatically", source="inline")
 
         assert kit_info.name == "inline-kit"
         assert kit_info.description == "Kit created programmatically"
@@ -59,16 +47,9 @@ class TestKitInfoPersistence:
         # Create config with kit metadata
         config = MaggConfig()
         config.kits["file-kit"] = KitInfo(
-            name="file-kit",
-            description="Kit from file",
-            path="/path/to/file-kit.json",
-            source="file"
+            name="file-kit", description="Kit from file", path="/path/to/file-kit.json", source="file"
         )
-        config.kits["inline-kit"] = KitInfo(
-            name="inline-kit",
-            description="Programmatic kit",
-            source="inline"
-        )
+        config.kits["inline-kit"] = KitInfo(name="inline-kit", description="Programmatic kit", source="inline")
 
         # Save config
         assert manager.save_config(config) is True
@@ -109,10 +90,7 @@ class TestKitInfoPersistence:
         config_path = tmp_path / "config.json"
 
         # Create old-style config
-        old_config = {
-            "servers": {},
-            "kits": ["kit1", "kit2", "kit3"]
-        }
+        old_config = {"servers": {}, "kits": ["kit1", "kit2", "kit3"]}
 
         with open(config_path, "w") as f:
             json.dump(old_config, f)
@@ -147,10 +125,7 @@ class TestKitInfoPersistence:
             os.environ["NAME"] = "environment-name"
 
             # Create KitInfo - should not pick up env vars
-            kit_info = KitInfo(
-                name="test-kit",
-                path="/path/to/kit.json"
-            )
+            kit_info = KitInfo(name="test-kit", path="/path/to/kit.json")
 
             assert kit_info.name == "test-kit"
             assert kit_info.path == "/path/to/kit.json"

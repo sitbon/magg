@@ -94,12 +94,19 @@ dev = [
     "anthropic>=0.54.0",
     "pyjwt>=2.10.1",
     "packaging>=25.0",
+    "ruff>=0.15.20",
 ]
 
 [tool.pytest.ini_options]
 markers = [
     "integration: marks tests as integration tests (deselect with '-m \"not integration\"')",
 ]
+
+[tool.ruff]
+line-length = 120
+
+[tool.ruff.lint]
+select = ["F", "I"]
 
 [build-system]
 requires = ["hatchling"]

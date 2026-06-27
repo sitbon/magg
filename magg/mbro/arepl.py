@@ -5,6 +5,7 @@ an interact() function that uses the current event loop.
 
 This file is not under the project's license - it maintains the original PSF license from Python's source code.
 """
+
 import ast
 import asyncio
 import concurrent.futures
@@ -15,17 +16,15 @@ import readline
 import rlcompleter
 import site
 import sys
-import tokenize
 import threading
+import tokenize
 import types
 import warnings
-
-from _colorize import can_colorize, ANSIColors  # type: ignore[import-not-found]
-from _pyrepl.console import InteractiveColoredConsole
-from _pyrepl.main import CAN_USE_PYREPL
-
 from asyncio import futures
 
+from _colorize import ANSIColors, can_colorize  # type: ignore[import-not-found]
+from _pyrepl.console import InteractiveColoredConsole
+from _pyrepl.main import CAN_USE_PYREPL
 
 # Global variables that are referenced in the original module
 return_code = 0
@@ -36,7 +35,6 @@ loop = None
 
 
 class AsyncIOInteractiveConsole(InteractiveColoredConsole):
-
     def __init__(self, locals, loop):
         super().__init__(locals, filename="<stdin>")
         self.compile.compiler.flags |= ast.PyCF_ALLOW_TOP_LEVEL_AWAIT
@@ -98,7 +96,6 @@ class AsyncIOInteractiveConsole(InteractiveColoredConsole):
 
 
 class REPLThread(threading.Thread):
-
     def __init__(self, console, locals=None, done_future=None):
         super().__init__(name="Interactive thread", daemon=True)
         self.console = console
@@ -110,10 +107,10 @@ class REPLThread(threading.Thread):
 
         try:
             banner = (
-                f'asyncio REPL {sys.version} on {sys.platform}\n'
+                f"asyncio REPL {sys.version} on {sys.platform}\n"
                 f'Use "await" directly instead of "asyncio.run()".\n'
                 f'Type "help", "copyright", "credits" or "license" '
-                f'for more information.\n'
+                f"for more information.\n"
             )
 
             self.console.write(banner)
@@ -134,6 +131,7 @@ class REPLThread(threading.Thread):
                 from _pyrepl.simple_interact import (
                     run_multiline_interactive_console,
                 )
+
                 try:
                     run_multiline_interactive_console(self.console)
                 except SystemExit:
@@ -147,10 +145,7 @@ class REPLThread(threading.Thread):
             else:
                 self.console.interact(banner="", exitmsg="")
         finally:
-            warnings.filterwarnings(
-                'ignore',
-                message=r'^coroutine .* was never awaited$',
-                category=RuntimeWarning)
+            warnings.filterwarnings("ignore", message=r"^coroutine .* was never awaited$", category=RuntimeWarning)
 
             # Signal that we're done
             if self.done_future and not self.done_future.done():
@@ -161,6 +156,7 @@ class REPLThread(threading.Thread):
             return
 
         from _pyrepl.simple_interact import _get_reader
+
         r = _get_reader()
         if r.threading_hook is not None:
             r.threading_hook.add("")  # type: ignore
@@ -189,7 +185,7 @@ async def interact(banner=None, locals=None, *, use_pyrepl=None):
 
     # Determine if we should use pyrepl
     if use_pyrepl is None:
-        if os.getenv('PYTHON_BASIC_REPL'):
+        if os.getenv("PYTHON_BASIC_REPL"):
             use_pyrepl = False
         else:
             use_pyrepl = CAN_USE_PYREPL
@@ -202,11 +198,11 @@ async def interact(banner=None, locals=None, *, use_pyrepl=None):
         else:
             locals = {}
 
-    repl_locals = {'asyncio': asyncio}
+    repl_locals = {"asyncio": asyncio}
     repl_locals.update(locals)
 
     # Add common builtins if not present
-    for key in {'__name__', '__package__', '__loader__', '__spec__', '__builtins__', '__file__'}:
+    for key in {"__name__", "__package__", "__loader__", "__spec__", "__builtins__", "__file__"}:
         if key not in repl_locals:
             repl_locals[key] = globals().get(key)
 
@@ -253,7 +249,7 @@ async def interact(banner=None, locals=None, *, use_pyrepl=None):
                 # Thread didn't finish in time, use current return_code
                 final_return_code = return_code
     finally:
-        console.write('exiting asyncio REPL...\n')
+        console.write("exiting asyncio REPL...\n")
 
     return final_return_code
 
@@ -279,5 +275,5 @@ def run_console():
     sys.exit(return_code)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     run_console()

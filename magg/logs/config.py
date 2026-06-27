@@ -1,14 +1,17 @@
-"""Logging configuration.
-"""
-import logging
-from logging import Logger, config as logging_config
+"""Logging configuration."""
+
+from logging import Logger
+from logging import config as logging_config
 from typing import Literal
 
 from fastmcp.utilities import logging as fastmcp_logging
 
 from .defaults import LOGGING_CONFIG
 
-__all__ = "configure_logging", "LOGGING_CONFIG",
+__all__ = (
+    "configure_logging",
+    "LOGGING_CONFIG",
+)
 
 
 def configure_logging(config=None, *, incremental=False) -> None:

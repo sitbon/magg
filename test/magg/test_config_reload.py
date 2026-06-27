@@ -1,15 +1,17 @@
 """Tests for configuration reload functionality."""
+
 import asyncio
 import json
 import signal
 from pathlib import Path
-from unittest.mock import patch, MagicMock, AsyncMock
+from unittest.mock import AsyncMock, patch
+
 import pytest
 
-from magg.reload import ConfigReloader, ConfigChange, ServerChange
-from magg.server.server import MaggServer
+from magg.reload import ConfigChange, ConfigReloader, ServerChange
 from magg.server.runner import MaggRunner
-from magg.settings import MaggConfig, ServerConfig, ConfigManager
+from magg.server.server import MaggServer
+from magg.settings import MaggConfig, ServerConfig
 
 
 @pytest.fixture
@@ -18,12 +20,7 @@ def temp_config_file(tmp_path):
     config_path = tmp_path / "config.json"
     config_data = {
         "servers": {
-            "test-server": {
-                "source": "https://example.com/test",
-                "command": "echo",
-                "args": ["test"],
-                "enabled": True
-            }
+            "test-server": {"source": "https://example.com/test", "command": "echo", "args": ["test"], "enabled": True}
         }
     }
     config_path.write_text(json.dumps(config_data, indent=2))
@@ -39,9 +36,7 @@ class TestConfigReloader:
         old_config = MaggConfig()
         new_config = MaggConfig()
         new_config.servers["new-server"] = ServerConfig(
-            name="new-server",
-            source="https://example.com/new",
-            command="echo"
+            name="new-server", source="https://example.com/new", command="echo"
         )
 
         reloader = ConfigReloader(Path("/fake/path"), lambda x: None)
@@ -57,9 +52,7 @@ class TestConfigReloader:
         """Test detecting when a server is removed."""
         old_config = MaggConfig()
         old_config.servers["old-server"] = ServerConfig(
-            name="old-server",
-            source="https://example.com/old",
-            command="echo"
+            name="old-server", source="https://example.com/old", command="echo"
         )
         new_config = MaggConfig()
 
@@ -76,18 +69,12 @@ class TestConfigReloader:
         """Test detecting when a server is updated."""
         old_config = MaggConfig()
         old_config.servers["test-server"] = ServerConfig(
-            name="test-server",
-            source="https://example.com/test",
-            command="echo",
-            args=["old"]
+            name="test-server", source="https://example.com/test", command="echo", args=["old"]
         )
 
         new_config = MaggConfig()
         new_config.servers["test-server"] = ServerConfig(
-            name="test-server",
-            source="https://example.com/test",
-            command="echo",
-            args=["new"]
+            name="test-server", source="https://example.com/test", command="echo", args=["new"]
         )
 
         reloader = ConfigReloader(Path("/fake/path"), lambda x: None)
@@ -103,18 +90,12 @@ class TestConfigReloader:
         """Test detecting when a server is enabled/disabled."""
         old_config = MaggConfig()
         old_config.servers["test-server"] = ServerConfig(
-            name="test-server",
-            source="https://example.com/test",
-            command="echo",
-            enabled=False
+            name="test-server", source="https://example.com/test", command="echo", enabled=False
         )
 
         new_config = MaggConfig()
         new_config.servers["test-server"] = ServerConfig(
-            name="test-server",
-            source="https://example.com/test",
-            command="echo",
-            enabled=True
+            name="test-server", source="https://example.com/test", command="echo", enabled=True
         )
 
         reloader = ConfigReloader(Path("/fake/path"), lambda x: None)
@@ -130,16 +111,13 @@ class TestConfigReloader:
         """Test config validation allows duplicate prefixes."""
         config = MaggConfig()
         config.servers["server1"] = ServerConfig(
-            name="server1",
-            source="https://example.com/1",
-            command="echo",
-            prefix="test"
+            name="server1", source="https://example.com/1", command="echo", prefix="test"
         )
         config.servers["server2"] = ServerConfig(
             name="server2",
             source="https://example.com/2",
             command="echo",
-            prefix="test"  # Duplicate prefix is now allowed
+            prefix="test",  # Duplicate prefix is now allowed
         )
 
         reloader = ConfigReloader(Path("/fake/path"), lambda x: None)
@@ -147,16 +125,13 @@ class TestConfigReloader:
 
         # Test with None/empty prefixes
         config.servers["server3"] = ServerConfig(
-            name="server3",
-            source="https://example.com/3",
-            command="echo",
-            prefix=None
+            name="server3", source="https://example.com/3", command="echo", prefix=None
         )
         config.servers["server4"] = ServerConfig(
             name="server4",
             source="https://example.com/4",
             command="echo",
-            prefix=None  # Duplicate None prefix is also allowed
+            prefix=None,  # Duplicate None prefix is also allowed
         )
         assert reloader._validate_config(config)  # Should still pass
 
@@ -180,7 +155,7 @@ class TestConfigReloader:
                     "source": "https://example.com/test",
                     "command": "echo",
                     "args": ["modified"],
-                    "enabled": True
+                    "enabled": True,
                 }
             }
         }
@@ -203,7 +178,7 @@ class TestServerReload:
         server = MaggServer(str(temp_config_file), enable_config_reload=False)
 
         # Mock the server manager's handle_config_reload
-        with patch.object(server.server_manager, 'handle_config_reload') as mock_handler:
+        with patch.object(server.server_manager, "handle_config_reload") as mock_handler:
             success = await server.reload_config()
 
             assert success
@@ -212,7 +187,7 @@ class TestServerReload:
     @pytest.mark.asyncio
     async def test_server_auto_reload_works_in_readonly(self, temp_config_file):
         """Test that auto-reload works in read-only mode (external changes allowed)."""
-        with patch.dict('os.environ', {'MAGG_READ_ONLY': 'true'}):
+        with patch.dict("os.environ", {"MAGG_READ_ONLY": "true"}):
             server = MaggServer(str(temp_config_file))
             await server.setup()
 
@@ -224,7 +199,7 @@ class TestServerReload:
         """Test the reload_config tool."""
         server = MaggServer(str(temp_config_file))
 
-        with patch.object(server, 'reload_config', return_value=True) as mock_reload:
+        with patch.object(server, "reload_config", return_value=True) as mock_reload:
             result = await server.reload_config_tool()
 
             assert result.is_success
@@ -234,7 +209,7 @@ class TestServerReload:
     @pytest.mark.asyncio
     async def test_reload_tool_disabled_when_auto_reload_false(self, temp_config_file):
         """Test that reload tool fails when auto_reload is false."""
-        with patch.dict('os.environ', {'MAGG_AUTO_RELOAD': 'false'}):
+        with patch.dict("os.environ", {"MAGG_AUTO_RELOAD": "false"}):
             server = MaggServer(str(temp_config_file))
             response = await server.reload_config_tool()
 
@@ -244,7 +219,7 @@ class TestServerReload:
     @pytest.mark.asyncio
     async def test_reload_tool_disabled_in_readonly_mode(self, temp_config_file):
         """Test that reload tool fails in read-only mode."""
-        with patch.dict('os.environ', {'MAGG_READ_ONLY': 'true'}):
+        with patch.dict("os.environ", {"MAGG_READ_ONLY": "true"}):
             server = MaggServer(str(temp_config_file))
             response = await server.reload_config_tool()
 
@@ -255,14 +230,14 @@ class TestServerReload:
 class TestRunnerSignalHandling:
     """Test signal handling for config reload."""
 
-    @pytest.mark.skipif(not hasattr(signal, 'SIGHUP'), reason="SIGHUP not available")
+    @pytest.mark.skipif(not hasattr(signal, "SIGHUP"), reason="SIGHUP not available")
     @pytest.mark.asyncio
     async def test_sighup_handling(self, temp_config_file):
         """Test that SIGHUP triggers config reload."""
         runner = MaggRunner(str(temp_config_file))
 
         # Mock the reload method
-        with patch.object(runner._server, 'reload_config') as mock_reload:
+        with patch.object(runner._server, "reload_config") as mock_reload:
             mock_reload.return_value = True
 
             # Setup signal handler
@@ -308,11 +283,7 @@ class TestConfigChangeDetection:
 
         # Modify the file
         config_data = json.loads(temp_config_file.read_text())
-        config_data["servers"]["new-server"] = {
-            "source": "https://example.com/new",
-            "command": "echo",
-            "args": ["new"]
-        }
+        config_data["servers"]["new-server"] = {"source": "https://example.com/new", "command": "echo", "args": ["new"]}
         temp_config_file.write_text(json.dumps(config_data, indent=2))
 
         # Wait for reload to trigger
@@ -338,7 +309,7 @@ class TestConfigChangeSummary:
                 ServerChange(name="updated", action="update"),
                 ServerChange(name="enabled", action="enable"),
                 ServerChange(name="disabled", action="disable"),
-            ]
+            ],
         )
 
         summary = change.summarize()
@@ -362,14 +333,14 @@ class TestMaggCheckResilience:
                     "source": "https://example.com/good",
                     "command": "echo",
                     "args": ["good"],
-                    "enabled": True
+                    "enabled": True,
                 },
                 "bad-server": {
                     "source": "https://example.com/bad",
                     "command": "python",
                     "args": ["nonexistent.py"],
-                    "enabled": True
-                }
+                    "enabled": True,
+                },
             }
         }
         temp_config_file.write_text(json.dumps(config_data, indent=2))
@@ -385,7 +356,7 @@ class TestMaggCheckResilience:
 
         server.server_manager.mounted_servers = {
             "good-server": {"client": mock_good_client},
-            "bad-server": {"client": mock_bad_client}
+            "bad-server": {"client": mock_bad_client},
         }
 
         # Run check with default 0.5s timeout

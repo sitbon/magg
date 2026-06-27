@@ -1,4 +1,5 @@
 """Authentication support for Magg."""
+
 import logging
 import time
 from functools import cached_property
@@ -53,7 +54,9 @@ class BearerAuthManager:
             RuntimeError: If keys already exist or generation fails
         """
         if self.bearer_config.private_key_exists:
-            raise RuntimeError(f"Private key already exists at {self.bearer_config.private_key_path}. Remove it manually to regenerate.")
+            raise RuntimeError(
+                f"Private key already exists at {self.bearer_config.private_key_path}. Remove it manually to regenerate."
+            )
 
         private_key = self._generate_keypair()
         if private_key is None:
@@ -70,9 +73,7 @@ class BearerAuthManager:
 
         try:
             return serialization.load_pem_private_key(
-                key_data.encode('utf-8'),
-                password=None,
-                backend=default_backend()
+                key_data.encode("utf-8"), password=None, backend=default_backend()
             )
         except Exception as e:
             logger.error("Failed to load private key: %s", e)
@@ -83,31 +84,30 @@ class BearerAuthManager:
         logger.debug("Generating new RSA keypair for audience %r", self.bearer_config.audience)
 
         try:
-            private_key = rsa.generate_private_key(
-                public_exponent=65537,
-                key_size=2048,
-                backend=default_backend()
-            )
+            private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048, backend=default_backend())
 
             self.bearer_config.key_path.mkdir(mode=0o700, exist_ok=True)
 
             private_path = self.bearer_config.private_key_path
 
-            with private_path.open('wb') as f:
-                f.write(private_key.private_bytes(
-                    encoding=serialization.Encoding.PEM,
-                    format=serialization.PrivateFormat.TraditionalOpenSSL,
-                    encryption_algorithm=serialization.NoEncryption()
-                ))
+            with private_path.open("wb") as f:
+                f.write(
+                    private_key.private_bytes(
+                        encoding=serialization.Encoding.PEM,
+                        format=serialization.PrivateFormat.TraditionalOpenSSL,
+                        encryption_algorithm=serialization.NoEncryption(),
+                    )
+                )
             private_path.chmod(0o600)
 
             ssh_public_path = self.bearer_config.public_key_path
             public_key = private_key.public_key()
-            with open(ssh_public_path, 'wb') as f:
-                f.write(public_key.public_bytes(
-                    encoding=serialization.Encoding.OpenSSH,
-                    format=serialization.PublicFormat.OpenSSH
-                ))
+            with open(ssh_public_path, "wb") as f:
+                f.write(
+                    public_key.public_bytes(
+                        encoding=serialization.Encoding.OpenSSH, format=serialization.PublicFormat.OpenSSH
+                    )
+                )
 
             logger.debug("Generated new RSA keypair in %s", self.bearer_config.key_path)
             return private_key
@@ -122,9 +122,8 @@ class BearerAuthManager:
         public_key = private_key.public_key()
 
         public_key_pem = public_key.public_bytes(
-            encoding=serialization.Encoding.PEM,
-            format=serialization.PublicFormat.SubjectPublicKeyInfo
-        ).decode('utf-8')
+            encoding=serialization.Encoding.PEM, format=serialization.PublicFormat.SubjectPublicKeyInfo
+        ).decode("utf-8")
 
         return public_key_pem
 
@@ -152,13 +151,10 @@ class BearerAuthManager:
         self.load_keys()
 
         return JWTVerifier(
-            public_key=self._public_key,
-            issuer=self.bearer_config.issuer,
-            audience=self.bearer_config.audience
+            public_key=self._public_key, issuer=self.bearer_config.issuer, audience=self.bearer_config.audience
         )
 
-    def create_token(self, subject: str = "dev-user", hours: int = 24,
-                    scopes: list[str] | None = None) -> str | None:
+    def create_token(self, subject: str = "dev-user", hours: int = 24, scopes: list[str] | None = None) -> str | None:
         """Create a JWT token for testing.
 
         Args:

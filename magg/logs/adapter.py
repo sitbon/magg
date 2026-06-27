@@ -1,6 +1,6 @@
 import logging
 
-__all__ = "LoggerAdapter",
+__all__ = ("LoggerAdapter",)
 
 
 class LoggerAdapter(logging.LoggerAdapter):

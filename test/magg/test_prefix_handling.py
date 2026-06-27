@@ -1,10 +1,10 @@
 """Test prefix and separator handling."""
 
 import pytest
-import os
-from magg.settings import MaggConfig, ServerConfig
-from magg.server.server import MaggServer
 from fastmcp import Client
+
+from magg.server.server import MaggServer
+from magg.settings import MaggConfig, ServerConfig
 
 
 class TestPrefixHandling:
@@ -13,7 +13,7 @@ class TestPrefixHandling:
     def test_prefix_separator_on_magg_config(self):
         """Test that prefix_sep is a configurable field on MaggConfig."""
         config = MaggConfig()
-        assert hasattr(config, 'prefix_sep')
+        assert hasattr(config, "prefix_sep")
         assert config.prefix_sep == "_"  # Default value
 
         # Test it can be configured

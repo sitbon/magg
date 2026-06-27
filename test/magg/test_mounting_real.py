@@ -1,11 +1,11 @@
 """Test real server mounting with FastMCP."""
 
-import pytest
 import asyncio
 import tempfile
 from pathlib import Path
 
-from fastmcp import FastMCP, Client
+import pytest
+from fastmcp import Client, FastMCP
 from fastmcp.server import create_proxy
 
 
@@ -41,10 +41,7 @@ if __name__ == "__main__":
             from magg.util.transports import NoValidatePythonStdioTransport
 
             # Mount the backend server as a proxy (how Magg mounts servers)
-            transport = NoValidatePythonStdioTransport(
-                script_path=str(server_file),
-                cwd=tmpdir
-            )
+            transport = NoValidatePythonStdioTransport(script_path=str(server_file), cwd=tmpdir)
             client = Client(transport)
             proxy = create_proxy(client)
             main_server.mount(server=proxy, namespace="test")

@@ -1,13 +1,11 @@
 """Integration tests for Magg server functionality."""
 
-import pytest
 import tempfile
-import os
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 
 from magg.server.server import MaggServer
-from magg.settings import MaggConfig, ConfigManager, ServerConfig
 
 
 class TestIntegration:
@@ -19,7 +17,7 @@ class TestIntegration:
         with tempfile.TemporaryDirectory() as tmpdir:
             # Create test Python script
             server_script = Path(tmpdir) / "test_server.py"
-            server_script.write_text('''
+            server_script.write_text("""
 from fastmcp import FastMCP
 
 mcp = FastMCP("test-python-server")
@@ -30,7 +28,7 @@ def test_tool(message: str) -> str:
 
 if __name__ == "__main__":
     mcp.run()
-''')
+""")
 
             # Create Magg server
             config_path = Path(tmpdir) / "config.json"
@@ -38,10 +36,7 @@ if __name__ == "__main__":
 
             # Add the server
             result = await server.add_server(
-                name="pythontest",
-                source="file://" + str(tmpdir),
-                command=f"python {server_script}",
-                cwd=str(tmpdir)
+                name="pythontest", source="file://" + str(tmpdir), command=f"python {server_script}", cwd=str(tmpdir)
             )
 
             assert result.is_success
@@ -65,7 +60,7 @@ if __name__ == "__main__":
                 name="moduletest",
                 source="https://github.com/example/module-server",
                 command="python -m example.server --port 8080",
-                cwd=str(tmpdir)
+                cwd=str(tmpdir),
             )
 
             assert result.is_success
@@ -80,41 +75,31 @@ if __name__ == "__main__":
 
             # Test Python transport
             result = await server.add_server(
-                name="pythontransport",
-                source="https://example.com",
-                command="python script.py"
+                name="pythontransport", source="https://example.com", command="python script.py"
             )
             assert result.is_success
 
             # Test Node transport
             result = await server.add_server(
-                name="nodetransport",
-                source="https://example.com",
-                command="node server.js"
+                name="nodetransport", source="https://example.com", command="node server.js"
             )
             assert result.is_success
 
             # Test NPX transport
             result = await server.add_server(
-                name="npxtransport",
-                source="https://example.com",
-                command="npx @example/server"
+                name="npxtransport", source="https://example.com", command="npx @example/server"
             )
             assert result.is_success
 
             # Test UVX transport
             result = await server.add_server(
-                name="uvxtransport",
-                source="https://example.com",
-                command="uvx example-server"
+                name="uvxtransport", source="https://example.com", command="uvx example-server"
             )
             assert result.is_success
 
             # Test HTTP transport
             result = await server.add_server(
-                name="httptransport",
-                source="https://example.com",
-                uri="http://localhost:8080"
+                name="httptransport", source="https://example.com", uri="http://localhost:8080"
             )
             assert result.is_success
 
@@ -135,10 +120,7 @@ class TestServerLifecycle:
 
             # Add a disabled server
             result = await server.add_server(
-                name="lifecycle",
-                source="https://example.com",
-                command="echo test",
-                enable=False
+                name="lifecycle", source="https://example.com", command="echo test", enable=False
             )
             assert result.is_success
             assert result.output["server"]["enabled"] is False
@@ -167,11 +149,7 @@ class TestServerLifecycle:
             server = MaggServer(str(config_path))
 
             # Add a server
-            await server.add_server(
-                name="toremove",
-                source="https://example.com",
-                command="echo test"
-            )
+            await server.add_server(name="toremove", source="https://example.com", command="echo test")
 
             # Remove it
             result = await server.remove_server("toremove")

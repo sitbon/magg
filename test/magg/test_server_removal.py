@@ -7,8 +7,8 @@ from pathlib import Path
 
 import pytest
 
-from magg.server.server import MaggServer
 from magg.server.manager import ServerManager
+from magg.server.server import MaggServer
 from magg.settings import ConfigManager
 
 
@@ -18,23 +18,13 @@ class TestServerRemoval:
     @pytest.fixture
     def temp_config(self):
         """Create a temporary config file."""
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
             config_data = {
                 "self_prefix": "test",
                 "servers": {
-                    "test1": {
-                        "source": "test-source",
-                        "prefix": "t1",
-                        "command": "echo",
-                        "args": ["test"]
-                    },
-                    "test2": {
-                        "source": "test-source-2",
-                        "prefix": "t2",
-                        "command": "echo",
-                        "args": ["test2"]
-                    }
-                }
+                    "test1": {"source": "test-source", "prefix": "t1", "command": "echo", "args": ["test"]},
+                    "test2": {"source": "test-source-2", "prefix": "t2", "command": "echo", "args": ["test2"]},
+                },
             }
             json.dump(config_data, f)
             return Path(f.name)
@@ -106,10 +96,8 @@ class TestServerRemoval:
 
         # Add a server to mounted_servers
         from magg.server.manager import MountedServer
-        server_manager.mounted_servers["test1"] = MountedServer(
-            proxy=None,
-            client=None
-        )
+
+        server_manager.mounted_servers["test1"] = MountedServer(proxy=None, client=None)
 
         # Load config and verify test1 exists
         config = config_manager.load_config()
@@ -155,6 +143,7 @@ class TestServerRemoval:
 
         # Check the file directly
         import json
+
         with open(config_manager.config_path) as f:
             file_data = json.load(f)
 
@@ -184,12 +173,12 @@ async def test_with_real_stdio_server(tmp_path):
                 "source": "test",
                 "prefix": "echo",
                 "command": "python",
-                "args": ["-c", "print('Hello from echo server'); exit(0)"]
+                "args": ["-c", "print('Hello from echo server'); exit(0)"],
             }
         }
     }
 
-    with open(config_path, 'w') as f:
+    with open(config_path, "w") as f:
         json.dump(config_data, f)
 
     # Create server with this config
@@ -218,16 +207,10 @@ async def test_with_real_stdio_server(tmp_path):
 if __name__ == "__main__":
     # Run the race condition test to demonstrate the issue
     import tempfile
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
         config_data = {
-            "servers": {
-                "test1": {
-                    "source": "test-source",
-                    "prefix": "t1",
-                    "command": "echo",
-                    "args": ["test"]
-                }
-            }
+            "servers": {"test1": {"source": "test-source", "prefix": "t1", "command": "echo", "args": ["test"]}}
         }
         json.dump(config_data, f)
         config_path = Path(f.name)

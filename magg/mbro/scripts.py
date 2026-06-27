@@ -2,9 +2,10 @@
 
 import re
 from pathlib import Path
-from typing import List, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, List, Optional
 
 from magg.settings import ConfigManager
+
 from .parser import CommandParser
 
 if TYPE_CHECKING:
@@ -14,11 +15,12 @@ if TYPE_CHECKING:
 
 class ScriptManager:
     """Manage mbro script files and handle script commands."""
-    config_manager: ConfigManager
-    cli: 'MCPBrowserCLI' = None
-    formatter: 'OutputFormatter' = None
 
-    def __init__(self, *, cli: 'MCPBrowserCLI', config_path: Path | str | None = None):
+    config_manager: ConfigManager
+    cli: "MCPBrowserCLI" = None
+    formatter: "OutputFormatter" = None
+
+    def __init__(self, *, cli: "MCPBrowserCLI", config_path: Path | str | None = None):
         self.config_manager = ConfigManager(config_path=config_path)
         self.cli = cli
         self.formatter = cli.formatter
@@ -34,7 +36,7 @@ class ScriptManager:
         path = Path(script_ref)
 
         if not path.suffix:
-            path = path.with_suffix('.mbro')
+            path = path.with_suffix(".mbro")
 
         if path.is_absolute() and path.exists():
             return path
@@ -44,7 +46,7 @@ class ScriptManager:
 
         search = script_ref.lower()
 
-        if '/' in search:
+        if "/" in search:
             search_path = Path(search)
             search_parts = tuple(p.lower() for p in search_path.parts[:-1])
             search_name = search_path.name.lower()
@@ -60,7 +62,7 @@ class ScriptManager:
                     return script
 
                 for i in range(len(script_parts) - len(search_parts) + 1):
-                    if script_parts[i:i+len(search_parts)] == search_parts:
+                    if script_parts[i : i + len(search_parts)] == search_parts:
                         return script
 
         for script in self.scripts:
@@ -68,7 +70,6 @@ class ScriptManager:
             if script_name == search or (script.suffix and script.name.lower() == search):
                 return script
         return None
-
 
     async def handle_script_command(self, args: List[str]):
         """Handle script subcommands."""
@@ -210,13 +211,11 @@ class ScriptManager:
             self.formatter.format_error(f"Failed to read script: {e}")
             return
 
-        if not self.formatter.json_only and hasattr(self.cli, 'multiline_handler'):
+        if not self.formatter.json_only and hasattr(self.cli, "multiline_handler"):
             self.formatter.format_info(f"Script: {script_path.name}\nPress Ctrl+D to run, Ctrl+C to cancel")
 
             edited = await self.cli.multiline_handler.get_multiline_input(
-                prompt="",
-                initial_text=script_content,
-                lexer_type='text'
+                prompt="", initial_text=script_content, lexer_type="text"
             )
 
             if edited is not None:
@@ -259,12 +258,10 @@ class ScriptManager:
             with script_path.open() as f:
                 for line in f:
                     line = line.strip()
-                    if line.startswith('#'):
+                    if line.startswith("#"):
                         return line[1:].strip()
-                    elif line and not line.startswith('#'):
+                    elif line and not line.startswith("#"):
                         return line[:50] + "..." if len(line) > 50 else line
         except Exception:
             pass
         return None
-
-

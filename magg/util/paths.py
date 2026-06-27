@@ -2,6 +2,7 @@
 
 Used when searching for kits and mbro scripts.
 """
+
 from pathlib import Path
 
 from magg import contrib

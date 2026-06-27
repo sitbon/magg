@@ -1,11 +1,10 @@
 """Tests for the mbro CLI overhaul features."""
 
-import pytest
-import tempfile
-from pathlib import Path
-from unittest.mock import patch, AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
-from magg.mbro.cli import MCPBrowserCLI, handle_commands
+import pytest
+
+from magg.mbro.cli import handle_commands
 from magg.mbro.parser import CommandParser
 
 
@@ -101,7 +100,7 @@ class TestMBroCLIOverhaul:
 
         # Mock stdin
         test_input = "connect test python server.py\ntools\n"
-        with patch('sys.stdin.read', return_value=test_input):
+        with patch("sys.stdin.read", return_value=test_input):
             executed = await handle_commands(cli, args)
 
         assert executed is True
@@ -111,8 +110,6 @@ class TestMBroCLIOverhaul:
 
     def test_cli_command_parsing_with_comments(self):
         """Test that CLI properly handles comments."""
-        cli = MCPBrowserCLI(json_only=True)
-
         # Parse a command with a comment
         parts = CommandParser.parse_command_line("connect test python server.py # comment")
         assert parts == ["connect", "test", "python", "server.py"]

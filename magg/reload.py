@@ -1,5 +1,7 @@
 """Configuration reload functionality for Magg server."""
 
+from __future__ import annotations
+
 import asyncio
 import json
 import logging

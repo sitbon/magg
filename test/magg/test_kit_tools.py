@@ -324,9 +324,8 @@ class TestKitManagerWithServer:
         await server.__aenter__()
 
         # Get registered tools
-        tools = await server.mcp.get_tools()
+        tools = {tool.name for tool in await server.mcp.list_tools()}
 
-        # Tools is a list of tool names (strings) in FastMCP
         # Verify kit tools are registered
         assert "magg_load_kit" in tools
         assert "magg_unload_kit" in tools

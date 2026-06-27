@@ -2,13 +2,12 @@
 import logging
 import time
 from functools import cached_property
-from typing import Optional
 
 import jwt
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
-from fastmcp.server.auth import BearerAuthProvider
+from fastmcp.server.auth.providers.jwt import JWTVerifier
 
 from .settings import BearerAuthConfig
 
@@ -63,7 +62,7 @@ class BearerAuthManager:
         self._private_key = private_key
         self._public_key = self._derive_public_key(private_key)
 
-    def _load_private_key(self) -> Optional[rsa.RSAPrivateKey]:
+    def _load_private_key(self) -> rsa.RSAPrivateKey | None:
         """Load private key from env var or file."""
         key_data = self.bearer_config.private_key_data
         if not key_data:
@@ -79,7 +78,7 @@ class BearerAuthManager:
             logger.error("Failed to load private key: %s", e)
             return None
 
-    def _generate_keypair(self) -> Optional[rsa.RSAPrivateKey]:
+    def _generate_keypair(self) -> rsa.RSAPrivateKey | None:
         """Generate new RSA keypair and save to files."""
         logger.debug("Generating new RSA keypair for audience %r", self.bearer_config.audience)
 
@@ -129,20 +128,20 @@ class BearerAuthManager:
 
         return public_key_pem
 
-    def get_public_key(self) -> Optional[str]:
+    def get_public_key(self) -> str | None:
         """Get the loaded public key in PEM format."""
         return self._public_key
 
-    def get_private_key(self) -> Optional[rsa.RSAPrivateKey]:
+    def get_private_key(self) -> rsa.RSAPrivateKey | None:
         """Get the loaded private key."""
         return self._private_key
 
     @cached_property
-    def provider(self) -> BearerAuthProvider:
-        """Get the FastMCP BearerAuthProvider for server authentication.
+    def provider(self) -> JWTVerifier:
+        """Get the FastMCP JWTVerifier for server authentication.
 
         Returns:
-            BearerAuthProvider instance
+            JWTVerifier instance
 
         Raises:
             RuntimeError: If authentication is not enabled or keys cannot be loaded
@@ -152,14 +151,14 @@ class BearerAuthManager:
 
         self.load_keys()
 
-        return BearerAuthProvider(
+        return JWTVerifier(
             public_key=self._public_key,
             issuer=self.bearer_config.issuer,
             audience=self.bearer_config.audience
         )
 
     def create_token(self, subject: str = "dev-user", hours: int = 24,
-                    scopes: Optional[list[str]] = None) -> Optional[str]:
+                    scopes: list[str] | None = None) -> str | None:
         """Create a JWT token for testing.
 
         Args:

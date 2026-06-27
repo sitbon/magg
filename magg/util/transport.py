@@ -8,14 +8,13 @@ from urllib.parse import urlparse
 from fastmcp.client.transports import (
     infer_transport,
     StdioTransport,
-    NpxStdioTransport,
     UvxStdioTransport,
     FastMCPStdioTransport,
     SSETransport,
     StreamableHttpTransport,
     ClientTransport
 )
-from .transports import NoValidatePythonStdioTransport, NoValidateNodeStdioTransport
+from .transports import NoValidatePythonStdioTransport, NoValidateNodeStdioTransport, NoValidateNpxStdioTransport
 
 __all__ = (
     "get_transport_for_input",
@@ -188,9 +187,9 @@ def get_transport_for_command(
             )
 
     elif command == "npx":
-        # NPX package execution
+        # NPX package execution - use our transport that doesn't validate npx presence
         if args:
-            return NpxStdioTransport(
+            return NoValidateNpxStdioTransport(
                 package=args[0],
                 args=args[1:],
                 project_directory=str(cwd) if cwd else None,

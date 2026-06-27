@@ -726,7 +726,7 @@ Please provide:
         """Get basic Magg server status and statistics."""
         try:
             config = self.config
-            total_tools = len(await self.mcp.get_tools())
+            total_tools = len(await self.mcp.list_tools())
 
             status_data = {
                 "servers": {

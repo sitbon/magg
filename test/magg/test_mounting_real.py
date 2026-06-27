@@ -6,6 +6,7 @@ import tempfile
 from pathlib import Path
 
 from fastmcp import FastMCP, Client
+from fastmcp.server import create_proxy
 
 
 class TestRealMounting:
@@ -36,58 +37,24 @@ if __name__ == "__main__":
             # Create the main Magg server
             main_server = FastMCP("test-magg")
 
-            # Try different approaches to mount the server
-
             # Import the custom transport
             from magg.util.transports import NoValidatePythonStdioTransport
 
-            # Approach 1: Using Client with custom transport
-            try:
-                transport = NoValidatePythonStdioTransport(
-                    script_path=str(server_file),
-                    cwd=tmpdir
-                )
-                client = Client(transport)
-                # Try to mount the client directly
-                main_server.mount(server=client, prefix="test1")
-                print("✓ Direct client mount succeeded")
-            except Exception as e:
-                print(f"✗ Direct client mount failed: {e}")
+            # Mount the backend server as a proxy (how Magg mounts servers)
+            transport = NoValidatePythonStdioTransport(
+                script_path=str(server_file),
+                cwd=tmpdir
+            )
+            client = Client(transport)
+            proxy = create_proxy(client)
+            main_server.mount(server=proxy, namespace="test")
 
-            # Approach 2: Try with proxy flag (deprecated approach - remove this test)
-            # This approach is deprecated and causes warnings
-            # Keeping as commented documentation of what NOT to do
-            # try:
-            #     transport = NoValidatePythonStdioTransport(
-            #         script_path=str(server_file),
-            #         cwd=tmpdir
-            #     )
-            #     client = Client(transport)
-            #     main_server.mount(server=client, prefix="test2", as_proxy=True)
-            #     print("✓ Client mount with as_proxy=True succeeded")
-            # except Exception as e:
-            #     print(f"✗ Client mount with as_proxy=True failed: {e}")
-
-            # Approach 3: Try as_proxy (new way)
-            try:
-                transport = NoValidatePythonStdioTransport(
-                    script_path=str(server_file),
-                    cwd=tmpdir
-                )
-                client = Client(transport)
-                proxy = FastMCP.as_proxy(client)
-                main_server.mount(server=proxy, prefix="test3")
-                print("✓ as_proxy mount succeeded")
-            except Exception as e:
-                print(f"✗ as_proxy mount failed: {e}")
-
-            # Get tool names through client
-            print("\nAvailable tools on main server:")
             # List tools through the FastMCP client
             async with Client(main_server) as client:
                 tools = await client.list_tools()
-                for tool in tools:
-                    print(f"  - {tool.name}")
+                tool_names = {tool.name for tool in tools}
+
+            assert "test_test_tool" in tool_names
 
 
 if __name__ == "__main__":

@@ -129,7 +129,7 @@ class TestToolDiscovery:
             return value * 2
 
         # Mount the test server
-        server.mcp.mount(server=test_server, prefix="test")
+        server.mcp.mount(server=test_server, namespace="test")
 
         # Access tools through the client
         async with Client(server.mcp) as client:

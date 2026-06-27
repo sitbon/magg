@@ -8,6 +8,7 @@ from functools import cached_property
 from typing import Annotated
 
 from fastmcp import FastMCP, Client
+from fastmcp.server import create_proxy
 from pydantic import Field
 
 from .defaults import MAGG_INSTRUCTIONS
@@ -133,8 +134,8 @@ class ServerManager:
                 logger.error("No command or URI specified for %s", server.name)
                 return False
 
-            proxy_server = FastMCP.as_proxy(client, name=server.name)
-            self.mcp.mount(server=proxy_server, prefix=server.prefix)
+            proxy_server = create_proxy(client, name=server.name)
+            self.mcp.mount(server=proxy_server, namespace=server.prefix)
 
             self.mounted_servers[server.name] = MountedServer(
                 proxy=proxy_server,

@@ -84,7 +84,6 @@ class ProxyFastMCP(ProxyMCP, FastMCP):
         tool = FunctionTool.from_function(
             self._proxy_tool,
             name=self.PROXY_TOOL_NAME,
-            serializer=self._tool_serializer,
         )
 
         self.add_tool(tool)

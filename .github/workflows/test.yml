@@ -5,14 +5,14 @@ on:
     branches: ['*']
     paths:
       - 'magg/**'
-      - 'tests/**'
+      - 'test/**'
       - 'pyproject.toml'
       - 'uv.lock'
   pull_request:
     branches: ['*']
     paths:
       - 'magg/**'
-      - 'tests/**'
+      - 'test/**'
       - 'pyproject.toml'
       - 'uv.lock'
 
@@ -21,7 +21,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ['3.12', '3.13']
+        python-version: ['3.12', '3.13', '3.14']
       fail-fast: false  # Continue testing other versions if one fails
     
     steps:
@@ -38,8 +38,8 @@ jobs:
       
       - name: Install dependencies
         run: |
-          uv sync --all-groups --locked
-      
+          uv sync --all-groups --locked --python ${{ matrix.python-version }}
+
       - name: Run tests
         run: |
-          uv run pytest -v
+          uv run --python ${{ matrix.python-version }} pytest -v

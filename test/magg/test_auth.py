@@ -11,7 +11,7 @@ from cryptography.hazmat.backends import default_backend
 
 from magg.auth import BearerAuthManager
 from magg.settings import AuthConfig, BearerAuthConfig, ConfigManager
-from fastmcp.server.auth import BearerAuthProvider
+from fastmcp.server.auth.providers.jwt import JWTVerifier
 
 
 class TestBearerAuthConfig:
@@ -289,4 +289,4 @@ class TestBearerAuthManager:
             # Keys should now be loaded
             assert manager._private_key is not None
             assert manager._public_key is not None
-            assert isinstance(provider, BearerAuthProvider)
+            assert isinstance(provider, JWTVerifier)

@@ -6,6 +6,7 @@ import tempfile
 from pathlib import Path
 
 from fastmcp import FastMCP, Client
+from fastmcp.server import create_proxy
 from magg.util.transports import NoValidatePythonStdioTransport
 
 
@@ -46,13 +47,13 @@ if __name__ == "__main__":
             cwd=tmpdir
         )
         client = Client(transport)
-        proxy = FastMCP.as_proxy(client)
+        proxy = create_proxy(client)
 
         print(f"Created proxy: {type(proxy)}")
         print(f"Proxy has _has_lifespan: {hasattr(proxy, '_has_lifespan')}")
 
         # Mount the proxy
-        main.mount(server=proxy, prefix="test")
+        main.mount(server=proxy, namespace="test")
         print("Mounted proxy with prefix 'test'")
 
         # Check what tools are available

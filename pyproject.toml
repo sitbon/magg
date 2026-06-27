@@ -16,6 +16,7 @@ classifiers = [
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Programming Language :: Python :: Implementation :: CPython",
     "Programming Language :: Python :: 3 :: Only",
     "Topic :: Software Development :: Libraries",
@@ -55,7 +56,8 @@ include = [
 ]
 
 dependencies = [
-    "fastmcp>=2.8.0",
+    "fastmcp>=3.4,<4",
+    "mcp>=1.28",
     "aiohttp>=3.12.13",
     "pydantic>=2.11.7",
     "pydantic-settings>=2.10.0",

@@ -5,6 +5,7 @@ import tempfile
 from pathlib import Path
 
 from fastmcp import FastMCP, Client
+from fastmcp.server import create_proxy
 from magg.util.transports import NoValidatePythonStdioTransport
 
 
@@ -59,7 +60,7 @@ if __name__ == "__main__":
             assert "8" in result.content[0].text
 
         # Test 2: Create proxy from client (new way)
-        proxy = FastMCP.as_proxy(client)
+        proxy = create_proxy(client)
         assert proxy is not None
 
         # Test 3: Mount proxy to another server
@@ -72,7 +73,7 @@ if __name__ == "__main__":
             return "Local response"
 
         # Mount the proxy
-        magg.mount(server=proxy, prefix="calc")
+        magg.mount(server=proxy, namespace="calc")
 
         # Verify tools are available via the mount
         # Note: We can't directly test the mounted tools without running the server

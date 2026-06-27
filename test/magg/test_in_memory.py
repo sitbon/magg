@@ -114,6 +114,60 @@ async def test_in_memory_proxy_tool(tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_in_memory_proxy_tool_call(tmp_path):
+    """Test the proxy 'call' action invokes a mounted tool (covers _proxy_call)."""
+    config_path = tmp_path / ".magg" / "config.json"
+    config_path.parent.mkdir()
+
+    test_server = tmp_path / "test_server.py"
+    test_server.write_text("""
+from fastmcp import FastMCP
+
+mcp = FastMCP("test-server")
+
+@mcp.tool()
+async def test_add(a: int, b: int) -> str:
+    return f"Result: {a + b}"
+
+if __name__ == "__main__":
+    mcp.run()
+""")
+
+    config_data = {
+        "servers": {
+            "test": {
+                "name": "test",
+                "source": str(tmp_path),
+                "prefix": "test",
+                "command": sys.executable,
+                "args": [str(test_server)],
+                "enabled": True
+            }
+        }
+    }
+    config_path.write_text(json.dumps(config_data))
+
+    server = MaggServer(str(config_path))
+    await server.setup()
+
+    client = Client(FastMCPTransport(server.mcp))
+
+    async with client:
+        result = await client.call_tool("proxy", {
+            "action": "call",
+            "type": "tool",
+            "path": "test_test_add",
+            "args": {"a": 5, "b": 3}
+        })
+
+        assert hasattr(result, 'content')
+        assert len(result.content) >= 1
+        assert "Result: 8" in result.content[0].text
+        assert result.content[0].annotations.proxyAction == "call"
+        assert result.content[0].annotations.proxyType == "tool"
+
+
+@pytest.mark.asyncio
 async def test_in_memory_tool_call_requires_setup(tmp_path):
     """Test that external server tools require setup() to be called."""
     config_path = tmp_path / ".magg" / "config.json"

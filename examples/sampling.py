@@ -1,11 +1,3 @@
-# /// script
-# requires-python = ">=3.13"
-# dependencies = [
-# "anthropic>=0.54.0",
-# "fastmcp<3",
-# "magg>=0.3.4",
-# ]
-# ///
 """This example demonstrates how to use the FastMCP client with a custom sampling handler.
 
 It connects to a local FastMCP server and uses the Anthropic API to handle sampling requests.

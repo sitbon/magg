@@ -41,20 +41,6 @@ keywords = [
     "rich",
 ]
 
-packages = [
-    {include = "magg"},
-    {include = "test", format = "sdist"},
-]
-
-include = [
-    "readme.md",
-    "license.md",
-    "compose.yaml",
-    "dockerfile",
-    ".dockerignore",
-    ".env.example",
-]
-
 dependencies = [
     "fastmcp>=3.4,<4",
     "mcp>=1.28",
@@ -107,6 +93,28 @@ line-length = 120
 
 [tool.ruff.lint]
 select = ["F", "I"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "magg",
+    "test",
+    "examples",
+    "docs",
+    "scripts",
+    "readme.md",
+    "license.md",
+    "contributing.md",
+    "compose.yaml",
+    "dockerfile",
+    ".dockerignore",
+    ".env.example",
+    "uv.lock",
+]
+exclude = [
+    "**/__pycache__",
+    "**/*.pyc",
+    ".github",
+]
 
 [build-system]
 requires = ["hatchling"]

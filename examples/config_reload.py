@@ -5,16 +5,11 @@ import asyncio
 import json
 import logging
 import os
-import sys
 from pathlib import Path
-
-# Add magg to path
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
-from magg.server.server.server import MaggServer
 
 from magg import process
 from magg.server.runner import MaggRunner
+from magg.server.server import MaggServer
 
 process.setup(MAGG_LOG_LEVEL="INFO")
 logger = logging.getLogger(__name__)

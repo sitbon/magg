@@ -1,16 +1,17 @@
 """End-to-end test for Magg server mounting."""
 
 import asyncio
-import tempfile
 import json
-from pathlib import Path
 import subprocess
-import time
 import sys
+import tempfile
+import time
+from pathlib import Path
 
 import pytest
 from fastmcp import Client
-from magg.settings import ConfigManager, ServerConfig, MaggConfig
+
+from magg.settings import MaggConfig, ServerConfig
 
 
 @pytest.mark.asyncio
@@ -60,27 +61,28 @@ if __name__ == "__main__":
             prefix="calc",  # Explicit prefix
             command="python",
             args=["server.py"],
-            cwd=str(calc_dir)
+            cwd=str(calc_dir),
         )
         config.add_server(server)
 
         # Save config
         config_path = config_dir / "config.json"
-        with open(config_path, 'w') as f:
-            json.dump({
-                'servers': {s.name: s.model_dump(mode="json") for s in config.servers.values()}
-            }, f, indent=2)
+        with open(config_path, "w") as f:
+            json.dump({"servers": {s.name: s.model_dump(mode="json") for s in config.servers.values()}}, f, indent=2)
 
         # Create empty auth.json to prevent using default keys
         auth_path = config_dir / "auth.json"
-        with open(auth_path, 'w') as f:
-            json.dump({
-                'bearer': {
-                    'issuer': 'https://magg.local',
-                    'audience': 'test',
-                    'key_path': str(tmpdir / 'nonexistent')
-                }
-            }, f)
+        with open(auth_path, "w") as f:
+            json.dump(
+                {
+                    "bearer": {
+                        "issuer": "https://magg.local",
+                        "audience": "test",
+                        "key_path": str(tmpdir / "nonexistent"),
+                    }
+                },
+                f,
+            )
 
         print(f"Config saved to: {config_path}")
 
@@ -107,10 +109,7 @@ asyncio.run(main())
         # Start Magg
         print("Starting Magg server...")
         magg_proc = subprocess.Popen(
-            [sys.executable, str(magg_script)],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True
+            [sys.executable, str(magg_script)], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
         )
 
         # Wait for startup and check if process started
@@ -126,8 +125,9 @@ asyncio.run(main())
 
             # Check if server is listening on the port
             import socket
+
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            result = sock.connect_ex(('localhost', 54321))
+            result = sock.connect_ex(("localhost", 54321))
             sock.close()
 
             if result == 0:
@@ -163,7 +163,7 @@ asyncio.run(main())
                 result = await client.call_tool("calc_add", {"a": 5, "b": 3})
                 print(f"\ncalc_add(5, 3) = {result}")
                 # Parse the result - calculator returns CallToolResult
-                if hasattr(result, 'content') and result.content:
+                if hasattr(result, "content") and result.content:
                     result_text = result.content[0].text
                     assert result_text == "8"
                 else:
@@ -171,7 +171,7 @@ asyncio.run(main())
 
                 result = await client.call_tool("calc_multiply", {"a": 4, "b": 7})
                 print(f"calc_multiply(4, 7) = {result}")
-                if hasattr(result, 'content') and result.content:
+                if hasattr(result, "content") and result.content:
                     result_text = result.content[0].text
                     assert result_text == "28"
                 else:

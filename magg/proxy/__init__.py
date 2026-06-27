@@ -1,7 +1,7 @@
-"""MCP proxy tool, making it easier to work with proxied MCP capabilities.
-"""
-from .mixin import ProxyMCP
+"""MCP proxy tool, making it easier to work with proxied MCP capabilities."""
+
 from .client import ProxyClient
+from .mixin import ProxyMCP
 from .server import ProxyFastMCP
 
 __all__ = (

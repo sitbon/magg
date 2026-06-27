@@ -1,6 +1,6 @@
 [project]
 name = "magg"
-version = "0.10.1"
+version = "1.1.0"
 requires-python = ">=3.12"
 description = "MCP Aggregator"
 authors = [{ name = "Phillip Sitbon", email = "phillip.sitbon@gmail.com"}]
@@ -8,7 +8,7 @@ readme = "readme.md"
 license = {text = "AGPL-3.0-or-later"}
 license-files = ["license.md"]
 classifiers = [
-    "Development Status :: 4 - Beta",
+    "Development Status :: 5 - Production/Stable",
     "Environment :: Web Environment",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: GNU Affero General Public License v3 or later (AGPLv3+)",
@@ -16,6 +16,7 @@ classifiers = [
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Programming Language :: Python :: Implementation :: CPython",
     "Programming Language :: Python :: 3 :: Only",
     "Topic :: Software Development :: Libraries",
@@ -40,22 +41,9 @@ keywords = [
     "rich",
 ]
 
-packages = [
-    {include = "magg"},
-    {include = "test", format = "sdist"},
-]
-
-include = [
-    "readme.md",
-    "license.md",
-    "compose.yaml",
-    "dockerfile",
-    ".dockerignore",
-    ".env.example",
-]
-
 dependencies = [
-    "fastmcp>=2.8.0",
+    "fastmcp>=3.4,<4",
+    "mcp>=1.28",
     "aiohttp>=3.12.13",
     "pydantic>=2.11.7",
     "pydantic-settings>=2.10.0",
@@ -92,11 +80,40 @@ dev = [
     "anthropic>=0.54.0",
     "pyjwt>=2.10.1",
     "packaging>=25.0",
+    "ruff>=0.15.20",
 ]
 
 [tool.pytest.ini_options]
 markers = [
     "integration: marks tests as integration tests (deselect with '-m \"not integration\"')",
+]
+
+[tool.ruff]
+line-length = 120
+
+[tool.ruff.lint]
+select = ["F", "I"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "magg",
+    "test",
+    "examples",
+    "docs",
+    "scripts",
+    "readme.md",
+    "license.md",
+    "contributing.md",
+    "compose.yaml",
+    "dockerfile",
+    ".dockerignore",
+    ".env.example",
+    "uv.lock",
+]
+exclude = [
+    "**/__pycache__",
+    "**/*.pyc",
+    ".github",
 ]
 
 [build-system]

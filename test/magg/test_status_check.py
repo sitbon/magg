@@ -18,11 +18,12 @@ class TestStatusAndCheckTools:
 
         async with Client(server.mcp) as client:
             result = await client.call_tool("magg_status", {})
-            assert hasattr(result, 'content')
+            assert hasattr(result, "content")
             assert len(result.content) > 0
 
             # Parse the JSON response
             import json
+
             response = json.loads(result.content[0].text)
 
             # Extract the output from MaggResponse
@@ -56,11 +57,12 @@ class TestStatusAndCheckTools:
         async with Client(server.mcp) as client:
             # Test with no servers - should work
             result = await client.call_tool("magg_check", {"action": "report"})
-            assert hasattr(result, 'content')
+            assert hasattr(result, "content")
             assert len(result.content) > 0
 
             # Parse the JSON response
             import json
+
             response = json.loads(result.content[0].text)
 
             # Extract the output from MaggResponse
@@ -87,15 +89,13 @@ class TestStatusAndCheckTools:
 
         async with Client(server.mcp) as client:
             # Test with custom timeout
-            result = await client.call_tool("magg_check", {
-                "action": "report",
-                "timeout": 2.0
-            })
-            assert hasattr(result, 'content')
+            result = await client.call_tool("magg_check", {"action": "report", "timeout": 2.0})
+            assert hasattr(result, "content")
             assert len(result.content) > 0
 
             # Should still work with no servers
             import json
+
             response = json.loads(result.content[0].text)
             data = response["output"]
             assert data["servers_checked"] == 0

@@ -1,11 +1,12 @@
 """Integration tests for Magg messaging functionality with server mounting."""
-import pytest
-from unittest.mock import AsyncMock, Mock
+
+from unittest.mock import AsyncMock
 
 import mcp.types
+import pytest
+
 from magg.server.manager import ServerManager
 from magg.settings import MaggConfig, ServerConfig
-from magg.messaging import MaggMessageHandler
 
 
 class TestMessagingIntegration:
@@ -25,7 +26,7 @@ class TestMessagingIntegration:
                     prefix="test",
                     enabled=True,
                     command="echo",  # Simple command that exists
-                    args=["hello"]
+                    args=["hello"],
                 )
             }
         )
@@ -39,7 +40,7 @@ class TestMessagingIntegration:
         server_manager = ServerManager(config_manager)
 
         # Verify ProxyFastMCP has message coordinator
-        assert hasattr(server_manager.mcp, 'message_coordinator')
+        assert hasattr(server_manager.mcp, "message_coordinator")
         assert server_manager.mcp.message_coordinator is not None
 
         # Mount the test server
@@ -61,8 +62,8 @@ class TestMessagingIntegration:
     @pytest.mark.asyncio
     async def test_message_forwarding_flow(self):
         """Test the complete message forwarding flow."""
-        from magg.proxy.server import BackendMessageHandler
         from magg.messaging import MessageRouter, ServerMessageCoordinator
+        from magg.proxy.server import BackendMessageHandler
 
         # Set up message routing infrastructure
         router = MessageRouter()
@@ -76,9 +77,7 @@ class TestMessagingIntegration:
         await router.register_handler(client_handler, server_id=None)
 
         # Simulate a tool list changed notification
-        notification = mcp.types.ToolListChangedNotification(
-            method="notifications/tools/list_changed"
-        )
+        notification = mcp.types.ToolListChangedNotification(method="notifications/tools/list_changed")
 
         # Send through backend handler
         await backend_handler.on_tool_list_changed(notification)
@@ -92,9 +91,10 @@ class TestMessagingIntegration:
     @pytest.mark.asyncio
     async def test_magg_client_with_message_handler(self):
         """Test MaggClient with message handler functionality."""
-        from magg import MaggClient, MaggMessageHandler
-        from fastmcp.client.transports import FastMCPTransport
         from fastmcp import FastMCP
+        from fastmcp.client.transports import FastMCPTransport
+
+        from magg import MaggClient, MaggMessageHandler
 
         # Create a test FastMCP server
         test_server = FastMCP(name="test")
@@ -104,25 +104,24 @@ class TestMessagingIntegration:
 
         # Create message handler
         callback_mock = AsyncMock()
-        handler = MaggMessageHandler(
-            on_tool_list_changed=callback_mock
-        )
+        handler = MaggMessageHandler(on_tool_list_changed=callback_mock)
 
         # Create MaggClient with message handler
         client = MaggClient(transport, message_handler=handler)
 
         # Verify client was created successfully
         assert client is not None
-        assert hasattr(client, 'settings')
+        assert hasattr(client, "settings")
 
         # Note: We can't easily test the actual message flow without starting
         # real servers, but we can verify the setup doesn't break
 
     def test_message_handler_backward_compatibility(self):
         """Test that messaging functionality doesn't break existing code."""
-        from magg import MaggClient
-        from fastmcp.client.transports import FastMCPTransport
         from fastmcp import FastMCP
+        from fastmcp.client.transports import FastMCPTransport
+
+        from magg import MaggClient
 
         # Create a test FastMCP server
         test_server = FastMCP(name="test")
@@ -135,7 +134,7 @@ class TestMessagingIntegration:
 
         # Verify client was created successfully
         assert client is not None
-        assert hasattr(client, 'settings')
+        assert hasattr(client, "settings")
 
         # Verify transparent mode is still default
         assert client._transparent is True
@@ -143,15 +142,15 @@ class TestMessagingIntegration:
     @pytest.mark.asyncio
     async def test_server_mounting_without_messaging(self, tmp_path):
         """Test that server mounting fails gracefully without messaging support."""
-        from magg.settings import ConfigManager
-        from magg.proxy.mixin import ProxyMCP  # Use base ProxyMCP without messaging
         from fastmcp import FastMCP
+
+        from magg.settings import ConfigManager
 
         # Create a basic FastMCP server without messaging extensions
         basic_server = FastMCP(name="basic")
 
         # Verify it doesn't have message_coordinator
-        assert not hasattr(basic_server, 'message_coordinator')
+        assert not hasattr(basic_server, "message_coordinator")
 
         # Create config with a test server
         config = MaggConfig(
@@ -162,7 +161,7 @@ class TestMessagingIntegration:
                     prefix="test",
                     enabled=True,
                     command="echo",
-                    args=["hello"]
+                    args=["hello"],
                 )
             }
         )

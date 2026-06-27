@@ -1,9 +1,10 @@
 """Tests for Magg messaging and notification system."""
-import asyncio
-import pytest
-from unittest.mock import Mock, AsyncMock
+
+from unittest.mock import AsyncMock, Mock
 
 import mcp.types
+import pytest
+
 from magg.messaging import (
     MaggMessageHandler,
     MessageRouter,
@@ -21,26 +22,17 @@ class TestMaggMessageHandler:
         tool_callback = AsyncMock()
         progress_callback = Mock()
 
-        handler = MaggMessageHandler(
-            on_tool_list_changed=tool_callback,
-            on_progress=progress_callback
-        )
+        handler = MaggMessageHandler(on_tool_list_changed=tool_callback, on_progress=progress_callback)
 
         # Test tool list changed
-        notification = mcp.types.ToolListChangedNotification(
-            method="notifications/tools/list_changed"
-        )
+        notification = mcp.types.ToolListChangedNotification(method="notifications/tools/list_changed")
         await handler.on_tool_list_changed(notification)
         tool_callback.assert_called_once_with(notification)
 
         # Test progress notification
         progress_notif = mcp.types.ProgressNotification(
             method="notifications/progress",
-            params=mcp.types.ProgressNotificationParams(
-                progressToken="test-token",
-                progress=50,
-                total=100
-            )
+            params=mcp.types.ProgressNotificationParams(progressToken="test-token", progress=50, total=100),
         )
         await handler.on_progress(progress_notif)
         progress_callback.assert_called_once_with(progress_notif)
@@ -48,16 +40,13 @@ class TestMaggMessageHandler:
     @pytest.mark.asyncio
     async def test_error_handling(self):
         """Test that handler errors don't propagate."""
+
         def failing_callback(notification):
             raise ValueError("Test error")
 
-        handler = MaggMessageHandler(
-            on_tool_list_changed=failing_callback
-        )
+        handler = MaggMessageHandler(on_tool_list_changed=failing_callback)
 
-        notification = mcp.types.ToolListChangedNotification(
-            method="notifications/tools/list_changed"
-        )
+        notification = mcp.types.ToolListChangedNotification(method="notifications/tools/list_changed")
 
         # Should not raise exception
         await handler.on_tool_list_changed(notification)
@@ -110,9 +99,7 @@ class TestServerMessageCoordinator:
         coordinator = ServerMessageCoordinator(router)
 
         # Handle tool list change
-        notification = mcp.types.ToolListChangedNotification(
-            method="notifications/tools/list_changed"
-        )
+        notification = mcp.types.ToolListChangedNotification(method="notifications/tools/list_changed")
         await coordinator.handle_tool_list_changed(notification, "server1")
 
         # Check state
@@ -130,10 +117,7 @@ class TestServerMessageCoordinator:
 
         notification = mcp.types.ProgressNotification(
             method="notifications/progress",
-            params=mcp.types.ProgressNotificationParams(
-                progressToken="test-token",
-                progress=25
-            )
+            params=mcp.types.ProgressNotificationParams(progressToken="test-token", progress=25),
         )
 
         await coordinator.handle_progress(notification, "server1")
@@ -158,15 +142,11 @@ class TestBackendMessageHandler:
 
         handler = BackendMessageHandler("server1", coordinator)
 
-        notification = mcp.types.ToolListChangedNotification(
-            method="notifications/tools/list_changed"
-        )
+        notification = mcp.types.ToolListChangedNotification(method="notifications/tools/list_changed")
 
         await handler.on_tool_list_changed(notification)
 
-        coordinator.handle_tool_list_changed.assert_called_once_with(
-            notification, "server1"
-        )
+        coordinator.handle_tool_list_changed.assert_called_once_with(notification, "server1")
 
 
 class TestIntegration:
@@ -193,9 +173,7 @@ class TestIntegration:
         await router.register_handler(client_handler, server_id=None)
 
         # Simulate backend notification
-        tool_notification = mcp.types.ToolListChangedNotification(
-            method="notifications/tools/list_changed"
-        )
+        tool_notification = mcp.types.ToolListChangedNotification(method="notifications/tools/list_changed")
 
         # Send through backend handler (this goes to coordinator, then router, then client handler)
         await backend_handler.on_tool_list_changed(tool_notification)

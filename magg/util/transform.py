@@ -1,26 +1,40 @@
-"""Transformation utilities for MCP results.
-"""
+"""Transformation utilities for MCP results."""
+
 import base64
-from typing import TypeAlias, Any
+import json
+from typing import Any, TypeAlias
 
 from mcp import GetPromptResult
 from mcp.types import (
-    TextContent, ImageContent, EmbeddedResource,
-    TextResourceContents, BlobResourceContents, Annotations, Content
+    Annotations,
+    BlobResourceContents,
+    Content,
+    EmbeddedResource,
+    ImageContent,
+    TextContent,
+    TextResourceContents,
 )
-import json
-
-from pydantic import AnyUrl, ValidationError, BaseModel, TypeAdapter
+from pydantic import AnyUrl, BaseModel, TypeAdapter, ValidationError
 
 __all__ = (
-    "ToolResult", "ResourceResult", "PromptResult", "ClientMCPResult",
-    "is_mcp_result_json_typed", "extract_mcp_result_json",
-    "embed_python_object_in_resource", "get_embedded_resource_python_object",
-    "resource_result_as_tool_result", "tool_result_as_resource_result",
-    "prompt_result_as_tool_result", "tool_result_as_prompt_result",
-    "annotate_content", "deserialize_embedded_resource_python_object",
-    "embed_python_object_list_in_resource", "get_mcp_result_contents",
-    "json_to_dict", "json_to_list",
+    "ToolResult",
+    "ResourceResult",
+    "PromptResult",
+    "ClientMCPResult",
+    "is_mcp_result_json_typed",
+    "extract_mcp_result_json",
+    "embed_python_object_in_resource",
+    "get_embedded_resource_python_object",
+    "resource_result_as_tool_result",
+    "tool_result_as_resource_result",
+    "prompt_result_as_tool_result",
+    "tool_result_as_prompt_result",
+    "annotate_content",
+    "deserialize_embedded_resource_python_object",
+    "embed_python_object_list_in_resource",
+    "get_mcp_result_contents",
+    "json_to_dict",
+    "json_to_list",
 )
 
 
@@ -49,9 +63,10 @@ def get_mcp_result_contents(
         data = data.resource
 
     if isinstance(data, (TextResourceContents, BlobResourceContents)):
-        return data.text if hasattr(data, 'text') else base64.b64decode(data.blob)
+        return data.text if hasattr(data, "text") else base64.b64decode(data.blob)
 
     return None
+
 
 def is_mcp_result_json_typed(
     data: ClientMCPResult,
@@ -77,7 +92,7 @@ def is_mcp_result_json_typed(
 
 
 def extract_mcp_result_json(
-        data: ClientMCPResult,
+    data: ClientMCPResult,
 ) -> str | None:
     """
     Extract a RAW JSON string from the MCP tool or resource result item.
@@ -91,10 +106,10 @@ def extract_mcp_result_json(
     if not is_mcp_result_json_typed(data):
         return None
 
-    if hasattr(data, 'text'):
+    if hasattr(data, "text"):
         return data.text
 
-    elif hasattr(data, 'resource') and hasattr(data.resource, 'text'):
+    elif hasattr(data, "resource") and hasattr(data.resource, "text"):
         return data.resource.text
 
     return None
@@ -149,10 +164,7 @@ def embed_python_object_list_in_resource(
     )
 
 
-def get_embedded_resource_python_object(
-    data: EmbeddedResource,
-        **check: str | None
-) -> tuple[str, str, bool] | None:
+def get_embedded_resource_python_object(data: EmbeddedResource, **check: str | None) -> tuple[str, str, bool] | None:
     """
     Check if the embedded resource has a Python type annotation and JSON data, and return them.
 
@@ -167,11 +179,11 @@ def get_embedded_resource_python_object(
     object_info = None
 
     if (
-        isinstance(data, EmbeddedResource) and
-        data.annotations and getattr(data.annotations, "pythonType", None) and
-        is_mcp_result_json_typed(data) and all(
-            getattr(data.annotations, key, None) == value for key, value in check.items()
-        )
+        isinstance(data, EmbeddedResource)
+        and data.annotations
+        and getattr(data.annotations, "pythonType", None)
+        and is_mcp_result_json_typed(data)
+        and all(getattr(data.annotations, key, None) == value for key, value in check.items())
     ):
         python_type = data.annotations.pythonType
         json_data = extract_mcp_result_json(data)
@@ -184,11 +196,11 @@ def get_embedded_resource_python_object(
 
 
 def deserialize_embedded_resource_python_object[T: BaseModel](
-        target_type: type[BaseModel],
-        python_type: str,
-        json_data: str,
-        *,
-        many: bool = False,
+    target_type: type[BaseModel],
+    python_type: str,
+    json_data: str,
+    *,
+    many: bool = False,
 ) -> T | list[T] | None:
 
     if not target_type or not python_type or not json_data:
@@ -212,11 +224,11 @@ def deserialize_embedded_resource_python_object[T: BaseModel](
 
 
 def resource_result_as_tool_result(
-        data: ResourceResult,
-        as_json: bool | None = None,
-        encoder: json.JSONEncoder | None = None,
-        decoder: json.JSONDecoder | None = None,
-        **annotations,
+    data: ResourceResult,
+    as_json: bool | None = None,
+    encoder: json.JSONEncoder | None = None,
+    decoder: json.JSONDecoder | None = None,
+    **annotations,
 ) -> EmbeddedResource:
     """
     Converts resource result data into a tool result format.
@@ -272,7 +284,7 @@ def resource_result_as_tool_result(
 
 
 def tool_result_as_resource_result(
-        data: ToolResult,
+    data: ToolResult,
 ) -> ResourceResult | None:
     """
     Extracts a resource result from a tool result when available.
@@ -285,9 +297,9 @@ def tool_result_as_resource_result(
     """
     if isinstance(data, EmbeddedResource):
         if (
-            getattr(data.annotations, "proxyType", None) == "resource" and
-            data.resource and
-            isinstance(data.resource, (TextResourceContents, BlobResourceContents))
+            getattr(data.annotations, "proxyType", None) == "resource"
+            and data.resource
+            and isinstance(data.resource, (TextResourceContents, BlobResourceContents))
         ):
             return data.resource
 
@@ -295,9 +307,9 @@ def tool_result_as_resource_result(
 
 
 def prompt_result_as_tool_result(
-        data: PromptResult,
-        name: str,
-        **annotations,
+    data: PromptResult,
+    name: str,
+    **annotations,
 ) -> EmbeddedResource:
     """
     Converts a GetPromptResult into a tool result format.
@@ -326,7 +338,7 @@ def prompt_result_as_tool_result(
 
 
 def tool_result_as_prompt_result(
-        data: ToolResult,
+    data: ToolResult,
 ) -> PromptResult | None:
     """
     Extracts a prompt call result from a tool result when available.
@@ -351,8 +363,8 @@ def tool_result_as_prompt_result(
 
 
 def annotate_content(
-        data: Content,
-        **annotations,
+    data: Content,
+    **annotations,
 ) -> Content:
     """
     Annotate Content with additional annotations.

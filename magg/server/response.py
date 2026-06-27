@@ -1,10 +1,10 @@
-"""Response model for Magg tools.
-"""
+"""Response model for Magg tools."""
+
 import json
 from typing import Any, Union
 
-from mcp.types import TextContent, EmbeddedResource, Annotations, TextResourceContents
-from pydantic import BaseModel, ConfigDict, AnyUrl
+from mcp.types import Annotations, EmbeddedResource, TextContent, TextResourceContents
+from pydantic import AnyUrl, BaseModel, ConfigDict
 
 
 class MaggResponse(BaseModel):
@@ -20,16 +20,10 @@ class MaggResponse(BaseModel):
         json_schema_extra={
             "description": "Standardized response format for Magg tools.",
             "examples": [
-                {
-                    "output": {"message": "Success"},
-                    "errors": None
-                },
-                {
-                    "errors": ["An error occurred"],
-                    "output": "But there might be some output"
-                }
-            ]
-        }
+                {"output": {"message": "Success"}, "errors": None},
+                {"errors": ["An error occurred"], "output": "But there might be some output"},
+            ],
+        },
     )
 
     errors: list[str | dict] | None = None
@@ -74,11 +68,11 @@ class MaggResponse(BaseModel):
         return self.as_json_response(self)
 
     def as_json_embedded_resource(
-            self,
-            embed_uri: str | None = None,
-            annotations: dict | None = None,
-            json_dump_kwds: dict | None = None,
-            model_dump_kwds: dict | None = None,
+        self,
+        embed_uri: str | None = None,
+        annotations: dict | None = None,
+        json_dump_kwds: dict | None = None,
+        model_dump_kwds: dict | None = None,
     ) -> EmbeddedResource:
         """
         Convert the current object into an EmbeddedResource with specific settings.
@@ -117,11 +111,7 @@ class MaggResponse(BaseModel):
 
     @classmethod
     def as_text_resource(
-            cls,
-            uri: AnyUrl | str,
-            data: str | dict,
-            mime_type: str | None = None,
-            **json_dump_kwds
+        cls, uri: AnyUrl | str, data: str | dict, mime_type: str | None = None, **json_dump_kwds
     ) -> TextResourceContents:
         """
         Create a TextResourceContents from a string or dict.
@@ -153,12 +143,14 @@ class MaggResponse(BaseModel):
 
     @classmethod
     def as_json_response(
-            cls,
-            data: Any, /, *,
-            embed_uri: str | None = None,
-            annotations: dict | None = None,
-            json_dump_kwds: dict | None = None,
-            model_dump_kwds: dict | None = None,
+        cls,
+        data: Any,
+        /,
+        *,
+        embed_uri: str | None = None,
+        annotations: dict | None = None,
+        json_dump_kwds: dict | None = None,
+        model_dump_kwds: dict | None = None,
     ) -> TextContent | EmbeddedResource:
         """
         Create a JSON response for MCP tools or resources.

@@ -1,4 +1,5 @@
 """Terminal utilities for better CLI output."""
+
 import os
 import sys
 
@@ -9,28 +10,29 @@ from .system import initterm
 
 class Colors:
     """ANSI color codes for terminal output."""
-    HEADER = '\033[95m'
-    OKBLUE = '\033[94m'
-    OKCYAN = '\033[96m'
-    OKGREEN = '\033[92m'
-    WARNING = '\033[93m'
-    FAIL = '\033[91m'
-    ENDC = '\033[0m'
-    BOLD = '\033[1m'
-    UNDERLINE = '\033[4m'
+
+    HEADER = "\033[95m"
+    OKBLUE = "\033[94m"
+    OKCYAN = "\033[96m"
+    OKGREEN = "\033[92m"
+    WARNING = "\033[93m"
+    FAIL = "\033[91m"
+    ENDC = "\033[0m"
+    BOLD = "\033[1m"
+    UNDERLINE = "\033[4m"
 
     @classmethod
     def disable(cls):
         """Disable colors (for non-tty output)."""
-        cls.HEADER = ''
-        cls.OKBLUE = ''
-        cls.OKCYAN = ''
-        cls.OKGREEN = ''
-        cls.WARNING = ''
-        cls.FAIL = ''
-        cls.ENDC = ''
-        cls.BOLD = ''
-        cls.UNDERLINE = ''
+        cls.HEADER = ""
+        cls.OKBLUE = ""
+        cls.OKCYAN = ""
+        cls.OKGREEN = ""
+        cls.WARNING = ""
+        cls.FAIL = ""
+        cls.ENDC = ""
+        cls.BOLD = ""
+        cls.UNDERLINE = ""
 
 
 # Disable colors if not a TTY
@@ -39,7 +41,7 @@ if not sys.stderr.isatty():
 
 
 def print_text(text: str = "", *args, **kwds):
-    kwds.setdefault('file', sys.stderr)
+    kwds.setdefault("file", sys.stderr)
     print(text, *args, **kwds)
 
 
@@ -62,6 +64,7 @@ def print_warning(text: str, *args, **kwds):
 def print_info(text: str, *args, **kwds):
     print_text(f"{Colors.OKCYAN}ⓘ {text}{Colors.ENDC}", *args, **kwds)
 
+
 def print_server_list(servers: dict):
     """Print a formatted list of servers."""
     if not servers:
@@ -80,7 +83,7 @@ def print_server_list(servers: dict):
         if server.command:
             full_command = server.command
             if server.args:
-                full_command += ' ' + ' '.join(server.args)
+                full_command += " " + " ".join(server.args)
             print_text(f"    Command: {full_command}")
 
         if server.uri:
@@ -116,15 +119,14 @@ def confirm_action(prompt: str) -> bool:
     """Ask for confirmation before an action."""
     try:
         response = input(f"{Colors.WARNING}{prompt} [y/N]: {Colors.ENDC}").strip().lower()
-        return response in ('y', 'yes')
+        return response in ("y", "yes")
     except (EOFError, KeyboardInterrupt):
         print()  # New line after Ctrl+C
         return False
 
 
 def print_startup_banner():
-    """Print a beautiful startup banner.
-    """
+    """Print a beautiful startup banner."""
     # import pyfiglet
     # Use banner font which has solid # characters
     # ascii_art = pyfiglet.figlet_format("MAGG", font="big")
@@ -143,8 +145,8 @@ def print_startup_banner():
             console = initterm()
             if console:
                 # Apply gradient colors to each line
-                lines = ascii_art.split('\n')
-                colors = ['#4796E4', '#5B8FE6', '#7087E8', '#847ACE', '#9B72B8', '#B26BA2', '#C3677F']
+                lines = ascii_art.split("\n")
+                colors = ["#4796E4", "#5B8FE6", "#7087E8", "#847ACE", "#9B72B8", "#B26BA2", "#C3677F"]
 
                 for i, line in enumerate(lines):
                     if line.strip():

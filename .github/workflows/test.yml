@@ -5,41 +5,45 @@ on:
     branches: ['*']
     paths:
       - 'magg/**'
-      - 'tests/**'
+      - 'test/**'
       - 'pyproject.toml'
       - 'uv.lock'
   pull_request:
     branches: ['*']
     paths:
       - 'magg/**'
-      - 'tests/**'
+      - 'test/**'
       - 'pyproject.toml'
       - 'uv.lock'
+
+permissions:
+  contents: read
 
 jobs:
   test:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ['3.12', '3.13']
+        python-version: ['3.12', '3.13', '3.14']
       fail-fast: false  # Continue testing other versions if one fails
     
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
       
       - name: Install uv
-        uses: astral-sh/setup-uv@v6
+        uses: astral-sh/setup-uv@v8.2.0
         with:
           enable-cache: true
+          cache-suffix: ${{ matrix.python-version }}
       
       - name: Set up Python ${{ matrix.python-version }}
         run: uv python install ${{ matrix.python-version }}
       
       - name: Install dependencies
         run: |
-          uv sync --all-groups --locked
-      
+          uv sync --all-groups --locked --python ${{ matrix.python-version }}
+
       - name: Run tests
         run: |
-          uv run pytest -v
+          uv run --python ${{ matrix.python-version }} pytest -v

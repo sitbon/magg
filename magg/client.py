@@ -1,13 +1,13 @@
 """Magg FastMCP client wrapper with authentication and proxy support."""
+
 from typing import Any
 
 from fastmcp.client import BearerAuth
-from fastmcp.client.messages import MessageHandler, MessageHandlerT
+from fastmcp.client.messages import MessageHandlerT
 from httpx import Auth
 
 from .proxy.client import ProxyClient
 from .settings import ClientSettings
-from .messaging import MaggMessageHandler
 
 
 class MaggClient(ProxyClient):
@@ -44,11 +44,4 @@ class MaggClient(ProxyClient):
         if auth is None and self.settings.jwt:
             auth = BearerAuth(self.settings.jwt)
 
-        super().__init__(
-            transport,
-            *args,
-            auth=auth,
-            transparent=transparent,
-            message_handler=message_handler,
-            **kwds
-        )
+        super().__init__(transport, *args, auth=auth, transparent=transparent, message_handler=message_handler, **kwds)

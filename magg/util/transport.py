@@ -1,26 +1,31 @@
-"""Transport utilities for Magg - handles FastMCP transport selection and configuration.
-"""
+"""Transport utilities for Magg - handles FastMCP transport selection and configuration."""
+
 import shlex
 import sys
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
+
 from fastmcp.client.transports import (
-    infer_transport,
-    StdioTransport,
-    NpxStdioTransport,
-    UvxStdioTransport,
+    ClientTransport,
     FastMCPStdioTransport,
     SSETransport,
+    StdioTransport,
     StreamableHttpTransport,
-    ClientTransport
+    UvxStdioTransport,
+    infer_transport,
 )
-from .transports import NoValidatePythonStdioTransport, NoValidateNodeStdioTransport
+
+from .transports import NoValidateNodeStdioTransport, NoValidateNpxStdioTransport, NoValidatePythonStdioTransport
 
 __all__ = (
     "get_transport_for_input",
-    "get_transport_for_command", "get_transport_for_command_string", "get_transport_for_uri",
-    "parse_command_string", "is_connection_string_url", "TRANSPORT_DOCS"
+    "get_transport_for_command",
+    "get_transport_for_command_string",
+    "get_transport_for_uri",
+    "parse_command_string",
+    "is_connection_string_url",
+    "TRANSPORT_DOCS",
 )
 
 
@@ -108,7 +113,7 @@ def get_transport_for_command_string(
     command_string: str,
     env: dict[str, str] | None = None,
     cwd: Path | None = None,
-    transport_config: dict[str, Any] | None = None
+    transport_config: dict[str, Any] | None = None,
 ) -> ClientTransport:
     """
     Create appropriate transport for a command string.
@@ -130,13 +135,7 @@ def get_transport_for_command_string(
         >>> transport = get_transport_for_command_string("npx @playwright/mcp@latest")
     """
     command, args = parse_command_string(command_string)
-    return get_transport_for_command(
-        command=command,
-        args=args,
-        env=env,
-        cwd=cwd,
-        transport_config=transport_config
-    )
+    return get_transport_for_command(command=command, args=args, env=env, cwd=cwd, transport_config=transport_config)
 
 
 def get_transport_for_command(
@@ -144,7 +143,7 @@ def get_transport_for_command(
     args: list[str],
     env: dict[str, str] | None = None,
     cwd: Path | None = None,
-    transport_config: dict[str, Any] | None = None
+    transport_config: dict[str, Any] | None = None,
 ) -> ClientTransport:
     """
     Create appropriate transport based on command and configuration.
@@ -172,7 +171,7 @@ def get_transport_for_command(
                 env=env,
                 cwd=str(cwd) if cwd else None,
                 python_cmd=transport_config.get("python_cmd", sys.executable),
-                keep_alive=transport_config.get("keep_alive", True)
+                keep_alive=transport_config.get("keep_alive", True),
             )
 
     elif command == "node":
@@ -184,19 +183,19 @@ def get_transport_for_command(
                 env=env,
                 cwd=str(cwd) if cwd else None,
                 node_cmd=transport_config.get("node_cmd", "node"),
-                keep_alive=transport_config.get("keep_alive", True)
+                keep_alive=transport_config.get("keep_alive", True),
             )
 
     elif command == "npx":
-        # NPX package execution
+        # NPX package execution - use our transport that doesn't validate npx presence
         if args:
-            return NpxStdioTransport(
+            return NoValidateNpxStdioTransport(
                 package=args[0],
                 args=args[1:],
                 project_directory=str(cwd) if cwd else None,
                 env_vars=env,
                 use_package_lock=transport_config.get("use_package_lock", True),
-                keep_alive=transport_config.get("keep_alive", True)
+                keep_alive=transport_config.get("keep_alive", True),
             )
 
     elif command == "uvx":
@@ -210,7 +209,7 @@ def get_transport_for_command(
                 with_packages=transport_config.get("with_packages"),
                 from_package=transport_config.get("from_package"),
                 env_vars=env,
-                keep_alive=transport_config.get("keep_alive", True)
+                keep_alive=transport_config.get("keep_alive", True),
             )
 
     elif command == "fastmcp":
@@ -221,10 +220,10 @@ def get_transport_for_command(
             if script_idx < len(args):
                 return FastMCPStdioTransport(
                     script_path=args[script_idx],
-                    args=args[script_idx + 1:],
+                    args=args[script_idx + 1 :],
                     env=env,
                     cwd=str(cwd) if cwd else None,
-                    keep_alive=transport_config.get("keep_alive", True)
+                    keep_alive=transport_config.get("keep_alive", True),
                 )
 
     # Default to generic StdioTransport for other commands
@@ -233,14 +232,11 @@ def get_transport_for_command(
         args=args,
         env=env,
         cwd=str(cwd) if cwd else None,
-        keep_alive=transport_config.get("keep_alive", True)
+        keep_alive=transport_config.get("keep_alive", True),
     )
 
 
-def get_transport_for_uri(
-    uri: str,
-    transport_config: dict[str, Any] | None = None
-) -> ClientTransport:
+def get_transport_for_uri(uri: str, transport_config: dict[str, Any] | None = None) -> ClientTransport:
     """
     Create appropriate transport for URI-based servers.
 
@@ -260,7 +256,7 @@ def get_transport_for_uri(
             headers=transport_config.get("headers"),
             auth=transport_config.get("auth"),
             sse_read_timeout=transport_config.get("sse_read_timeout"),
-            httpx_client_factory=transport_config.get("httpx_client_factory")
+            httpx_client_factory=transport_config.get("httpx_client_factory"),
         )
 
     # Default to StreamableHttpTransport for HTTP/HTTPS
@@ -270,7 +266,7 @@ def get_transport_for_uri(
             headers=transport_config.get("headers"),
             auth=transport_config.get("auth"),
             sse_read_timeout=transport_config.get("sse_read_timeout"),
-            httpx_client_factory=transport_config.get("httpx_client_factory")
+            httpx_client_factory=transport_config.get("httpx_client_factory"),
         )
 
     # Fall back to infer_transport for other cases

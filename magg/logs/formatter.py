@@ -2,9 +2,10 @@
 
 Defines a default formatter for log messages.
 """
+
 import logging
 
-__all__ = "DefaultFormatter",
+__all__ = ("DefaultFormatter",)
 
 
 class DefaultFormatter(logging.Formatter):
@@ -12,5 +13,6 @@ class DefaultFormatter(logging.Formatter):
 
     Uses `{}`-style formatting.
     """
+
     def __init__(self, fmt=None, datefmt=None, style="{", **kwds):
         super().__init__(fmt=fmt, datefmt=datefmt, style=style, **kwds)

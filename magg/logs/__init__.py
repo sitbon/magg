@@ -1,5 +1,6 @@
 import logging
-from . import config, adapter
+
+from . import adapter, config
 
 
 def initialize_logging(*, configure_logging: bool = True, start_listeners: bool = True) -> None:
@@ -12,6 +13,7 @@ def initialize_logging(*, configure_logging: bool = True, start_listeners: bool 
 
     if start_listeners:
         from .listener import QueueListener
+
         QueueListener.start_all()
 
 

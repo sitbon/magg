@@ -1,19 +1,20 @@
 """Configuration management for Magg - Using pydantic-settings."""
+
 import json
 import logging
 import os
-from functools import cached_property, lru_cache
+from functools import cached_property
 from pathlib import Path
-from typing import Any, Callable, Coroutine, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Callable, Coroutine
 
 if TYPE_CHECKING:
     from .reload import ConfigChange
 
-from pydantic import field_validator, Field, model_validator, AnyUrl, BaseModel
+from pydantic import AnyUrl, BaseModel, Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from .util.system import get_project_root
 from .util.paths import get_contrib_paths
+from .util.system import get_project_root
 
 __all__ = "ServerConfig", "MaggConfig", "ConfigManager", "AuthConfig", "BearerAuthConfig", "ClientSettings", "KitInfo"
 
@@ -22,6 +23,7 @@ logger = logging.getLogger(__name__)
 
 class KitInfo(BaseModel):
     """Information about a loaded kit."""
+
     model_config = {
         "extra": "allow",
         "validate_assignment": True,
@@ -35,6 +37,7 @@ class KitInfo(BaseModel):
 
 class ClientSettings(BaseSettings):
     """Client settings loaded from environment."""
+
     model_config = SettingsConfigDict(
         env_prefix="MAGG_",
         env_file=".env",
@@ -42,14 +45,12 @@ class ClientSettings(BaseSettings):
         validate_assignment=True,
     )
 
-    jwt: str | None = Field(
-        default=None,
-        description="JWT token for authentication (env: MAGG_JWT)"
-    )
+    jwt: str | None = Field(default=None, description="JWT token for authentication (env: MAGG_JWT)")
 
 
 class BearerAuthConfig(BaseSettings):
     """Bearer token authentication configuration."""
+
     model_config = SettingsConfigDict(
         extra="allow",
         validate_assignment=True,
@@ -57,14 +58,13 @@ class BearerAuthConfig(BaseSettings):
     issuer: str = Field(default="https://magg.local", description="Token issuer identifier")
     audience: str = Field(default="magg", description="Token audience")
     key_path: Path = Field(
-        default_factory=lambda: Path.home() / ".ssh" / "magg",
-        description="Path for private & public key storage"
+        default_factory=lambda: Path.home() / ".ssh" / "magg", description="Path for private & public key storage"
     )
 
     @property
     def private_key_env(self) -> str | None:
         """Get private key from MAGG_PRIVATE_KEY environment variable."""
-        return os.environ.get('MAGG_PRIVATE_KEY')
+        return os.environ.get("MAGG_PRIVATE_KEY")
 
     @property
     def private_key_path(self) -> Path:
@@ -82,7 +82,7 @@ class BearerAuthConfig(BaseSettings):
         # Try env var first
         if self.private_key_env:
             # Handle single-line format (literal \n)
-            return self.private_key_env.replace('\\n', '\n')
+            return self.private_key_env.replace("\\n", "\n")
 
         # Try file
         if self.private_key_path.exists():
@@ -110,18 +110,17 @@ class BearerAuthConfig(BaseSettings):
 
 class AuthConfig(BaseSettings):
     """Top-level authentication configuration."""
+
     model_config = SettingsConfigDict(
         extra="allow",
         validate_assignment=True,
     )
-    bearer: BearerAuthConfig = Field(
-        default_factory=BearerAuthConfig,
-        description="Bearer token authentication config"
-    )
+    bearer: BearerAuthConfig = Field(default_factory=BearerAuthConfig, description="Bearer token authentication config")
 
 
 class ServerConfig(BaseSettings):
     """Server configuration - defines how to run an MCP server."""
+
     model_config = SettingsConfigDict(
         extra="allow",
         validate_assignment=True,
@@ -131,8 +130,7 @@ class ServerConfig(BaseSettings):
     name: str = Field(..., description="Unique server name - can contain any characters")
     source: str = Field(..., description="URL/URI/path of the server package, repository, or listing")
     prefix: str | None = Field(
-        default=None,
-        description="Tool prefix for this server - must be a valid Python identifier without underscores."
+        default=None, description="Tool prefix for this server - must be a valid Python identifier without underscores."
     )
     notes: str | None = Field(None, description="Setup notes for LLM and humans")
 
@@ -146,12 +144,12 @@ class ServerConfig(BaseSettings):
     enabled: bool = Field(True, description="Whether server is enabled")
     kits: list[str] = Field(default_factory=list, description="List of kits this server was added from")
 
-    @model_validator(mode='after')
-    def set_default_prefix(self) -> 'ServerConfig':
+    @model_validator(mode="after")
+    def set_default_prefix(self) -> "ServerConfig":
         """No longer set default prefix - None is allowed."""
         return self
 
-    @field_validator('prefix')
+    @field_validator("prefix")
     def validate_prefix(cls, v: str | None) -> str | None:
         """Validate that prefix is a valid Python identifier without underscores."""
         if v:
@@ -165,13 +163,13 @@ class ServerConfig(BaseSettings):
                 )
         return v
 
-    @field_validator('transport')
+    @field_validator("transport")
     def validate_transport(cls, v: dict[str, Any] | None) -> dict[str, Any] | None:
         if v is not None and not v:
             v = None  # Normalize empty dict to None
         return v
 
-    @field_validator('uri')
+    @field_validator("uri")
     def validate_uri(cls, v: str | None) -> str | None:
         if v:
             AnyUrl(v)
@@ -180,6 +178,7 @@ class ServerConfig(BaseSettings):
 
 class MaggConfig(BaseSettings):
     """Main Magg configuration."""
+
     model_config = SettingsConfigDict(
         env_prefix="MAGG_",
         env_file=".env",
@@ -190,49 +189,47 @@ class MaggConfig(BaseSettings):
     )
 
     path: str | list[Path] = Field(
-        default_factory=lambda: [
-            get_project_root() / ".magg",
-            Path.home() / ".magg",
-            *get_contrib_paths()
-        ],
-        description="Multi-path search list for config.json and kit.d directories (env: MAGG_PATH, colon-separated)"
+        default_factory=lambda: [get_project_root() / ".magg", Path.home() / ".magg", *get_contrib_paths()],
+        description="Multi-path search list for config.json and kit.d directories (env: MAGG_PATH, colon-separated)",
     )
     config_path: Path | None = Field(
-        default=None,
-        description="Explicit configuration file path (overrides path search) (env: MAGG_CONFIG_PATH)"
+        default=None, description="Explicit configuration file path (overrides path search) (env: MAGG_CONFIG_PATH)"
     )
     read_only: bool = Field(default=False, description="Run in read-only mode (env: MAGG_READ_ONLY)")
-    log_level: str | None = Field(default=None, description="Logging level for Magg (default: INFO) (env: MAGG_LOG_LEVEL)")
+    log_level: str | None = Field(
+        default=None, description="Logging level for Magg (default: INFO) (env: MAGG_LOG_LEVEL)"
+    )
     self_prefix: str = Field(
         default="magg",
-        description="Prefix for Magg tools and commands - must be a valid Python identifier without underscores (env: MAGG_SELF_PREFIX)"
+        description="Prefix for Magg tools and commands - must be a valid Python identifier without underscores (env: MAGG_SELF_PREFIX)",
     )
-    prefix_sep: str = Field(
-        default="_",
-        description="Separator between prefix and tool name (env: MAGG_PREFIX_SEP)"
+    prefix_sep: str = Field(default="_", description="Separator between prefix and tool name (env: MAGG_PREFIX_SEP)")
+    auto_reload: bool = Field(
+        default=True, description="Enable automatic config reloading on file changes (env: MAGG_AUTO_RELOAD)"
     )
-    auto_reload: bool = Field(default=True, description="Enable automatic config reloading on file changes (env: MAGG_AUTO_RELOAD)")
-    reload_poll_interval: float = Field(default=1.0, description="Config file poll interval in seconds (env: MAGG_RELOAD_POLL_INTERVAL)")
-    stderr_show: bool = Field(default=False, description="Show stderr output from subprocess MCP servers (env: MAGG_STDERR_SHOW)")
-    servers: dict[str, ServerConfig] = Field(default_factory=dict, description="Servers configuration (loaded from config_path)")
+    reload_poll_interval: float = Field(
+        default=1.0, description="Config file poll interval in seconds (env: MAGG_RELOAD_POLL_INTERVAL)"
+    )
+    stderr_show: bool = Field(
+        default=False, description="Show stderr output from subprocess MCP servers (env: MAGG_STDERR_SHOW)"
+    )
+    servers: dict[str, ServerConfig] = Field(
+        default_factory=dict, description="Servers configuration (loaded from config_path)"
+    )
     kits: dict[str, KitInfo] = Field(default_factory=dict, description="Loaded kits with metadata")
 
-    @field_validator('path', mode='after')
+    @field_validator("path", mode="after")
     @classmethod
     def parse_path(cls, v) -> list[Path]:
         """Parse MAGG_PATH environment variable or return default."""
         if isinstance(v, str):
-            return [Path(p.strip()).expanduser() for p in v.split(':') if p.strip()]
+            return [Path(p.strip()).expanduser() for p in v.split(":") if p.strip()]
         elif isinstance(v, list) and v and not isinstance(v[0], Path):
             return [Path(p).expanduser() for p in v]
         elif isinstance(v, list):
             return v
         else:
-            return [
-                get_project_root() / ".magg",
-                Path.home() / ".magg",
-                *get_contrib_paths()
-            ]
+            return [get_project_root() / ".magg", Path.home() / ".magg", *get_contrib_paths()]
 
     def get_config_path(self) -> Path:
         """Get the actual config path, either explicit or searched from path list."""
@@ -263,30 +260,32 @@ class MaggConfig(BaseSettings):
                 script_files.extend(search_path.rglob("*.mbro"))
         return script_files
 
-    @model_validator(mode='after')
-    def export_environment_variables(self) -> 'MaggConfig':
+    @model_validator(mode="after")
+    def export_environment_variables(self) -> "MaggConfig":
         """Export configuration as environment variables for child processes."""
-        if 'MAGG_LOG_LEVEL' not in os.environ:
-            os.environ['MAGG_LOG_LEVEL'] = self.log_level or 'INFO'
+        if "MAGG_LOG_LEVEL" not in os.environ:
+            os.environ["MAGG_LOG_LEVEL"] = self.log_level or "INFO"
 
-        if self.config_path and 'MAGG_CONFIG_PATH' not in os.environ:
-            os.environ['MAGG_CONFIG_PATH'] = str(self.config_path)
+        if self.config_path and "MAGG_CONFIG_PATH" not in os.environ:
+            os.environ["MAGG_CONFIG_PATH"] = str(self.config_path)
 
-        if 'MAGG_AUTO_RELOAD' not in os.environ:
-            os.environ['MAGG_AUTO_RELOAD'] = str(self.auto_reload).lower()
+        if "MAGG_AUTO_RELOAD" not in os.environ:
+            os.environ["MAGG_AUTO_RELOAD"] = str(self.auto_reload).lower()
 
-        if 'MAGG_READ_ONLY' not in os.environ:
-            os.environ['MAGG_READ_ONLY'] = str(self.read_only).lower()
+        if "MAGG_READ_ONLY" not in os.environ:
+            os.environ["MAGG_READ_ONLY"] = str(self.read_only).lower()
 
         return self
 
-    @field_validator('self_prefix')
+    @field_validator("self_prefix")
     def validate_self_prefix(cls, v: str) -> str:
         """Validate that self_prefix is a valid Python identifier without underscores."""
         if v:
             if not v.isidentifier():
-                raise ValueError(f"Server prefix '{v}' must be a valid Python identifier (letters and numbers only, not starting with a number)")
-            if '_' in v:
+                raise ValueError(
+                    f"Server prefix '{v}' must be a valid Python identifier (letters and numbers only, not starting with a number)"
+                )
+            if "_" in v:
                 raise ValueError("Server prefix cannot contain underscores ('_')")
         return v
 
@@ -308,6 +307,7 @@ class MaggConfig(BaseSettings):
 
 class ConfigManager:
     """Manages Magg configuration persistence."""
+
     config_path: Path
     auth_config_path: Path
     auth_config: AuthConfig | None = None
@@ -352,9 +352,9 @@ class ConfigManager:
 
             servers = {}
 
-            for name, server_data in data.pop('servers', {}).items():
+            for name, server_data in data.pop("servers", {}).items():
                 try:
-                    server_data['name'] = name
+                    server_data["name"] = name
                     servers[name] = ServerConfig.model_validate(server_data)
                 except Exception as e:
                     self.logger.error("Error loading server %r: %s", name, e)
@@ -362,15 +362,12 @@ class ConfigManager:
 
             config.servers = servers
 
-            if 'kits' in data:
+            if "kits" in data:
                 # Handle both old format (list of strings) and new format (dict)
-                kits_data = data.pop('kits', {})
+                kits_data = data.pop("kits", {})
                 if isinstance(kits_data, list):
                     # Convert old format to new format
-                    config.kits = {
-                        kit_name: KitInfo(name=kit_name, source="legacy")
-                        for kit_name in kits_data
-                    }
+                    config.kits = {kit_name: KitInfo(name=kit_name, source="legacy") for kit_name in kits_data}
                 else:
                     # Load new format
                     config.kits = {
@@ -404,22 +401,22 @@ class ConfigManager:
                 self._reload_manager.ignore_next_change()
 
             data = {
-                'servers': {
+                "servers": {
                     name: server.model_dump(
                         mode="json",
-                        exclude_unset=True, exclude_none=True, exclude_defaults=True, by_alias=True,
-                        exclude={'name'},
+                        exclude_unset=True,
+                        exclude_none=True,
+                        exclude_defaults=True,
+                        by_alias=True,
+                        exclude={"name"},
                     )
                     for name, server in config.servers.items()
                 }
             }
 
             if config.kits:
-                data['kits'] = {
-                    name: kit_info.model_dump(
-                        mode="json",
-                        exclude_unset=True, exclude_none=True, exclude_defaults=True
-                    )
+                data["kits"] = {
+                    name: kit_info.model_dump(mode="json", exclude_unset=True, exclude_none=True, exclude_defaults=True)
                     for name, kit_info in config.kits.items()
                 }
 
@@ -440,7 +437,9 @@ class ConfigManager:
             self.logger.error("Error saving config: %s", e)
             return False
 
-    async def setup_config_reload(self, reload_callback: Callable[['ConfigChange'], Coroutine[None, None, None]]) -> None:
+    async def setup_config_reload(
+        self, reload_callback: Callable[["ConfigChange"], Coroutine[None, None, None]]
+    ) -> None:
         """Setup config file watching with a callback.
 
         Args:
@@ -503,10 +502,7 @@ class ConfigManager:
                 self.logger.warning("Creating new directory: %s", self.auth_config_path.parent)
                 self.auth_config_path.parent.mkdir(parents=True, exist_ok=True)
 
-            data = auth_config.model_dump(
-                mode="json",
-                exclude_none=True
-            )
+            data = auth_config.model_dump(mode="json", exclude_none=True)
 
             with self.auth_config_path.open("w") as f:
                 json.dump(data, f, indent=2)

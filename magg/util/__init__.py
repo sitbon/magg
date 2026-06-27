@@ -1,2 +1,1 @@
-"""Common utilities and helper functions.
-"""
+"""Common utilities and helper functions."""

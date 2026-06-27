@@ -1,10 +1,9 @@
 """Test FastMCP mounting functionality and client types."""
 
-import pytest
 import inspect
-from unittest.mock import patch, MagicMock
 
-from fastmcp import FastMCP, Client
+import pytest
+from fastmcp import Client, FastMCP
 
 
 class TestFastMCPMounting:
@@ -23,8 +22,8 @@ class TestFastMCPMounting:
         assert http_client is not None
 
         # Check for lifespan-related attributes
-        lifespan_attrs = [attr for attr in dir(http_client) if 'lifespan' in attr.lower()]
-        has_lifespan = hasattr(http_client, '_has_lifespan')
+        lifespan_attrs = [attr for attr in dir(http_client) if "lifespan" in attr.lower()]
+        has_lifespan = hasattr(http_client, "_has_lifespan")
 
         # Store results for analysis
         assert isinstance(lifespan_attrs, list)
@@ -32,13 +31,7 @@ class TestFastMCPMounting:
 
     def test_command_client_creation(self):
         """Test command client creation with MCP config."""
-        mcp_config = {
-            "mcpServers": {
-                "test": {
-                    "command": "echo hello"
-                }
-            }
-        }
+        mcp_config = {"mcpServers": {"test": {"command": "echo hello"}}}
 
         command_client = Client(mcp_config)
 
@@ -46,8 +39,8 @@ class TestFastMCPMounting:
         assert command_client is not None
 
         # Check for lifespan-related attributes
-        lifespan_attrs = [attr for attr in dir(command_client) if 'lifespan' in attr.lower()]
-        has_lifespan = hasattr(command_client, '_has_lifespan')
+        lifespan_attrs = [attr for attr in dir(command_client) if "lifespan" in attr.lower()]
+        has_lifespan = hasattr(command_client, "_has_lifespan")
 
         # Store results for analysis
         assert isinstance(lifespan_attrs, list)
@@ -70,7 +63,7 @@ class TestFastMCPMounting:
         http_unique = http_attrs - cmd_attrs
         cmd_unique = cmd_attrs - http_attrs
         common = http_attrs & cmd_attrs
-        common_lifespan = [attr for attr in common if 'lifespan' in attr.lower()]
+        common_lifespan = [attr for attr in common if "lifespan" in attr.lower()]
 
         # Store results for analysis
         assert isinstance(http_unique, set)
@@ -82,7 +75,7 @@ class TestFastMCPMounting:
         mount_sig = inspect.signature(test_mcp.mount)
 
         # Should have mount method
-        assert hasattr(test_mcp, 'mount')
+        assert hasattr(test_mcp, "mount")
         assert callable(test_mcp.mount)
 
         # Check signature parameters
@@ -93,7 +86,6 @@ class TestFastMCPMounting:
         assert isinstance(params, list)
 
 
-
 class TestClientLifespanCompatibility:
     """Test client lifespan compatibility issues."""
 
@@ -101,12 +93,12 @@ class TestClientLifespanCompatibility:
         """Test presence of lifespan attributes on different clients."""
         # HTTP client
         http_client = Client("http://localhost:8080")
-        http_has_lifespan = hasattr(http_client, '_has_lifespan')
+        http_has_lifespan = hasattr(http_client, "_has_lifespan")
 
         # Command client
         mcp_config = {"mcpServers": {"test": {"command": "echo hello"}}}
         command_client = Client(mcp_config)
-        cmd_has_lifespan = hasattr(command_client, '_has_lifespan')
+        cmd_has_lifespan = hasattr(command_client, "_has_lifespan")
 
         # Document the current behavior
         assert isinstance(http_has_lifespan, bool)
@@ -123,8 +115,8 @@ class TestClientLifespanCompatibility:
         assert isinstance(command_client, Client)
 
         # Both should have similar base interface
-        http_methods = [m for m in dir(http_client) if not m.startswith('_')]
-        cmd_methods = [m for m in dir(command_client) if not m.startswith('_')]
+        http_methods = [m for m in dir(http_client) if not m.startswith("_")]
+        cmd_methods = [m for m in dir(command_client) if not m.startswith("_")]
 
         # Should have some common public methods
         common_methods = set(http_methods) & set(cmd_methods)

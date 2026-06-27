@@ -1,13 +1,13 @@
 """Tests for Magg configuration management."""
 
 import os
-import pytest
 import tempfile
-import json
 from pathlib import Path
 from unittest.mock import patch
 
-from magg.settings import ConfigManager, ServerConfig, MaggConfig
+import pytest
+
+from magg.settings import ConfigManager, MaggConfig, ServerConfig
 
 
 class TestServerConfig:
@@ -20,7 +20,7 @@ class TestServerConfig:
             source="https://github.com/example/repo",
             prefix="testserver",
             command="python",
-            args=["server.py"]
+            args=["server.py"],
         )
         assert server.name == "testserver"
         assert server.source == "https://github.com/example/repo"
@@ -31,11 +31,7 @@ class TestServerConfig:
 
     def test_server_with_custom_prefix(self):
         """Test server with custom prefix."""
-        server = ServerConfig(
-            name="myserver",
-            source="https://github.com/example/repo",
-            prefix="custom"
-        )
+        server = ServerConfig(name="myserver", source="https://github.com/example/repo", prefix="custom")
         assert server.prefix == "custom"
 
     def test_server_name_validation(self):
@@ -74,7 +70,6 @@ class TestServerConfig:
             ServerConfig(name="test", source="test", prefix="123invalid")
 
 
-
 class TestMaggConfig:
     """Test MaggConfig functionality."""
 
@@ -82,12 +77,12 @@ class TestMaggConfig:
         """Test default configuration values."""
         # Remove MAGG env vars that might be set in container
         env = os.environ.copy()
-        if 'MAGG_LOG_LEVEL' in env:
-            del env['MAGG_LOG_LEVEL']
-        if 'MAGG_CONFIG_PATH' in env:
-            del env['MAGG_CONFIG_PATH']
+        if "MAGG_LOG_LEVEL" in env:
+            del env["MAGG_LOG_LEVEL"]
+        if "MAGG_CONFIG_PATH" in env:
+            del env["MAGG_CONFIG_PATH"]
 
-        with patch.dict('os.environ', env, clear=True):
+        with patch.dict("os.environ", env, clear=True):
             config = MaggConfig()
             # config_path is now None by default, use get_config_path() for actual path
             assert config.config_path is None
@@ -185,16 +180,10 @@ class TestConfigManager:
             # Create config with servers
             config = MaggConfig()
             server1 = ServerConfig(
-                name="server1",
-                source="https://example.com/1",
-                command="python",
-                args=["test.py"]
+                name="server1", source="https://example.com/1", command="python", args=["test.py"]
             )  # prefix auto-generated as "server1"
             server2 = ServerConfig(
-                name="server2",
-                source="https://example.com/2",
-                uri="http://localhost:8080",
-                enabled=False
+                name="server2", source="https://example.com/2", uri="http://localhost:8080", enabled=False
             )  # prefix auto-generated as "server2"
 
             config.add_server(server1)
@@ -236,7 +225,7 @@ class TestConfigManager:
             config_path = Path(tmpdir) / "invalid.json"
 
             # Write invalid JSON
-            with open(config_path, 'w') as f:
+            with open(config_path, "w") as f:
                 f.write("{invalid json")
 
             manager = ConfigManager(str(config_path))

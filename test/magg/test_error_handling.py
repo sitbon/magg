@@ -1,14 +1,13 @@
 """Test error handling for invalid servers and edge cases."""
 
-import pytest
-import asyncio
 import tempfile
-import json
 from pathlib import Path
-from unittest.mock import patch, MagicMock, AsyncMock
+from unittest.mock import AsyncMock, patch
 
-from magg.settings import ConfigManager, ServerConfig, MaggConfig
+import pytest
+
 from magg.server.server import MaggServer
+from magg.settings import ConfigManager, MaggConfig, ServerConfig
 
 
 class TestErrorHandling:
@@ -23,7 +22,7 @@ class TestErrorHandling:
             source="https://example.com/invalid",
             prefix="invalid",
             command="nonexistent-command",
-            args=["--invalid-args"]
+            args=["--invalid-args"],
         )
 
         # Test that the invalid server is created but will fail on mount
@@ -37,7 +36,7 @@ class TestErrorHandling:
             config_path = Path(tmpdir) / "malformed.json"
 
             # Write malformed JSON
-            with open(config_path, 'w') as f:
+            with open(config_path, "w") as f:
                 f.write('{"servers": {invalid json}')
 
             # ConfigManager should handle this gracefully
@@ -51,10 +50,7 @@ class TestErrorHandling:
     async def test_missing_command_handling(self):
         """Test server without command or URI."""
         # This should be valid - server can be created without command/URI
-        server = ServerConfig(
-            name="nocommand",
-            source="https://example.com/test"
-        )
+        server = ServerConfig(name="nocommand", source="https://example.com/test")
 
         assert server.command is None
         assert server.uri is None
@@ -67,40 +63,26 @@ class TestErrorHandling:
             server = MaggServer(str(config_path))
 
             # Add first server
-            result1 = await server.add_server(
-                name="duplicate",
-                source="https://example.com/1",
-                command="echo test1"
-            )
+            result1 = await server.add_server(name="duplicate", source="https://example.com/1", command="echo test1")
             assert result1.is_success
 
             # Try to add duplicate
-            result2 = await server.add_server(
-                name="duplicate",
-                source="https://example.com/2",
-                command="echo test2"
-            )
+            result2 = await server.add_server(name="duplicate", source="https://example.com/2", command="echo test2")
             assert result2.is_error
             assert "already exists" in result2.errors[0]
-
 
     @pytest.mark.asyncio
     async def test_invalid_url_format_handling(self):
         """Test handling of invalid URL formats."""
         # URLs are just strings, no validation enforced
-        server = ServerConfig(
-            name="test",
-            source="not-a-valid-url"
-        )
+        server = ServerConfig(name="test", source="not-a-valid-url")
         assert server.source == "not-a-valid-url"
 
     @pytest.mark.asyncio
     async def test_environment_variable_handling(self):
         """Test handling of environment variables in server configs."""
         server = ServerConfig(
-            name="envtest",
-            source="https://example.com",
-            env={"TEST_VAR": "value", "ANOTHER_VAR": "another"}
+            name="envtest", source="https://example.com", env={"TEST_VAR": "value", "ANOTHER_VAR": "another"}
         )
 
         assert server.env == {"TEST_VAR": "value", "ANOTHER_VAR": "another"}
@@ -123,10 +105,7 @@ class TestConfigValidation:
     def test_server_without_required_fields(self):
         """Test server with minimal required fields."""
         # Only name and url are required
-        server = ServerConfig(
-            name="minimal",
-            source="https://example.com"
-        )
+        server = ServerConfig(name="minimal", source="https://example.com")
 
         assert server.name == "minimal"
         assert server.source == "https://example.com"
@@ -142,13 +121,11 @@ class TestMountingErrors:
         """Test mounting server with non-existent command."""
         server = MaggServer()
 
-        with patch.object(server.server_manager, 'mount_server', new_callable=AsyncMock) as mock_mount:
+        with patch.object(server.server_manager, "mount_server", new_callable=AsyncMock) as mock_mount:
             mock_mount.return_value = False  # Simulate mount failure
 
             result = await server.add_server(
-                name="badcommand",
-                source="https://example.com",
-                command="this-command-does-not-exist --help"
+                name="badcommand", source="https://example.com", command="this-command-does-not-exist --help"
             )
 
             assert result.is_error
@@ -159,14 +136,11 @@ class TestMountingErrors:
         """Test mounting server with invalid working directory."""
         server = MaggServer()
 
-        with patch('magg.server.server.validate_working_directory') as mock_validate:
+        with patch("magg.server.server.validate_working_directory") as mock_validate:
             mock_validate.return_value = (None, "Invalid working directory")
 
             result = await server.add_server(
-                name="badworkdir",
-                source="https://example.com",
-                command="python test.py",
-                cwd="/nonexistent/directory"
+                name="badworkdir", source="https://example.com", command="python test.py", cwd="/nonexistent/directory"
             )
 
             assert result.is_error

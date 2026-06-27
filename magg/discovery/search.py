@@ -3,18 +3,18 @@
 TODO: Add support for mcpservers.org.
 """
 
-import asyncio
-import aiohttp
-import json
-from dataclasses import dataclass
-from urllib.parse import urlencode
 import logging
+from dataclasses import dataclass
 from typing import Any
+from urllib.parse import urlparse
+
+import aiohttp
 
 
 @dataclass
 class ToolSearchResult:
     """Result from a tool search."""
+
     name: str
     description: str
     source: str
@@ -48,10 +48,7 @@ class ToolSearchEngine:
         try:
             # Use the actual Glama MCP API
             url = "https://glama.ai/api/mcp/v1/servers"
-            params = {
-                "query": query,
-                "first": limit
-            }
+            params = {"query": query, "first": limit}
 
             async with self.session.get(url, params=params) as response:
                 if response.status == 200:
@@ -92,14 +89,15 @@ class ToolSearchEngine:
                     "slug": server.get("slug"),
                     "tools": server.get("tools", []),
                     "environment_variables": server.get("environmentVariablesJsonSchema"),
-                    "license": server.get("spdxLicense", {}).get("name") if server.get("spdxLicense") else None
-                }
+                    "license": server.get("spdxLicense", {}).get("name") if server.get("spdxLicense") else None,
+                },
             )
             results.append(result)
 
         return results
 
-    def _get_hosting_type(self, attributes: list[str]) -> str:
+    @classmethod
+    def _get_hosting_type(cls, attributes: list[str]) -> str:
         """Determine hosting type from Glama server attributes."""
         if "hosting:remote-capable" in attributes:
             return "remote"
@@ -110,13 +108,15 @@ class ToolSearchEngine:
         else:
             return "local"  # Default to local
 
-    def _generate_install_command(self, server: dict[str, Any], hosting_type: str) -> str:
+    @classmethod
+    def _generate_install_command(cls, server: dict[str, Any], hosting_type: str) -> str:
         """Generate appropriate install command based on server metadata."""
         repository = server.get("repository", {})
         repo_url = repository.get("url", "") if repository else ""
 
         if repo_url:
-            if "github.com" in repo_url:
+            repo_host = urlparse(repo_url).netloc.lower()
+            if repo_host == "github.com" or repo_host.endswith(".github.com"):
                 return f"git clone {repo_url}"
             elif "npm" in repo_url or "npmjs" in repo_url:
                 # Try to extract package name from NPM URL
@@ -131,7 +131,8 @@ class ToolSearchEngine:
 
         return f"# Manual installation required - see {server.get('url', 'documentation')}"
 
-    def _extract_tags(self, server: dict[str, Any]) -> list[str]:
+    @classmethod
+    def _extract_tags(cls, server: dict[str, Any]) -> list[str]:
         """Extract meaningful tags from server metadata."""
         tags = []
 
@@ -167,12 +168,7 @@ class ToolSearchEngine:
             # Search GitHub for MCP-related repositories
             search_query = f"{query} mcp model-context-protocol"
             url = "https://api.github.com/search/repositories"
-            params = {
-                "q": search_query,
-                "sort": "stars",
-                "order": "desc",
-                "per_page": limit
-            }
+            params = {"q": search_query, "sort": "stars", "order": "desc", "per_page": limit}
 
             async with self.session.get(url, params=params) as response:
                 if response.status == 200:
@@ -186,14 +182,17 @@ class ToolSearchEngine:
             self.logger.error("Error searching GitHub: %s", e)
             return []
 
-    def _parse_github_results(self, data: dict[str, Any]) -> list[ToolSearchResult]:
+    @classmethod
+    def _parse_github_results(cls, data: dict[str, Any]) -> list[ToolSearchResult]:
         """Parse GitHub search results."""
         results = []
 
         for item in data.get("items", []):
             # Try to determine if this is an MCP server
-            is_mcp_server = any(keyword in item.get("description", "").lower()
-                              for keyword in ["mcp", "model context protocol", "mcp server"])
+            is_mcp_server = any(
+                keyword in item.get("description", "").lower()
+                for keyword in ["mcp", "model context protocol", "mcp server"]
+            )
 
             if is_mcp_server:
                 result = ToolSearchResult(
@@ -208,8 +207,8 @@ class ToolSearchEngine:
                         "stars": item.get("stargazers_count", 0),
                         "forks": item.get("forks_count", 0),
                         "language": item.get("language"),
-                        "updated_at": item.get("updated_at")
-                    }
+                        "updated_at": item.get("updated_at"),
+                    },
                 )
                 results.append(result)
 
@@ -223,10 +222,7 @@ class ToolSearchEngine:
         try:
             # Search NPM registry
             url = "https://registry.npmjs.org/-/v1/search"
-            params = {
-                "text": f"{query} mcp",
-                "size": limit
-            }
+            params = {"text": f"{query} mcp", "size": limit}
 
             async with self.session.get(url, params=params) as response:
                 if response.status == 200:
@@ -240,7 +236,8 @@ class ToolSearchEngine:
             self.logger.error("Error searching NPM: %s", e)
             return []
 
-    def _parse_npm_results(self, data: dict[str, Any]) -> list[ToolSearchResult]:
+    @classmethod
+    def _parse_npm_results(cls, data: dict[str, Any]) -> list[ToolSearchResult]:
         """Parse NPM search results."""
         results = []
 
@@ -257,8 +254,8 @@ class ToolSearchEngine:
                 metadata={
                     "version": package.get("version"),
                     "author": package.get("author", {}).get("name"),
-                    "license": package.get("license")
-                }
+                    "license": package.get("license"),
+                },
             )
             results.append(result)
 
@@ -269,7 +266,7 @@ class ToolSearchEngine:
         tasks = [
             ("glama", self.search_glama(query, limit_per_source)),
             ("github", self.search_github(query, limit_per_source)),
-            ("npm", self.search_npm(query, limit_per_source))
+            ("npm", self.search_npm(query, limit_per_source)),
         ]
 
         results = {}
@@ -282,8 +279,10 @@ class ToolSearchEngine:
 
         return results
 
-    def rank_results(self, results: list[ToolSearchResult]) -> list[ToolSearchResult]:
+    @classmethod
+    def rank_results(cls, results: list[ToolSearchResult]) -> list[ToolSearchResult]:
         """Rank search results by relevance and quality."""
+
         def calculate_score(result: ToolSearchResult) -> float:
             score = 0.0
 
@@ -292,11 +291,7 @@ class ToolSearchEngine:
                 score += result.rating * 10
 
             # Bonus for certain sources
-            source_bonus = {
-                "glama.ai": 5.0,
-                "github": 3.0,
-                "npm": 2.0
-            }
+            source_bonus = {"glama.ai": 5.0, "github": 3.0, "npm": 2.0}
             score += source_bonus.get(result.source, 0.0)
 
             # Bonus for having install command
@@ -333,13 +328,11 @@ class ToolCatalog:
 
     def get_by_name(self, name: str) -> list[ToolSearchResult]:
         """Get all results matching a name."""
-        return [result for result in self.catalog.values()
-                if name.lower() in result.name.lower()]
+        return [result for result in self.catalog.values() if name.lower() in result.name.lower()]
 
     def get_by_source(self, source: str) -> list[ToolSearchResult]:
         """Get all results from a specific source."""
-        return [result for result in self.catalog.values()
-                if result.source == source]
+        return [result for result in self.catalog.values() if result.source == source]
 
     def get_by_tags(self, tags: list[str]) -> list[ToolSearchResult]:
         """Get all results matching any of the given tags."""
@@ -361,8 +354,7 @@ class ToolCatalog:
 
         for result in self.catalog.values():
             # Search in name and description
-            if (query_lower in result.name.lower() or
-                query_lower in result.description.lower()):
+            if query_lower in result.name.lower() or query_lower in result.description.lower():
                 matching.append(result)
                 continue
 
@@ -384,11 +376,11 @@ class ToolCatalog:
                     "tags": result.tags,
                     "rating": result.rating,
                     "install_command": result.install_command,
-                    "metadata": result.metadata
+                    "metadata": result.metadata,
                 }
                 for key, result in self.catalog.items()
             },
-            "search_history": self.search_history
+            "search_history": self.search_history,
         }
 
     def import_catalog(self, data: dict[str, Any]) -> None:
@@ -404,7 +396,7 @@ class ToolCatalog:
                 tags=item_data.get("tags"),
                 rating=item_data.get("rating"),
                 install_command=item_data.get("install_command"),
-                metadata=item_data.get("metadata")
+                metadata=item_data.get("metadata"),
             )
             self.catalog[key] = result
 

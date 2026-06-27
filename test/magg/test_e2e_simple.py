@@ -1,16 +1,15 @@
 """Simple E2E test for Magg server without mounting."""
 
 import asyncio
-import tempfile
 import json
-from pathlib import Path
 import subprocess
-import time
 import sys
+import tempfile
+import time
+from pathlib import Path
 
 import pytest
 from fastmcp import Client
-from magg.settings import ConfigManager, ServerConfig, MaggConfig
 
 
 @pytest.mark.asyncio
@@ -28,21 +27,23 @@ async def test_e2e_simple():
         config_dir.mkdir()
 
         # 2. Create empty config
-        config = MaggConfig()
         config_path = config_dir / "config.json"
-        with open(config_path, 'w') as f:
-            json.dump({'servers': {}}, f, indent=2)
+        with open(config_path, "w") as f:
+            json.dump({"servers": {}}, f, indent=2)
 
         # Create empty auth.json to prevent using default keys
         auth_path = config_dir / "auth.json"
-        with open(auth_path, 'w') as f:
-            json.dump({
-                'bearer': {
-                    'issuer': 'https://magg.local',
-                    'audience': 'test',
-                    'key_path': str(tmpdir / 'nonexistent')
-                }
-            }, f)
+        with open(auth_path, "w") as f:
+            json.dump(
+                {
+                    "bearer": {
+                        "issuer": "https://magg.local",
+                        "audience": "test",
+                        "key_path": str(tmpdir / "nonexistent"),
+                    }
+                },
+                f,
+            )
 
         print(f"Config saved to: {config_path}")
 
@@ -69,10 +70,7 @@ asyncio.run(main())
         # Start Magg
         print("Starting Magg server...")
         magg_proc = subprocess.Popen(
-            [sys.executable, str(magg_script)],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True
+            [sys.executable, str(magg_script)], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
         )
 
         # Wait for startup
@@ -88,8 +86,9 @@ asyncio.run(main())
 
             # Check if server is listening on the port
             import socket
+
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            result = sock.connect_ex(('localhost', 54322))
+            result = sock.connect_ex(("localhost", 54322))
             sock.close()
 
             if result == 0:
@@ -122,7 +121,7 @@ asyncio.run(main())
                 print(f"\nResult: {result}")
 
                 # Parse the JSON response
-                if hasattr(result, 'content') and result.content:
+                if hasattr(result, "content") and result.content:
                     response_text = result.content[0].text
                 else:
                     response_text = "{}"

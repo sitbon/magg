@@ -1,19 +1,15 @@
 #!/usr/bin/env python3
 """Demo script to demonstrate config reloading functionality."""
+
 import asyncio
 import json
-import os
-import signal
-import sys
-from pathlib import Path
 import logging
+import os
+from pathlib import Path
 
-# Add magg to path
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
-from magg.server.server.server import MaggServer
-from magg.server.runner import MaggRunner
 from magg import process
+from magg.server.runner import MaggRunner
+from magg.server.server import MaggServer
 
 process.setup(MAGG_LOG_LEVEL="INFO")
 logger = logging.getLogger(__name__)
@@ -33,7 +29,8 @@ You can:
   3. Use the magg_reload_config tool via MCP client
 
 Press Ctrl+C to stop""",
-        config_path, os.getpid(),
+        config_path,
+        os.getpid(),
     )
 
     runner = MaggRunner(config_path)
@@ -69,7 +66,7 @@ async def demo_manual_reload():
                 "source": "https://example.com/demo",
                 "command": "echo",
                 "args": ["Demo server"],
-                "enabled": True
+                "enabled": True,
             }
 
             # Save modified config
@@ -104,10 +101,7 @@ def main():
 
     parser = argparse.ArgumentParser(description="Demo config reloading")
     parser.add_argument(
-        "--mode",
-        choices=["auto", "manual"],
-        default="auto",
-        help="Demo mode: auto (file watching + SIGHUP) or manual"
+        "--mode", choices=["auto", "manual"], default="auto", help="Demo mode: auto (file watching + SIGHUP) or manual"
     )
 
     args = parser.parse_args()

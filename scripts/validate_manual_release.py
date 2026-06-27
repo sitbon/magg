@@ -9,6 +9,7 @@ This script checks if the current version of the package is suitable for manual 
 - The script is intended to be run in a GitHub Actions workflow.
 - It uses the `importlib.metadata` module to get the package version.
 """
+
 import json
 import sys
 from importlib.metadata import version as get_version
@@ -22,12 +23,7 @@ def validate_version():
         version_str = get_version("magg")
         version = Version(version_str)
     except Exception as e:
-        result = {
-            "valid": False,
-            "version": "unknown",
-            "error": str(e),
-            "message": f"Failed to get version: {e}"
-        }
+        result = {"valid": False, "version": "unknown", "error": str(e), "message": f"Failed to get version: {e}"}
         print(json.dumps(result))
         sys.exit(1)
 
@@ -45,7 +41,7 @@ def validate_version():
             "message": f"Version {version_str} is a regular release. Manual publish only supports pre-releases, post-releases, or dev releases.",
             "is_prerelease": False,
             "is_postrelease": False,
-            "is_devrelease": False
+            "is_devrelease": False,
         }
         print(json.dumps(result))
         sys.exit(1)
@@ -66,7 +62,7 @@ def validate_version():
         "is_prerelease": is_prerelease,
         "is_postrelease": is_postrelease,
         "is_devrelease": is_devrelease,
-        "types": types
+        "types": types,
     }
 
     print(json.dumps(result))

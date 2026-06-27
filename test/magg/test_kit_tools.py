@@ -2,14 +2,12 @@
 
 import json
 import os
+from unittest.mock import AsyncMock, MagicMock, patch
+
 import pytest
 import pytest_asyncio
-from pathlib import Path
-from unittest.mock import patch, MagicMock, AsyncMock
 
 from magg.server.server import MaggServer
-from magg.server.response import MaggResponse
-from magg.kit import KitConfig
 from magg.settings import ServerConfig
 
 
@@ -37,17 +35,15 @@ class TestKitTools:
         kitd_path.mkdir()
 
         kit_path = kitd_path / "test-kit.json"
-        kit_path.write_text(json.dumps({
-            "name": "test-kit",
-            "description": "Test kit",
-            "servers": {
-                "test-server": {
-                    "source": "https://test.com",
-                    "command": "python",
-                    "enabled": True
+        kit_path.write_text(
+            json.dumps(
+                {
+                    "name": "test-kit",
+                    "description": "Test kit",
+                    "servers": {"test-server": {"source": "https://test.com", "command": "python", "enabled": True}},
                 }
-            }
-        }))
+            )
+        )
 
         # Mock kit manager
         server.kit_manager._kits = {}
@@ -76,12 +72,11 @@ class TestKitTools:
         """Test loading a kit that's already loaded."""
         # Mock config with existing kit
         from magg.settings import KitInfo
+
         server.config.kits = {"existing-kit": KitInfo(name="existing-kit", source="file")}
 
         # Mock the kit manager to return the already loaded error
-        server.kit_manager.load_kit_to_config = MagicMock(
-            return_value=(False, "Kit 'existing-kit' is already loaded")
-        )
+        server.kit_manager.load_kit_to_config = MagicMock(return_value=(False, "Kit 'existing-kit' is already loaded"))
 
         response = await server.load_kit("existing-kit")
 
@@ -105,18 +100,11 @@ class TestKitTools:
         # Create a persistent config object
         mock_config = MagicMock()
         from magg.settings import KitInfo
+
         mock_config.kits = {"test-kit": KitInfo(name="test-kit", source="file")}
         mock_config.servers = {
-            "server1": ServerConfig(
-                name="server1",
-                source="https://server1.com",
-                kits=["test-kit"]
-            ),
-            "server2": ServerConfig(
-                name="server2",
-                source="https://server2.com",
-                kits=["test-kit", "other-kit"]
-            )
+            "server1": ServerConfig(name="server1", source="https://server1.com", kits=["test-kit"]),
+            "server2": ServerConfig(name="server2", source="https://server2.com", kits=["test-kit", "other-kit"]),
         }
 
         # Patch config_manager.load_config to return the same object each time
@@ -157,9 +145,7 @@ class TestKitTools:
     async def test_unload_kit_not_loaded(self, server):
         """Test unloading a kit that's not loaded."""
         server.config.kits = {}
-        server.kit_manager.unload_kit_from_config = MagicMock(
-            return_value=(False, "Kit 'nonexistent' is not loaded")
-        )
+        server.kit_manager.unload_kit_from_config = MagicMock(return_value=(False, "Kit 'nonexistent' is not loaded"))
 
         response = await server.unload_kit("nonexistent")
 
@@ -178,7 +164,7 @@ class TestKitTools:
                 "author": "Author 1",
                 "version": "1.0.0",
                 "keywords": ["test"],
-                "servers": ["server1", "server2"]
+                "servers": ["server1", "server2"],
             },
             "kit2": {
                 "loaded": False,
@@ -187,8 +173,8 @@ class TestKitTools:
                 "author": "Author 2",
                 "version": "2.0.0",
                 "keywords": ["example"],
-                "servers": ["server3"]
-            }
+                "servers": ["server3"],
+            },
         }
 
         server.kit_manager.list_all_kits = MagicMock(return_value=mock_kits)
@@ -212,12 +198,7 @@ class TestKitTools:
             "version": "1.0.0",
             "keywords": ["test"],
             "links": {"homepage": "https://test.com"},
-            "servers": {
-                "test-server": {
-                    "source": "https://test-server.com",
-                    "command": "python"
-                }
-            }
+            "servers": {"test-server": {"source": "https://test-server.com", "command": "python"}},
         }
 
         server.kit_manager.get_kit_details = MagicMock(return_value=mock_info)
@@ -241,36 +222,28 @@ class TestKitTools:
     async def test_kit_tools_error_handling(self, server):
         """Test error handling in kit tools."""
         # Test load_kit error
-        server.kit_manager.load_kit_to_config = MagicMock(
-            side_effect=Exception("Test error")
-        )
+        server.kit_manager.load_kit_to_config = MagicMock(side_effect=Exception("Test error"))
 
         response = await server.load_kit("test-kit")
         assert response.is_error is True
         assert "Failed to load kit: Test error" in response.errors[0]
 
         # Test unload_kit error
-        server.kit_manager.unload_kit_from_config = MagicMock(
-            side_effect=Exception("Unload error")
-        )
+        server.kit_manager.unload_kit_from_config = MagicMock(side_effect=Exception("Unload error"))
 
         response = await server.unload_kit("test-kit")
         assert response.is_error is True
         assert "Failed to unload kit: Unload error" in response.errors[0]
 
         # Test list_kits error
-        server.kit_manager.list_all_kits = MagicMock(
-            side_effect=Exception("List error")
-        )
+        server.kit_manager.list_all_kits = MagicMock(side_effect=Exception("List error"))
 
         response = await server.list_kits()
         assert response.is_error is True
         assert "Failed to list kits: List error" in response.errors[0]
 
         # Test kit_info error
-        server.kit_manager.get_kit_details = MagicMock(
-            side_effect=Exception("Info error")
-        )
+        server.kit_manager.get_kit_details = MagicMock(side_effect=Exception("Info error"))
 
         response = await server.kit_info("test-kit")
         assert response.is_error is True
@@ -285,10 +258,7 @@ class TestKitManagerWithServer:
         """Test that MaggServer properly initializes kit manager."""
         # Create config with kits
         config_path = tmp_path / "config.json"
-        config_data = {
-            "servers": {},
-            "kits": ["kit1", "kit2"]
-        }
+        config_data = {"servers": {}, "kits": ["kit1", "kit2"]}
         config_path.write_text(json.dumps(config_data))
 
         # Create kit files
@@ -296,11 +266,7 @@ class TestKitManagerWithServer:
         kitd_path.mkdir()
 
         kit1_path = kitd_path / "kit1.json"
-        kit1_path.write_text(json.dumps({
-            "name": "kit1",
-            "description": "Kit 1",
-            "servers": {}
-        }))
+        kit1_path.write_text(json.dumps({"name": "kit1", "description": "Kit 1", "servers": {}}))
 
         # Use MAGG_PATH environment variable to set kit search path
         with patch.dict(os.environ, {"MAGG_PATH": str(tmp_path)}):
@@ -324,9 +290,8 @@ class TestKitManagerWithServer:
         await server.__aenter__()
 
         # Get registered tools
-        tools = await server.mcp.get_tools()
+        tools = {tool.name for tool in await server.mcp.list_tools()}
 
-        # Tools is a list of tool names (strings) in FastMCP
         # Verify kit tools are registered
         assert "magg_load_kit" in tools
         assert "magg_unload_kit" in tools

@@ -1,9 +1,12 @@
-"""Logging queue handler.
-"""
+"""Logging queue handler."""
+
 import logging.handlers
 from queue import Queue
 
-__all__ = "QueueHandler", "StreamHandler",
+__all__ = (
+    "QueueHandler",
+    "StreamHandler",
+)
 
 
 class QueueHandler(logging.handlers.QueueHandler):
@@ -12,6 +15,7 @@ class QueueHandler(logging.handlers.QueueHandler):
     Just a thin wrapper around the standard library's QueueHandler that
     starts the listener if it isn't already running.
     """
+
     listener: logging.handlers.QueueListener | None
 
     def __init__(self, queue):

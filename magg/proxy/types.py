@@ -17,6 +17,7 @@ class ProxyResponseInfo(Annotations):
     It is mostly useful for introspection and debugging, and identifying
     query-typed results (list, info) that can be further processed by the client.
     """
+
     proxy_type: LiteralProxyType | None = Field(
         None,
         description="Type of the proxied capability (tool, resource, prompt).",

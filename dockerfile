@@ -1,4 +1,4 @@
-FROM alpine AS base
+FROM alpine:3.24 AS base
 
 ARG USER=magg
 ARG HOME=/home/${USER}
@@ -43,7 +43,7 @@ FROM venv AS proj
 
 LABEL org.opencontainers.image.source=https://github.com/sitbon/magg \
       org.opencontainers.image.description="Magg - The Model Context Protocol (MCP) Aggregator (Project)" \
-      org.opencontainers.image.licenses=AGPLv3 \
+      org.opencontainers.image.licenses=AGPL-3.0-or-later \
       org.opencontainers.image.authors="Phillip Sitbon <phillip.sitbon@gmail.com>"
 
 ARG MAGG_CONFIG_PATH="${HOME}/.magg/config.json"
@@ -83,7 +83,7 @@ FROM proj AS pre
 
 LABEL org.opencontainers.image.source=https://github.com/sitbon/magg \
       org.opencontainers.image.description="Magg - The Model Context Protocol (MCP) Aggregator (Staging)" \
-      org.opencontainers.image.licenses=AGPLv3 \
+      org.opencontainers.image.licenses=AGPL-3.0-or-later \
       org.opencontainers.image.authors="Phillip Sitbon <phillip.sitbon@gmail.com>"
 
 ENV MAGG_LOG_LEVEL=INFO
@@ -106,7 +106,7 @@ FROM pre AS pro
 
 LABEL org.opencontainers.image.source=https://github.com/sitbon/magg \
       org.opencontainers.image.description="Magg - The Model Context Protocol (MCP) Aggregator" \
-      org.opencontainers.image.licenses=AGPLv3 \
+      org.opencontainers.image.licenses=AGPL-3.0-or-later \
       org.opencontainers.image.authors="Phillip Sitbon <phillip.sitbon@gmail.com>"
 
 ENV MAGG_LOG_LEVEL=WARNING
@@ -118,7 +118,7 @@ FROM proj AS dev
 
 LABEL org.opencontainers.image.source=https://github.com/sitbon/magg \
       org.opencontainers.image.description="Magg - The Model Context Protocol (MCP) Aggregator (Development)" \
-      org.opencontainers.image.licenses=AGPLv3 \
+      org.opencontainers.image.licenses=AGPL-3.0-or-later \
       org.opencontainers.image.authors="Phillip Sitbon <phillip.sitbon@gmail.com>"
 
 ENV MAGG_LOG_LEVEL=DEBUG
@@ -134,7 +134,7 @@ FROM dev AS pkg
 
 LABEL org.opencontainers.image.source=https://github.com/sitbon/magg \
       org.opencontainers.image.description="Magg - The Model Context Protocol (MCP) Aggregator (Packaging)" \
-      org.opencontainers.image.licenses=AGPLv3 \
+      org.opencontainers.image.licenses=AGPL-3.0-or-later \
       org.opencontainers.image.authors="Phillip Sitbon <phillip.sitbon@gmail.com>"
 
 RUN --mount=type=cache,uid=${UID},gid=${UID},target=${HOME}/.cache/uv \
@@ -146,7 +146,7 @@ FROM venv AS user
 
 LABEL org.opencontainers.image.source=https://github.com/sitbon/magg \
       org.opencontainers.image.description="Magg - The Model Context Protocol (MCP) Aggregator (User Environment)" \
-      org.opencontainers.image.licenses=AGPLv3 \
+      org.opencontainers.image.licenses=AGPL-3.0-or-later \
       org.opencontainers.image.authors="Phillip Sitbon <phillip.sitbon@gmail.com>"
 
 ENV PS1="(user) \h:\w\$ "

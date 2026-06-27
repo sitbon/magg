@@ -2,10 +2,7 @@
 
 import json
 import os
-import pytest
-import tempfile
-from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 from magg.kit import KitConfig, KitManager
 from magg.settings import ConfigManager, MaggConfig, ServerConfig
@@ -28,9 +25,9 @@ class TestKitConfig:
                     name="test-server",
                     source="https://example.com/server",
                     command="python",
-                    args=["-m", "test_server"]
+                    args=["-m", "test_server"],
                 )
-            }
+            },
         )
 
         assert kit.name == "test-kit"
@@ -52,9 +49,9 @@ class TestKitConfig:
                     "source": "https://github.com/example/calc",
                     "command": "node",
                     "args": ["calc.js"],
-                    "enabled": False
+                    "enabled": False,
                 }
-            }
+            },
         }
 
         kit = KitConfig(**data)
@@ -70,15 +67,12 @@ class TestKitConfig:
             "name": "test-kit",
             "description": "Test",
             "servers": {
-                "valid": {
-                    "source": "https://example.com/valid",
-                    "command": "python"
-                },
+                "valid": {"source": "https://example.com/valid", "command": "python"},
                 "invalid": {
                     # Missing required 'source' field
                     "command": "python"
-                }
-            }
+                },
+            },
         }
 
         kit = KitConfig(**data)
@@ -95,14 +89,14 @@ class TestKitConfig:
                 "server1": {
                     "source": "https://example.com/server1",
                     "command": "python",
-                    "kits": ["should-be-removed"]  # This should be stripped
+                    "kits": ["should-be-removed"],  # This should be stripped
                 },
                 "server2": {
                     "source": "https://example.com/server2",
                     "uri": "http://localhost:8080",
-                    "kits": ["also-removed", "multiple-items"]  # This should also be stripped
-                }
-            }
+                    "kits": ["also-removed", "multiple-items"],  # This should also be stripped
+                },
+            },
         }
 
         kit = KitConfig(**data)
@@ -151,18 +145,10 @@ class TestKitManager:
 
         # Create valid kit files
         kit1_path = kitd_path / "kit1.json"
-        kit1_path.write_text(json.dumps({
-            "name": "kit1",
-            "description": "First kit",
-            "servers": {}
-        }))
+        kit1_path.write_text(json.dumps({"name": "kit1", "description": "First kit", "servers": {}}))
 
         kit2_path = kitd_path / "kit2.json"
-        kit2_path.write_text(json.dumps({
-            "name": "kit2",
-            "description": "Second kit",
-            "servers": {}
-        }))
+        kit2_path.write_text(json.dumps({"name": "kit2", "description": "Second kit", "servers": {}}))
 
         # Create non-kit file (should be ignored)
         other_path = kitd_path / "readme.txt"
@@ -209,12 +195,7 @@ class TestKitManager:
             "name": "test-kit",
             "description": "Test kit",
             "author": "Tester",
-            "servers": {
-                "server1": {
-                    "source": "https://example.com/1",
-                    "command": "python"
-                }
-            }
+            "servers": {"server1": {"source": "https://example.com/1", "command": "python"}},
         }
         kit_path.write_text(json.dumps(kit_data))
 
@@ -242,10 +223,7 @@ class TestKitManager:
     def test_load_kit_missing_name(self, tmp_path):
         """Test loading kit without name uses filename."""
         kit_path = tmp_path / "unnamed.json"
-        kit_data = {
-            "description": "Kit without explicit name",
-            "servers": {}
-        }
+        kit_data = {"description": "Kit without explicit name", "servers": {}}
         kit_path.write_text(json.dumps(kit_data))
 
         config_manager = ConfigManager(str(tmp_path / "config.json"))
@@ -300,8 +278,8 @@ class TestKitManager:
             description="Kit 1",
             servers={
                 "server-a": ServerConfig(name="server-a", source="https://a.com"),
-                "server-b": ServerConfig(name="server-b", source="https://b.com")
-            }
+                "server-b": ServerConfig(name="server-b", source="https://b.com"),
+            },
         )
 
         kit2 = KitConfig(
@@ -309,8 +287,8 @@ class TestKitManager:
             description="Kit 2",
             servers={
                 "server-b": ServerConfig(name="server-b", source="https://b.com"),
-                "server-c": ServerConfig(name="server-c", source="https://c.com")
-            }
+                "server-c": ServerConfig(name="server-c", source="https://c.com"),
+            },
         )
 
         manager.add_kit("kit1", kit1)
@@ -344,18 +322,10 @@ class TestKitManagerIntegration:
         kitd_path.mkdir()
 
         kit1_path = kitd_path / "kit1.json"
-        kit1_path.write_text(json.dumps({
-            "name": "kit1",
-            "description": "Kit 1",
-            "servers": {}
-        }))
+        kit1_path.write_text(json.dumps({"name": "kit1", "description": "Kit 1", "servers": {}}))
 
         kit2_path = kitd_path / "kit2.json"
-        kit2_path.write_text(json.dumps({
-            "name": "kit2",
-            "description": "Kit 2",
-            "servers": {}
-        }))
+        kit2_path.write_text(json.dumps({"name": "kit2", "description": "Kit 2", "servers": {}}))
 
         # Create kit manager with custom paths
         config_manager = ConfigManager(str(tmp_path / "config.json"))
@@ -363,11 +333,12 @@ class TestKitManagerIntegration:
 
         # Create config with kits
         from magg.settings import KitInfo
+
         config = MaggConfig()
         config.kits = {
             "kit1": KitInfo(name="kit1", source="file"),
             "kit2": KitInfo(name="kit2", source="file"),
-            "nonexistent": KitInfo(name="nonexistent", source="file")
+            "nonexistent": KitInfo(name="nonexistent", source="file"),
         }
 
         # Load kits
@@ -392,21 +363,18 @@ class TestKitManagerIntegration:
         kitd_path.mkdir()
 
         kit_path = kitd_path / "web-kit.json"
-        kit_path.write_text(json.dumps({
-            "name": "web-kit",
-            "description": "Web tools",
-            "servers": {
-                "browser": {
-                    "source": "https://browser.com",
-                    "command": "node",
-                    "args": ["browser.js"]
-                },
-                "scraper": {
-                    "source": "https://scraper.com",
-                    "uri": "http://localhost:8080"
+        kit_path.write_text(
+            json.dumps(
+                {
+                    "name": "web-kit",
+                    "description": "Web tools",
+                    "servers": {
+                        "browser": {"source": "https://browser.com", "command": "node", "args": ["browser.js"]},
+                        "scraper": {"source": "https://scraper.com", "uri": "http://localhost:8080"},
+                    },
                 }
-            }
-        }))
+            )
+        )
 
         # Create kit manager with custom paths
         config_manager = ConfigManager(str(tmp_path / "config.json"))
@@ -433,16 +401,15 @@ class TestKitManagerIntegration:
         kitd_path.mkdir()
 
         kit_path = kitd_path / "kit1.json"
-        kit_path.write_text(json.dumps({
-            "name": "kit1",
-            "description": "Kit 1",
-            "servers": {
-                "shared-server": {
-                    "source": "https://shared.com",
-                    "command": "python"
+        kit_path.write_text(
+            json.dumps(
+                {
+                    "name": "kit1",
+                    "description": "Kit 1",
+                    "servers": {"shared-server": {"source": "https://shared.com", "command": "python"}},
                 }
-            }
-        }))
+            )
+        )
 
         # Create kit manager with custom paths
         config_manager = ConfigManager(str(tmp_path / "config.json"))
@@ -451,10 +418,7 @@ class TestKitManagerIntegration:
         # Create config with existing server
         config = MaggConfig()
         existing_server = ServerConfig(
-            name="shared-server",
-            source="https://shared.com",
-            command="python",
-            kits=["other-kit"]
+            name="shared-server", source="https://shared.com", command="python", kits=["other-kit"]
         )
         config.servers["shared-server"] = existing_server
 
@@ -469,6 +433,7 @@ class TestKitManagerIntegration:
     def test_load_kit_already_loaded(self, tmp_path):
         """Test loading a kit that's already loaded."""
         from magg.settings import KitInfo
+
         config_manager = ConfigManager(str(tmp_path / "config.json"))
         kit_manager = KitManager(config_manager)
 
@@ -483,6 +448,7 @@ class TestKitManagerIntegration:
     def test_unload_kit_exclusive_servers(self, tmp_path):
         """Test unloading a kit removes servers only in that kit."""
         from magg.settings import KitInfo
+
         config_manager = ConfigManager(str(tmp_path / "config.json"))
         kit_manager = KitManager(config_manager)
 
@@ -490,16 +456,8 @@ class TestKitManagerIntegration:
         config = MaggConfig()
         config.kits = {"kit1": KitInfo(name="kit1", source="file")}
 
-        server1 = ServerConfig(
-            name="exclusive-server",
-            source="https://exclusive.com",
-            kits=["kit1"]
-        )
-        server2 = ServerConfig(
-            name="shared-server",
-            source="https://shared.com",
-            kits=["kit1", "kit2"]
-        )
+        server1 = ServerConfig(name="exclusive-server", source="https://exclusive.com", kits=["kit1"])
+        server2 = ServerConfig(name="shared-server", source="https://shared.com", kits=["kit1", "kit2"])
 
         config.servers["exclusive-server"] = server1
         config.servers["shared-server"] = server2
@@ -538,24 +496,32 @@ class TestKitManagerIntegration:
         kitd_path.mkdir()
 
         kit1_path = kitd_path / "loaded-kit.json"
-        kit1_path.write_text(json.dumps({
-            "name": "loaded-kit",
-            "description": "A loaded kit",
-            "author": "Author 1",
-            "version": "1.0.0",
-            "keywords": ["test"],
-            "servers": {"s1": {"source": "https://s1.com"}}
-        }))
+        kit1_path.write_text(
+            json.dumps(
+                {
+                    "name": "loaded-kit",
+                    "description": "A loaded kit",
+                    "author": "Author 1",
+                    "version": "1.0.0",
+                    "keywords": ["test"],
+                    "servers": {"s1": {"source": "https://s1.com"}},
+                }
+            )
+        )
 
         kit2_path = kitd_path / "available-kit.json"
-        kit2_path.write_text(json.dumps({
-            "name": "available-kit",
-            "description": "An available kit",
-            "author": "Author 2",
-            "version": "2.0.0",
-            "keywords": ["example"],
-            "servers": {"s2": {"source": "https://s2.com"}}
-        }))
+        kit2_path.write_text(
+            json.dumps(
+                {
+                    "name": "available-kit",
+                    "description": "An available kit",
+                    "author": "Author 2",
+                    "version": "2.0.0",
+                    "keywords": ["example"],
+                    "servers": {"s2": {"source": "https://s2.com"}},
+                }
+            )
+        )
 
         # Create kit manager with custom paths
         config_manager = ConfigManager(str(tmp_path / "config.json"))
@@ -593,18 +559,15 @@ class TestKitManagerIntegration:
             "author": "Info Author",
             "version": "3.0.0",
             "keywords": ["info", "test"],
-            "links": {
-                "homepage": "https://info.com",
-                "docs": "https://info.com/docs"
-            },
+            "links": {"homepage": "https://info.com", "docs": "https://info.com/docs"},
             "servers": {
                 "info-server": {
                     "source": "https://info-server.com",
                     "command": "python",
                     "args": ["-m", "info_server"],
-                    "notes": "Info server for testing"
+                    "notes": "Info server for testing",
                 }
-            }
+            },
         }
         kit_path.write_text(json.dumps(kit_data))
 
@@ -642,17 +605,11 @@ class TestKitConfigPersistence:
         # Create config with kits
         config = MaggConfig()
         from magg.settings import KitInfo
-        config.kits = {
-            "kit1": KitInfo(name="kit1", source="file"),
-            "kit2": KitInfo(name="kit2", source="file")
-        }
+
+        config.kits = {"kit1": KitInfo(name="kit1", source="file"), "kit2": KitInfo(name="kit2", source="file")}
 
         # Add a server with kit tracking
-        server = ServerConfig(
-            name="test-server",
-            source="https://test.com",
-            kits=["kit1"]
-        )
+        server = ServerConfig(name="test-server", source="https://test.com", kits=["kit1"])
         config.servers["test-server"] = server
 
         # Save config
@@ -683,14 +640,7 @@ class TestKitConfigPersistence:
         config_path = tmp_path / "config.json"
 
         # Create old-style config without kits
-        old_config = {
-            "servers": {
-                "server1": {
-                    "source": "https://server1.com",
-                    "command": "python"
-                }
-            }
-        }
+        old_config = {"servers": {"server1": {"source": "https://server1.com", "command": "python"}}}
 
         with open(config_path, "w") as f:
             json.dump(old_config, f)

@@ -4,6 +4,7 @@
 This example shows how to run Magg server programmatically and
 connect to it using the in-memory client.
 """
+
 import asyncio
 import logging
 import os
@@ -73,7 +74,7 @@ async def concurrent_server_and_client():
 
     try:
         print("Redirecting stderr to /dev/null temporarily to suppress annoying asyncio.CancelledError messages")
-        sys.stderr = open(os.devnull, 'w')
+        sys.stderr = open(os.devnull, "w")
 
         async with runner:
             # Start HTTP server in background
@@ -93,7 +94,7 @@ async def concurrent_server_and_client():
                 # Try to call a tool
                 try:
                     result = await session.call_tool("magg_list_servers", {})
-                    print("Successfully called magg_list_servers")
+                    print(f"Successfully called magg_list_servers: {result.content}")
                 except Exception as e:
                     print(f"Tool call error: {e}")
 

@@ -3,7 +3,8 @@
 import json
 from typing import TYPE_CHECKING
 
-from mcp.types import TextContent, ImageContent, EmbeddedResource
+from mcp.types import EmbeddedResource
+
 from ..proxy import ProxyMCP
 from .client import BrowserConnection
 from .parser import CommandParser
@@ -16,7 +17,7 @@ if TYPE_CHECKING:
 class Command:
     """Command handlers for mbro CLI."""
 
-    def __init__(self, cli: 'MCPBrowserCLI'):
+    def __init__(self, cli: "MCPBrowserCLI"):
         self.cli = cli
         self.browser = cli.browser
         self.formatter = cli.formatter
@@ -27,7 +28,7 @@ class Command:
         extended = False
 
         if args:
-            if args[0] == '-x':
+            if args[0] == "-x":
                 extended = True
             else:
                 self.formatter.format_error("Usage: connections [-x]")
@@ -68,7 +69,9 @@ class Command:
             resources = await conn.get_resources()
             prompts = await conn.get_prompts()
             if not self.cli.quiet:
-                self.formatter.format_success(f"Connected to '{name}' (Tools: {len(tools)}, Resources: {len(resources)}, Prompts: {len(prompts)})")
+                self.formatter.format_success(
+                    f"Connected to '{name}' (Tools: {len(tools)}, Resources: {len(resources)}, Prompts: {len(prompts)})"
+                )
 
             await self.cli.refresh_completer_cache()
         else:
@@ -106,11 +109,7 @@ class Command:
         tools = await conn.get_tools()
         resources = await conn.get_resources()
         prompts = await conn.get_prompts()
-        self.formatter.format_json({
-            "tools": len(tools),
-            "resources": len(resources),
-            "prompts": len(prompts)
-        })
+        self.formatter.format_json({"tools": len(tools), "resources": len(resources), "prompts": len(prompts)})
 
     async def tools(self, args: list):
         """List available tools."""
@@ -126,7 +125,9 @@ class Command:
             tools = [t for t in tools if filter_term in t["name"].lower() or filter_term in t["description"].lower()]
 
         if not tools:
-            self.formatter.format_info("No tools available." + (f" (filtered by '{filter_term}')" if filter_term else ""))
+            self.formatter.format_info(
+                "No tools available." + (f" (filtered by '{filter_term}')" if filter_term else "")
+            )
             return
 
         self.formatter.format_tools_list(tools)
@@ -142,10 +143,16 @@ class Command:
 
         resources = await conn.get_resources()
         if filter_term:
-            resources = [r for r in resources if filter_term in r["name"].lower() or filter_term in r.get("uri", r.get("uriTemplate")).lower()]
+            resources = [
+                r
+                for r in resources
+                if filter_term in r["name"].lower() or filter_term in r.get("uri", r.get("uriTemplate")).lower()
+            ]
 
         if not resources:
-            self.formatter.format_info("No resources available." + (f" (filtered by '{filter_term}')" if filter_term else ""))
+            self.formatter.format_info(
+                "No resources available." + (f" (filtered by '{filter_term}')" if filter_term else "")
+            )
             return
 
         self.formatter.format_resources_list(resources)
@@ -161,10 +168,14 @@ class Command:
 
         prompts = await conn.get_prompts()
         if filter_term:
-            prompts = [p for p in prompts if filter_term in p["name"].lower() or filter_term in p["description"].lower()]
+            prompts = [
+                p for p in prompts if filter_term in p["name"].lower() or filter_term in p["description"].lower()
+            ]
 
         if not prompts:
-            self.formatter.format_info("No prompts available." + (f" (filtered by '{filter_term}')" if filter_term else ""))
+            self.formatter.format_info(
+                "No prompts available." + (f" (filtered by '{filter_term}')" if filter_term else "")
+            )
             return
 
         self.formatter.format_prompts_list(prompts)
@@ -178,8 +189,8 @@ class Command:
                     "\nExamples:\n"
                     "  call magg_status\n"
                     "  call calc_add a=5 b=3\n"
-                    "  call magg_search_servers query=\"calculator\" limit=3\n"
-                    "  call test_echo {\"message\": \"hello\", \"count\": 42}\n"
+                    '  call magg_search_servers query="calculator" limit=3\n'
+                    '  call test_echo {"message": "hello", "count": 42}\n'
                     "\nNote: JSON arguments don't need quotes around the entire object, but some tools do accept JSON strings.\n"
                 )
             return
@@ -195,7 +206,7 @@ class Command:
         if len(args) > 1:
             args_str = " ".join(args[1:])
 
-            if args_str.strip().startswith('{'):
+            if args_str.strip().startswith("{"):
                 try:
                     arguments = json.loads(args_str)
                 except json.JSONDecodeError as e:
@@ -203,17 +214,17 @@ class Command:
                     if not self.formatter.json_only:
                         self.formatter.format_info(
                             "\nJSON formatting tips:\n"
-                            "  - Use double quotes for strings: {\"key\": \"value\"}\n"
-                            "  - Numbers don't need quotes: {\"count\": 42}\n"
-                            "  - Booleans: {\"enabled\": true}\n"
+                            '  - Use double quotes for strings: {"key": "value"}\n'
+                            '  - Numbers don\'t need quotes: {"count": 42}\n'
+                            '  - Booleans: {"enabled": true}\n'
                             "  - Don't quote the entire JSON object\n"
-                            "  - Example: call tool {\"param\": \"value\"}"
+                            '  - Example: call tool {"param": "value"}'
                         )
                     return
             else:
                 has_positional = False
                 for arg in args[1:]:
-                    if '=' not in arg and not arg.startswith('{'):
+                    if "=" not in arg and not arg.startswith("{"):
                         has_positional = True
                         break
 
@@ -225,23 +236,23 @@ class Command:
                 arguments = self.cli.parse_shell_args(args[1:])
 
         tools = await conn.get_tools()
-        tool = next((t for t in tools if t['name'] == tool_name), None)
+        tool = next((t for t in tools if t["name"] == tool_name), None)
         if tool:
-            schema = tool.get('inputSchema', {})
-            required = schema.get('required', [])
+            schema = tool.get("inputSchema", {})
+            required = schema.get("required", [])
             if required:
                 missing = [param for param in required if param not in arguments]
                 if missing:
                     self.formatter.format_error(f"Tool {tool_name!r} missing required parameters: {missing}")
 
-                    properties = schema.get('properties', {})
+                    properties = schema.get("properties", {})
                     if properties and not self.formatter.json_only:
                         self.formatter.format_info("\nRequired parameters:")
                         for param in required:
                             if param in properties:
                                 prop = properties[param]
-                                param_type = prop.get('type', 'string')
-                                desc = prop.get('description', 'No description')
+                                param_type = prop.get("type", "string")
+                                desc = prop.get("description", "No description")
                                 self.formatter.format_info(f"  {param}: {param_type} - {desc}")
 
                     example_args = " ".join([f"{p}=<value>" for p in required])

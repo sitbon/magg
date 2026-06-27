@@ -6,8 +6,8 @@ Intended for apps that don't use Django.
 
 Just sets every logger to use this package's components.
 """
-import os
 
+import os
 
 LOGGING_CONFIG = {
     "version": 1,

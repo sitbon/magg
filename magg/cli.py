@@ -12,12 +12,18 @@ from . import __version__, process
 from .auth import BearerAuthManager
 from .kit import KitManager
 from .server.runner import MaggRunner
-from .settings import ConfigManager, ServerConfig, BearerAuthConfig, AuthConfig, KitInfo
+from .settings import AuthConfig, BearerAuthConfig, ConfigManager, KitInfo, ServerConfig
 from .util.system import get_subprocess_environment
 from .util.terminal import (
-    print_success, print_error, print_warning, print_startup_banner,
-    print_info, print_server_list, print_status_summary, confirm_action,
-    print_text
+    confirm_action,
+    print_error,
+    print_info,
+    print_server_list,
+    print_startup_banner,
+    print_status_summary,
+    print_success,
+    print_text,
+    print_warning,
 )
 
 process.setup(source=__name__)
@@ -29,7 +35,7 @@ def output_json(data: dict, output_path: Path | None = None) -> None:
     """Output JSON data to file or stdout."""
     if output_path:
         try:
-            with output_path.open('w') as f:
+            with output_path.open("w") as f:
                 json.dump(data, f, indent=2)
         except IOError as e:
             print_error(f"Failed to write to {output_path}: {e}")
@@ -39,8 +45,7 @@ def output_json(data: dict, output_path: Path | None = None) -> None:
 
 
 async def cmd_serve(args) -> int:
-    """Start Magg server.
-    """
+    """Start Magg server."""
     if (args.http or args.hybrid) and not args.no_banner:
         print_startup_banner()
 
@@ -69,33 +74,11 @@ async def cmd_serve(args) -> int:
 
 
 def cmd_serve_args(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument(
-        '--http',
-        action='store_true',
-        help='Run as HTTP server instead of stdio mode'
-    )
-    parser.add_argument(
-        '--hybrid',
-        action='store_true',
-        help='Run in hybrid mode (both stdio and HTTP)'
-    )
-    parser.add_argument(
-        '--host',
-        type=str,
-        default='localhost',
-        help='HTTP server host address (default: localhost)'
-    )
-    parser.add_argument(
-        '--port',
-        type=int,
-        default=8000,
-        help='HTTP server port (default: 8000)'
-    )
-    parser.add_argument(
-        '--no-banner',
-        action='store_true',
-        help='Suppress startup banner'
-    )
+    parser.add_argument("--http", action="store_true", help="Run as HTTP server instead of stdio mode")
+    parser.add_argument("--hybrid", action="store_true", help="Run in hybrid mode (both stdio and HTTP)")
+    parser.add_argument("--host", type=str, default="localhost", help="HTTP server host address (default: localhost)")
+    parser.add_argument("--port", type=int, default=8000, help="HTTP server port (default: 8000)")
+    parser.add_argument("--no-banner", action="store_true", help="Suppress startup banner")
 
 
 async def cmd_add_server(args) -> int:
@@ -111,7 +94,7 @@ async def cmd_add_server(args) -> int:
     env = None
     if args.env:
         try:
-            env = dict(arg.split('=', 1) for arg in args.env)
+            env = dict(arg.split("=", 1) for arg in args.env)
         except ValueError:
             print_error("Invalid environment variable format. Use KEY=VALUE")
             return 1
@@ -134,7 +117,7 @@ async def cmd_add_server(args) -> int:
             uri=args.uri,
             env=env,
             cwd=args.cwd,
-            notes=args.notes
+            notes=args.notes,
         )
     except ValueError as e:
         print_error(f"Invalid server configuration: {e}")
@@ -145,7 +128,7 @@ async def cmd_add_server(args) -> int:
     if config_manager.save_config(config):
         info = f"Added server '{args.name}'\n  Source: {args.source}\n  Prefix: {server.prefix}"
         if server.command:
-            cmd_str = server.command + (' ' + ' '.join(server.args) if server.args else '')
+            cmd_str = server.command + (" " + " ".join(server.args) if server.args else "")
             info += f"\n  Command: {cmd_str}"
         if server.notes:
             info += f"\n  Notes: {server.notes}"
@@ -177,10 +160,7 @@ async def cmd_remove_server(args) -> int:
 
     server = config.servers[args.name]
     print_info(f"Server to remove: {args.name}")
-    print_text(
-        f"  Source: {server.source}\n"
-        f"  Prefix: {server.prefix}"
-    )
+    print_text(f"  Source: {server.source}\n  Prefix: {server.prefix}")
 
     if not args.force and not confirm_action("Are you sure you want to remove this server?"):
         logger.debug("User cancelled removal of server '%s'", args.name)
@@ -256,12 +236,7 @@ async def cmd_status(args) -> int:
     enabled = [s for s in config.servers.values() if s.enabled]
     disabled = [s for s in config.servers.values() if not s.enabled]
 
-    print_status_summary(
-        str(config_manager.config_path),
-        len(config.servers),
-        len(enabled),
-        len(disabled)
-    )
+    print_status_summary(str(config_manager.config_path), len(config.servers), len(enabled), len(disabled))
     return 0
 
 
@@ -271,10 +246,9 @@ async def cmd_export(args) -> int:
     config = config_manager.load_config()
 
     export_data = {
-        'servers': {
+        "servers": {
             name: server.model_dump(
-                mode="json",
-                exclude_none=True, exclude_unset=True, exclude_defaults=True, by_alias=True
+                mode="json", exclude_none=True, exclude_unset=True, exclude_defaults=True, by_alias=True
             )
             for name, server in config.servers.items()
         }
@@ -293,7 +267,7 @@ async def cmd_kit(args) -> int:
     discovered = kit_manager.discover_kits()
 
     match args.kit_action:
-        case 'list':
+        case "list":
             if not discovered:
                 print_warning("No kits found in kit.d directories")
                 print_info(f"Search paths: {', '.join(str(p) for p in kit_manager.kitd_paths)}")
@@ -308,7 +282,7 @@ async def cmd_kit(args) -> int:
                     print_text(f"  • {kit_name}")
             return 0
 
-        case 'load' | 'info':
+        case "load" | "info":
             if args.name not in discovered:
                 print_error(f"Kit '{args.name}' not found")
                 print_info(f"Available kits: {', '.join(discovered.keys())}")
@@ -320,7 +294,7 @@ async def cmd_kit(args) -> int:
                 print_error(f"Failed to load kit '{args.name}'")
                 return 1
 
-            if args.kit_action == 'info':
+            if args.kit_action == "info":
                 kit_info_lines = [f"Kit: {kit_config.name}"]
                 if kit_config.description:
                     kit_info_lines.append(f"Description: {kit_config.description}")
@@ -351,10 +325,7 @@ async def cmd_kit(args) -> int:
             else:  # load
                 if args.name not in config.kits:
                     config.kits[args.name] = KitInfo(
-                        name=args.name,
-                        description=kit_config.description,
-                        path=str(kit_path),
-                        source="file"
+                        name=args.name, description=kit_config.description, path=str(kit_path), source="file"
                     )
 
                 added_servers = []
@@ -389,7 +360,7 @@ async def cmd_kit(args) -> int:
                     return 1
             return 0
 
-        case 'export':
+        case "export":
             if args.kit:
                 if args.kit not in config.kits:
                     print_error(f"Kit '{args.kit}' is not loaded")
@@ -406,11 +377,7 @@ async def cmd_kit(args) -> int:
                 export_name = args.name or "exported"
                 export_description = args.description or "Exported from current configuration"
 
-            kit_data = {
-                "name": export_name,
-                "description": export_description,
-                "servers": {}
-            }
+            kit_data = {"name": export_name, "description": export_description, "servers": {}}
 
             if args.author:
                 kit_data["author"] = args.author
@@ -420,9 +387,11 @@ async def cmd_kit(args) -> int:
             for name, server in servers_to_export.items():
                 server_data = server.model_dump(
                     mode="json",
-                    exclude_none=True, exclude_unset=True, exclude_defaults=True,
+                    exclude_none=True,
+                    exclude_unset=True,
+                    exclude_defaults=True,
                     by_alias=True,
-                    exclude={'name', 'kits'}
+                    exclude={"name", "kits"},
                 )
                 kit_data["servers"][name] = server_data
 
@@ -436,17 +405,17 @@ async def cmd_kit(args) -> int:
 
 async def cmd_server(args) -> int:
     """Manage servers."""
-    if args.server_action == 'list':
+    if args.server_action == "list":
         return await cmd_list_servers(args)
-    elif args.server_action == 'add':
+    elif args.server_action == "add":
         return await cmd_add_server(args)
-    elif args.server_action == 'remove':
+    elif args.server_action == "remove":
         return await cmd_remove_server(args)
-    elif args.server_action == 'enable':
+    elif args.server_action == "enable":
         return await cmd_enable_server(args)
-    elif args.server_action == 'disable':
+    elif args.server_action == "disable":
         return await cmd_disable_server(args)
-    elif args.server_action == 'info':
+    elif args.server_action == "info":
         return await cmd_server_info(args)
     else:
         print_error(f"Unknown server action: {args.server_action}")
@@ -468,7 +437,7 @@ async def cmd_server_info(args) -> int:
         f"Server: {server.name}",
         f"Source: {server.source}",
         f"Enabled: {'Yes' if server.enabled else 'No'}",
-        f"Prefix: {server.prefix if server.prefix else '(none)'}"
+        f"Prefix: {server.prefix if server.prefix else '(none)'}",
     ]
 
     if server.command:
@@ -504,11 +473,11 @@ async def cmd_server_info(args) -> int:
 
 async def cmd_config(args) -> int:
     """Manage configuration."""
-    if args.config_action == 'show':
+    if args.config_action == "show":
         return await cmd_status(args)
-    elif args.config_action == 'export':
+    elif args.config_action == "export":
         return await cmd_export(args)
-    elif args.config_action == 'path':
+    elif args.config_action == "path":
         return await cmd_config_path(args)
     return 1
 
@@ -525,16 +494,16 @@ async def cmd_auth(args) -> int:
     config_manager = ConfigManager(args.config)
 
     match args.auth_action:
-        case 'init':
+        case "init":
             bearer_data = {}
             if args.issuer:
-                bearer_data['issuer'] = args.issuer
+                bearer_data["issuer"] = args.issuer
             if args.audience:
-                bearer_data['audience'] = args.audience
+                bearer_data["audience"] = args.audience
             if args.key_path:
-                bearer_data['key_path'] = args.key_path
+                bearer_data["key_path"] = args.key_path
             bearer_config = BearerAuthConfig.model_validate(bearer_data)
-            auth_config = AuthConfig.model_validate({'bearer': bearer_config})
+            auth_config = AuthConfig.model_validate({"bearer": bearer_config})
 
             auth_manager = BearerAuthManager(auth_config.bearer)
 
@@ -546,8 +515,10 @@ async def cmd_auth(args) -> int:
             )
 
             default_config = BearerAuthConfig()
-            if (auth_config.bearer.issuer != default_config.issuer or
-                auth_config.bearer.audience != default_config.audience):
+            if (
+                auth_config.bearer.issuer != default_config.issuer
+                or auth_config.bearer.audience != default_config.audience
+            ):
                 if config_manager.save_auth_config(auth_config):
                     print_info(f"Auth config saved to: {config_manager.auth_config_path}")
                 else:
@@ -557,7 +528,7 @@ async def cmd_auth(args) -> int:
             print_success(f"Authentication initialized with audience '{auth_config.bearer.audience}'")
             return 0
 
-        case 'status':
+        case "status":
             auth_config = config_manager.load_auth_config()
             if auth_config.bearer.private_key_exists:
                 print_info("Authentication is ENABLED (Bearer Token)")
@@ -582,7 +553,7 @@ async def cmd_auth(args) -> int:
                 print_text("Run 'magg auth init' to enable authentication")
             return 0
 
-        case 'token':
+        case "token":
             auth_config = config_manager.load_auth_config()
             if not auth_config.bearer.private_key_exists:
                 print_error("No authentication keys found. Run 'magg auth init' first")
@@ -611,7 +582,7 @@ async def cmd_auth(args) -> int:
                 print_text(token)
             return 0
 
-        case 'public-key' | 'private-key':
+        case "public-key" | "private-key":
             auth_config = config_manager.load_auth_config()
             if not auth_config.bearer.private_key_exists:
                 print_error("No authentication keys found. Run 'magg auth init' first")
@@ -624,7 +595,7 @@ async def cmd_auth(args) -> int:
                 print_error(str(e))
                 return 1
 
-            if args.auth_action == 'public-key':
+            if args.auth_action == "public-key":
                 public_key = auth_manager.get_public_key()
                 if public_key:
                     print(public_key)
@@ -637,14 +608,14 @@ async def cmd_auth(args) -> int:
                     pem = private_key.private_bytes(
                         encoding=serialization.Encoding.PEM,
                         format=serialization.PrivateFormat.TraditionalOpenSSL,
-                        encryption_algorithm=serialization.NoEncryption()
-                    ).decode('utf-8')
+                        encryption_algorithm=serialization.NoEncryption(),
+                    ).decode("utf-8")
 
                     if args.export:
-                        single_line = pem.replace('\n', '\\n')
+                        single_line = pem.replace("\n", "\\n")
                         print(f"export MAGG_PRIVATE_KEY={single_line}")
                     elif args.oneline:
-                        single_line = pem.replace('\n', '\\n')
+                        single_line = pem.replace("\n", "\\n")
                         print(single_line)
                     else:
                         print(pem)
@@ -661,130 +632,130 @@ async def cmd_auth(args) -> int:
 def create_parser() -> argparse.ArgumentParser:
     """Create the command line parser."""
     parser = argparse.ArgumentParser(
-        prog='magg',
-        description='Magg - MCP Aggregator: Manage and aggregate MCP servers',
-        epilog='Use "magg <command> --help" for more information about a command.'
+        prog="magg",
+        description="Magg - MCP Aggregator: Manage and aggregate MCP servers",
+        epilog='Use "magg <command> --help" for more information about a command.',
     )
 
     parser.add_argument(
-        '--version', '-V',
-        action='version',
-        version=f'%(prog)s {__version__}',
+        "--version",
+        "-V",
+        action="version",
+        version=f"%(prog)s {__version__}",
     )
 
     parser.add_argument(
-        '--config',
-        type=str,
-        help='Path to config file (default: .magg/config.json in current directory)'
+        "--config", type=str, help="Path to config file (default: .magg/config.json in current directory)"
     )
 
-    parser.add_argument(
-        '-e', '--env-pass',
-        action='store_true',
-        help='Pass environment to stdio MCP servers'
-    )
+    parser.add_argument("-e", "--env-pass", action="store_true", help="Pass environment to stdio MCP servers")
 
     parser.add_argument(
-        '-E', '--env-set',
+        "-E",
+        "--env-set",
         nargs=2,
-        action='append',
-        metavar=('KEY', 'VALUE'),
-        help='Set environment variable for stdio MCP servers (can be used multiple times)'
+        action="append",
+        metavar=("KEY", "VALUE"),
+        help="Set environment variable for stdio MCP servers (can be used multiple times)",
     )
 
-    subparsers = parser.add_subparsers(dest='subcommand', help='Commands')
+    subparsers = parser.add_subparsers(dest="subcommand", help="Commands")
 
     serve_parser = subparsers.add_parser(
-        'serve',
-        help='Start Magg server',
-        description='Start the Magg server in either stdio mode (default) or HTTP mode'
+        "serve",
+        help="Start Magg server",
+        description="Start the Magg server in either stdio mode (default) or HTTP mode",
     )
     cmd_serve_args(serve_parser)
 
-    server_parser = subparsers.add_parser('server', help='Manage servers')
-    server_subparsers = server_parser.add_subparsers(dest='server_action', help='Server actions', required=True)
+    server_parser = subparsers.add_parser("server", help="Manage servers")
+    server_subparsers = server_parser.add_subparsers(dest="server_action", help="Server actions", required=True)
 
-    server_subparsers.add_parser('list', help='List configured servers')
+    server_subparsers.add_parser("list", help="List configured servers")
 
-    server_add = server_subparsers.add_parser('add', help='Add a new server')
-    server_add.add_argument('name', help='Server name')
-    server_add.add_argument('source', help='URL of the server package/repository')
-    server_add.add_argument('--prefix', help='Tool prefix (defaults to None)')
-    server_add.add_argument('--command', help='Command to run the server')
-    server_add.add_argument('--uri', help='URI for HTTP servers')
-    server_add.add_argument('--env', nargs='*', help='Environment variables (KEY=VALUE)')
-    server_add.add_argument('--cwd', dest='cwd', help='Working directory')
-    server_add.add_argument('--notes', help='Setup notes')
+    server_add = server_subparsers.add_parser("add", help="Add a new server")
+    server_add.add_argument("name", help="Server name")
+    server_add.add_argument("source", help="URL of the server package/repository")
+    server_add.add_argument("--prefix", help="Tool prefix (defaults to None)")
+    server_add.add_argument("--command", help="Command to run the server")
+    server_add.add_argument("--uri", help="URI for HTTP servers")
+    server_add.add_argument("--env", nargs="*", help="Environment variables (KEY=VALUE)")
+    server_add.add_argument("--cwd", dest="cwd", help="Working directory")
+    server_add.add_argument("--notes", help="Setup notes")
 
-    server_remove = server_subparsers.add_parser('remove', help='Remove a server')
-    server_remove.add_argument('name', help='Server name')
-    server_remove.add_argument('--force', '-f', action='store_true', help='Remove without confirmation')
+    server_remove = server_subparsers.add_parser("remove", help="Remove a server")
+    server_remove.add_argument("name", help="Server name")
+    server_remove.add_argument("--force", "-f", action="store_true", help="Remove without confirmation")
 
-    server_enable = server_subparsers.add_parser('enable', help='Enable a server')
-    server_enable.add_argument('name', help='Server name')
+    server_enable = server_subparsers.add_parser("enable", help="Enable a server")
+    server_enable.add_argument("name", help="Server name")
 
-    server_disable = server_subparsers.add_parser('disable', help='Disable a server')
-    server_disable.add_argument('name', help='Server name')
+    server_disable = server_subparsers.add_parser("disable", help="Disable a server")
+    server_disable.add_argument("name", help="Server name")
 
-    server_info = server_subparsers.add_parser('info', help='Show detailed information about a server')
-    server_info.add_argument('name', help='Server name')
+    server_info = server_subparsers.add_parser("info", help="Show detailed information about a server")
+    server_info.add_argument("name", help="Server name")
 
-    config_parser = subparsers.add_parser('config', help='Manage configuration')
-    config_subparsers = config_parser.add_subparsers(dest='config_action', help='Config actions', required=True)
+    config_parser = subparsers.add_parser("config", help="Manage configuration")
+    config_subparsers = config_parser.add_subparsers(dest="config_action", help="Config actions", required=True)
 
-    config_subparsers.add_parser('show', help='Show current configuration status')
+    config_subparsers.add_parser("show", help="Show current configuration status")
 
-    config_export = config_subparsers.add_parser('export', help='Export configuration')
-    config_export.add_argument('--output', '-o', type=Path, help='Output file (default: stdout)')
+    config_export = config_subparsers.add_parser("export", help="Export configuration")
+    config_export.add_argument("--output", "-o", type=Path, help="Output file (default: stdout)")
 
-    config_subparsers.add_parser('path', help='Show configuration file path')
+    config_subparsers.add_parser("path", help="Show configuration file path")
 
-    kit_parser = subparsers.add_parser('kit', help='Manage kits')
-    kit_subparsers = kit_parser.add_subparsers(dest='kit_action', help='Kit actions', required=True)
+    kit_parser = subparsers.add_parser("kit", help="Manage kits")
+    kit_subparsers = kit_parser.add_subparsers(dest="kit_action", help="Kit actions", required=True)
 
-    kit_subparsers.add_parser('list', help='List available kits')
+    kit_subparsers.add_parser("list", help="List available kits")
 
-    kit_load = kit_subparsers.add_parser('load', help='Load a kit into configuration')
-    kit_load.add_argument('name', help='Kit name to load')
-    kit_load.add_argument('--enable', action='store_true', default=None, help='Force enable all servers after loading')
-    kit_load.add_argument('--no-enable', dest='enable', action='store_false', help='Force disable all servers after loading')
+    kit_load = kit_subparsers.add_parser("load", help="Load a kit into configuration")
+    kit_load.add_argument("name", help="Kit name to load")
+    kit_load.add_argument("--enable", action="store_true", default=None, help="Force enable all servers after loading")
+    kit_load.add_argument(
+        "--no-enable", dest="enable", action="store_false", help="Force disable all servers after loading"
+    )
 
-    kit_info = kit_subparsers.add_parser('info', help='Show information about a kit')
-    kit_info.add_argument('name', help='Kit name')
+    kit_info = kit_subparsers.add_parser("info", help="Show information about a kit")
+    kit_info.add_argument("name", help="Kit name")
 
-    kit_export = kit_subparsers.add_parser('export', help='Export servers as a kit')
-    kit_export.add_argument('--name', help='Kit name (optional)')
-    kit_export.add_argument('--description', help='Kit description (optional)')
-    kit_export.add_argument('--author', help='Kit author (optional)')
-    kit_export.add_argument('--version', help='Kit version (optional)')
-    kit_export.add_argument('--kit', help='Export a specific loaded kit instead of current config')
-    kit_export.add_argument('--output', '-o', type=Path, help='Output file (default: stdout)')
+    kit_export = kit_subparsers.add_parser("export", help="Export servers as a kit")
+    kit_export.add_argument("--name", help="Kit name (optional)")
+    kit_export.add_argument("--description", help="Kit description (optional)")
+    kit_export.add_argument("--author", help="Kit author (optional)")
+    kit_export.add_argument("--version", help="Kit version (optional)")
+    kit_export.add_argument("--kit", help="Export a specific loaded kit instead of current config")
+    kit_export.add_argument("--output", "-o", type=Path, help="Output file (default: stdout)")
 
-    auth_parser = subparsers.add_parser('auth', help='Manage authentication')
-    auth_subparsers = auth_parser.add_subparsers(dest='auth_action', help='Auth actions', required=True)
+    auth_parser = subparsers.add_parser("auth", help="Manage authentication")
+    auth_subparsers = auth_parser.add_subparsers(dest="auth_action", help="Auth actions", required=True)
 
-    auth_init = auth_subparsers.add_parser('init', help='Initialize authentication')
-    auth_init.add_argument('--issuer', help='Token issuer identifier (default: https://magg.local)')
-    auth_init.add_argument('--audience', help='Token audience, also used as key name (default: magg)')
-    auth_init.add_argument('--key-path', type=Path, help='Path for authentication keys (default: ~/.ssh/magg)')
+    auth_init = auth_subparsers.add_parser("init", help="Initialize authentication")
+    auth_init.add_argument("--issuer", help="Token issuer identifier (default: https://magg.local)")
+    auth_init.add_argument("--audience", help="Token audience, also used as key name (default: magg)")
+    auth_init.add_argument("--key-path", type=Path, help="Path for authentication keys (default: ~/.ssh/magg)")
 
-    auth_subparsers.add_parser('status', help='Show authentication status')
+    auth_subparsers.add_parser("status", help="Show authentication status")
 
-    auth_subparsers.add_parser('public-key', help='Show public key in PEM format')
+    auth_subparsers.add_parser("public-key", help="Show public key in PEM format")
 
-    auth_private = auth_subparsers.add_parser('private-key', help='Show private key')
+    auth_private = auth_subparsers.add_parser("private-key", help="Show private key")
     private_output_group = auth_private.add_mutually_exclusive_group()
-    private_output_group.add_argument('--export', '-e', action='store_true', help='Output in single-line format for env vars')
-    private_output_group.add_argument('--oneline', action='store_true', help='Output in single-line format')
+    private_output_group.add_argument(
+        "--export", "-e", action="store_true", help="Output in single-line format for env vars"
+    )
+    private_output_group.add_argument("--oneline", action="store_true", help="Output in single-line format")
 
-    auth_token = auth_subparsers.add_parser('token', help='Generate a test token')
-    auth_token.add_argument('--subject', default='dev-user', help='Token subject (default: dev-user)')
-    auth_token.add_argument('--hours', type=int, default=24, help='Token validity in hours (default: 24)')
-    auth_token.add_argument('--scopes', nargs='*', help='Permission scopes (space-separated)')
+    auth_token = auth_subparsers.add_parser("token", help="Generate a test token")
+    auth_token.add_argument("--subject", default="dev-user", help="Token subject (default: dev-user)")
+    auth_token.add_argument("--hours", type=int, default=24, help="Token validity in hours (default: 24)")
+    auth_token.add_argument("--scopes", nargs="*", help="Permission scopes (space-separated)")
 
     output_group = auth_token.add_mutually_exclusive_group()
-    output_group.add_argument('--quiet', '-q', action='store_true', help='Only output the token')
-    output_group.add_argument('--export', '-e', action='store_true', help='Output as export command for eval')
+    output_group.add_argument("--quiet", "-q", action="store_true", help="Only output the token")
+    output_group.add_argument("--export", "-e", action="store_true", help="Output as export command for eval")
 
     return parser
 
@@ -799,11 +770,11 @@ async def run():
         exit(1)
 
     commands = {
-        'serve': cmd_serve,
-        'server': cmd_server,
-        'config': cmd_config,
-        'kit': cmd_kit,
-        'auth': cmd_auth,
+        "serve": cmd_serve,
+        "server": cmd_server,
+        "config": cmd_config,
+        "kit": cmd_kit,
+        "auth": cmd_auth,
     }
 
     cmd_func = commands.get(args.subcommand)
@@ -818,11 +789,10 @@ async def run():
 
 
 def main():
-    """Run the CLI.
-    """
+    """Run the CLI."""
     process.setup()
     asyncio.run(run())
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

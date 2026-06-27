@@ -35,11 +35,10 @@ This directory contains GitHub Actions workflows for automated testing, publishi
 - **Actions**:
   1. Build and test dev image with multiple Python versions
   2. Run pytest inside dev container
-  3. If tests pass, build pro and pre images
+  3. If tests pass, push the dev images and build/push the pro image
   4. Push all images to GitHub Container Registry (ghcr.io)
 - **Images Created**:
   - `pro` (production): WARNING log level
-  - `pre` (staging): INFO log level  
   - `dev` (development): DEBUG log level, includes dev dependencies
 
 ### 4. Manual Publish Dry Run (`manual-publish.yml`)
@@ -80,9 +79,9 @@ The workflow only publishes when the version in pyproject.toml is manually chang
 ## Docker Image Tags
 
 Docker images are tagged based on the trigger:
-- **From beta branch**: `beta`, `beta-pre`, `beta-dev`
+- **From beta branch**: `beta`, `beta-dev`
 - **From version tags**: `1.2.3`, `1.2`, `latest` (main only)
-- **With Python versions**: `beta-dev-py3.12`, `beta-dev-py3.13`, etc.
+- **With Python versions**: `beta-dev-py3.12`, `beta-dev-py3.13`, `beta-dev-py3.14`
 
 ## Environment Configuration
 

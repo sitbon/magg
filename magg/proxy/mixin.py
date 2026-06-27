@@ -1,20 +1,25 @@
-"""ProxyMCP - Mixin for dynamic MCP server access.
-"""
+"""ProxyMCP - Mixin for dynamic MCP server access."""
+
 import logging
-from typing import Any, Annotated, ClassVar
+from typing import Annotated, Any, ClassVar
 
 from fastmcp import Client
-from mcp.types import Tool, Resource, Prompt, EmbeddedResource, ResourceTemplate
-from pydantic import Field, BaseModel
+from mcp.types import EmbeddedResource, Prompt, Resource, ResourceTemplate, Tool
+from pydantic import BaseModel, Field
 
-from .types import LiteralProxyType, LiteralProxyAction
-from ..util.transform import resource_result_as_tool_result, prompt_result_as_tool_result, annotate_content, \
-    embed_python_object_list_in_resource, embed_python_object_in_resource, get_embedded_resource_python_object, \
-    deserialize_embedded_resource_python_object, json_to_dict
-
-__all__ = (
-    "ProxyMCP",
+from ..util.transform import (
+    annotate_content,
+    deserialize_embedded_resource_python_object,
+    embed_python_object_in_resource,
+    embed_python_object_list_in_resource,
+    get_embedded_resource_python_object,
+    json_to_dict,
+    prompt_result_as_tool_result,
+    resource_result_as_tool_result,
 )
+from .types import LiteralProxyAction, LiteralProxyType
+
+__all__ = ("ProxyMCP",)
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +32,7 @@ class ProxyMCP:
     host class must also call `_register_proxy_tool` to register the proxy tool function
     with the MCP server.
     """
+
     PROXY_TYPE_MAP: ClassVar[dict[str, type[BaseModel]]] = {
         "tool": Tool,
         "resource": Resource | ResourceTemplate,
@@ -59,39 +65,41 @@ class ProxyMCP:
 
         Called from ProxyMCP.__init__() to ensure the tool is registered.
         """
-        raise NotImplementedError(
-            "This method should be implemented by the host class to register the proxy tool."
-        )
+        raise NotImplementedError("This method should be implemented by the host class to register the proxy tool.")
 
     async def _proxy_tool(
         self,
-        action: Annotated[LiteralProxyAction, Field(
-            description="Action to perform: list, info, or call."
-        )],
-        a_type: Annotated[LiteralProxyType, Field(
-            description="Type of MCP capability to interact with: tool, resource, or prompt.",
-            alias="type"
-        )],
-        args: Annotated[dict[str, Any] | str | None, Field(
-            description="Arguments for a 'call' action (call tool, read resource, or get prompt). Can be a dict or JSON string."
-        )] = None,
-        path: Annotated[str | None, Field(
-            description="Name or URI of the specific tool/resource/prompt (with FastMCP prefixing).\n"
-                        "Not allowed for 'list' and 'info' actions.",
-            # validation_alias=AliasChoices("name", "uri"),
-        )] = None,
-        limit: Annotated[int | None, Field(
-            description="Maximum number of items to return (for 'list' action only). Default: 100",
-            ge=1,
-            le=1000
-        )] = None,
-        offset: Annotated[int | None, Field(
-            description="Number of items to skip (for 'list' action only). Default: 0",
-            ge=0
-        )] = None,
-        filter_server: Annotated[str | None, Field(
-            description="Filter results by server name prefix (for 'list' action only)"
-        )] = None,
+        action: Annotated[LiteralProxyAction, Field(description="Action to perform: list, info, or call.")],
+        a_type: Annotated[
+            LiteralProxyType,
+            Field(description="Type of MCP capability to interact with: tool, resource, or prompt.", alias="type"),
+        ],
+        args: Annotated[
+            dict[str, Any] | str | None,
+            Field(
+                description="Arguments for a 'call' action (call tool, read resource, or get prompt). Can be a dict or JSON string."
+            ),
+        ] = None,
+        path: Annotated[
+            str | None,
+            Field(
+                description="Name or URI of the specific tool/resource/prompt (with FastMCP prefixing).\n"
+                "Not allowed for 'list' and 'info' actions.",
+                # validation_alias=AliasChoices("name", "uri"),
+            ),
+        ] = None,
+        limit: Annotated[
+            int | None,
+            Field(
+                description="Maximum number of items to return (for 'list' action only). Default: 100", ge=1, le=1000
+            ),
+        ] = None,
+        offset: Annotated[
+            int | None, Field(description="Number of items to skip (for 'list' action only). Default: 0", ge=0)
+        ] = None,
+        filter_server: Annotated[
+            str | None, Field(description="Filter results by server name prefix (for 'list' action only)")
+        ] = None,
     ) -> Any:
         """Main proxy tool for dynamic access to mounted MCP servers.
 
@@ -107,36 +115,28 @@ class ProxyMCP:
         self.validate_operation(action=action, a_type=a_type)
 
         if action in frozenset({"info", "call"}) and not path:
-            raise ValueError(
-                f"Parameter 'path' is required for action {action!r}"
-            )
+            raise ValueError(f"Parameter 'path' is required for action {action!r}")
 
         if action in frozenset({"list", "info"}) and args:
-            raise ValueError(
-                f"Parameter 'args' should not be provided for action {action!r}"
-            )
+            raise ValueError(f"Parameter 'args' should not be provided for action {action!r}")
 
         if action == "list" and path:
-            raise ValueError(
-                "Parameter 'path' should not be provided for action 'list'"
-            )
+            raise ValueError("Parameter 'path' should not be provided for action 'list'")
 
         if action != "list" and (limit is not None or offset is not None or filter_server is not None):
-            raise ValueError(
-                "Parameters 'limit', 'offset', and 'filter_server' are only allowed for 'list' action"
-            )
+            raise ValueError("Parameters 'limit', 'offset', and 'filter_server' are only allowed for 'list' action")
 
         if action == "list":
             result, result_type = await self._proxy_list(a_type)
 
             if filter_server and result:
-                result = [item for item in result if hasattr(item, 'name') and item.name.startswith(filter_server)]
+                result = [item for item in result if hasattr(item, "name") and item.name.startswith(filter_server)]
 
             total_count = len(result) if result else 0
             if result and (limit or offset):
                 offset_val = offset or 0
                 limit_val = limit or 100
-                result = result[offset_val:offset_val + limit_val]
+                result = result[offset_val : offset_val + limit_val]
 
             if result:
                 result = embed_python_object_list_in_resource(
@@ -165,15 +165,12 @@ class ProxyMCP:
         elif action == "call":
             result = await self._proxy_call(a_type, path, json_to_dict(args))
         else:
-            raise ValueError(
-                f"Unknown action: {action!r}. Supported actions are 'list', 'info', and 'call'."
-            )
+            raise ValueError(f"Unknown action: {action!r}. Supported actions are 'list', 'info', and 'call'.")
 
         return result
 
     async def _proxy_list(
-            self,
-            capability_type: str
+        self, capability_type: str
     ) -> tuple[list[Tool] | list[Resource | ResourceTemplate] | list[Prompt], type[BaseModel]]:
         client = await self._get_proxy_backend_client()
 
@@ -196,8 +193,7 @@ class ProxyMCP:
         return result, result_type
 
     async def _proxy_info(self, capability_type: str, name: str) -> Prompt | Tool | Resource | ResourceTemplate:
-        """Get detailed info about a specific capability.
-        """
+        """Get detailed info about a specific capability."""
         capabilities, _ = await self._proxy_list(capability_type)
 
         for cap in capabilities:
@@ -207,8 +203,7 @@ class ProxyMCP:
         raise ValueError(f"{capability_type.capitalize()} '{name}' not found")
 
     async def _proxy_call(self, capability_type: str, path: str, args: dict[str, Any]) -> Any:
-        """Call a tool, read a resource, or get a prompt by connecting to ourselves as a client.
-        """
+        """Call a tool, read a resource, or get a prompt by connecting to ourselves as a client."""
         client = await self._get_proxy_backend_client()
 
         annotations = {
@@ -219,8 +214,8 @@ class ProxyMCP:
 
         async with client:
             if capability_type == "tool":
-                result = await client.call_tool(path, args)  # Returns list[TextContent | ImageContent | EmbeddedResource]
-                result = [annotate_content(item, **annotations) for item in result]
+                result = await client.call_tool(path, args)  # Returns CallToolResult
+                result = [annotate_content(item, **annotations) for item in result.content]
 
             elif capability_type == "resource":
                 # For resources, the 'path' is the URI
@@ -237,11 +232,7 @@ class ProxyMCP:
             return result
 
     @classmethod
-    def validate_operation(
-        cls,
-        action: LiteralProxyAction,
-        a_type: LiteralProxyType
-    ) -> None:
+    def validate_operation(cls, action: LiteralProxyAction, a_type: LiteralProxyType) -> None:
         """Validate the proxy operation parameters."""
         if action not in frozenset({"list", "info", "call"}):
             raise ValueError(f"Invalid proxy action '{action}'")
@@ -251,8 +242,7 @@ class ProxyMCP:
 
     @classmethod
     def get_proxy_query_result(
-            cls,
-            result: EmbeddedResource
+        cls, result: EmbeddedResource
     ) -> list[Tool] | list[Resource] | list[Prompt] | Tool | Resource | Prompt | None:
         """
         A proxy query is a non-call proxy action: currently only 'list' and 'info'.
@@ -271,7 +261,6 @@ class ProxyMCP:
 
             # TODO: More in-depth validation before deserialization
             if target_type and getattr(result.annotations, "proxyAction", None) in {"list", "info"}:
-
                 decoded = deserialize_embedded_resource_python_object(
                     target_type=target_type,
                     python_type=python_type,

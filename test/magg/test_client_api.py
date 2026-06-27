@@ -1,7 +1,8 @@
 """Test FastMCP Client API usage patterns."""
 
-import pytest
 import inspect
+
+import pytest
 from fastmcp import Client
 
 
@@ -55,7 +56,7 @@ class TestFastMCPClientAPI:
 
         # Document signature for analysis
         param_info = {name: param for name, param in sig.parameters.items()}
-        assert 'self' in param_info
+        assert "self" in param_info
 
     def test_client_types_supported(self):
         """Test what types of clients are supported."""
@@ -113,10 +114,10 @@ class TestClientCompatibility:
         http_client = Client("http://localhost:8080")
 
         # Check basic attributes
-        assert hasattr(http_client, '__class__')
+        assert hasattr(http_client, "__class__")
 
         # Check if client has expected MCP-related attributes
-        client_attrs = [attr for attr in dir(http_client) if not attr.startswith('_')]
+        client_attrs = [attr for attr in dir(http_client) if not attr.startswith("_")]
         assert len(client_attrs) > 0
 
     def test_client_method_availability(self):
@@ -124,11 +125,14 @@ class TestClientCompatibility:
         http_client = Client("http://localhost:8080")
 
         # Check for common async methods
-        async_methods = [method for method in dir(http_client) if 'async' in method.lower()]
+        async_methods = [method for method in dir(http_client) if "async" in method.lower()]
 
         # Check for connection-related methods
-        conn_methods = [method for method in dir(http_client) if any(keyword in method.lower()
-                       for keyword in ['connect', 'close', 'call', 'list'])]
+        conn_methods = [
+            method
+            for method in dir(http_client)
+            if any(keyword in method.lower() for keyword in ["connect", "close", "call", "list"])
+        ]
 
         # Document available methods
         assert isinstance(async_methods, list)

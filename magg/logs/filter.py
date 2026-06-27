@@ -1,12 +1,12 @@
-"""Useful logging filters.
-"""
+"""Useful logging filters."""
+
 import logging
 
-__all__ = "IgnoreHealthCheckerFilter",
+__all__ = ("IgnoreHealthCheckerFilter",)
 
 
 class IgnoreHealthCheckerFilter(logging.Filter):
-    user_agent = 'ELB-HealthChecker/2.0'
+    user_agent = "ELB-HealthChecker/2.0"
 
     def __init__(self, user_agent=None):
         super().__init__()

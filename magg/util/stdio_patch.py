@@ -1,9 +1,10 @@
 """Utilities for patching stdio transports to control stderr behavior."""
+
 import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-__all__ = "patch_stdio_transport_stderr",
+__all__ = ("patch_stdio_transport_stderr",)
 
 
 def patch_stdio_transport_stderr(transport):
@@ -21,11 +22,12 @@ def patch_stdio_transport_stderr(transport):
 
     async def patched_connect(**session_kwargs):
         from mcp.client import stdio
+
         original_stdio_client = stdio.stdio_client
 
         @asynccontextmanager
         async def silent_stdio_client(server_params, errlog=None):
-            with Path(os.devnull).open('w') as devnull:
+            with Path(os.devnull).open("w") as devnull:
                 async with original_stdio_client(server_params, errlog=devnull) as result:
                     yield result
 

@@ -43,6 +43,34 @@ Kit files must have a `.json` extension and follow the kit schema.
 }
 ```
 
+## Managing Kits from the CLI
+
+The `magg kit` command manages kits directly against the configuration file — no running
+server or MCP client required. A running Magg instance picks up the changes automatically
+via [configuration reload](config-reload.md).
+
+```bash
+# List available kits (loaded kits are marked)
+magg kit list
+magg kit list --json          # machine-readable, to stdout
+
+# Show kit metadata and servers
+magg kit info web-tools
+
+# Load a kit (adds all of its servers)
+magg kit load web-tools
+magg kit load web-tools --no-enable   # add servers disabled
+
+# Unload a kit: removes servers that belong only to this kit,
+# keeps servers shared with other kits
+magg kit unload web-tools
+magg kit unload web-tools --force     # skip confirmation
+
+# Export current config (or one loaded kit) as a kit file
+magg kit export --name my-kit --output my-kit.json
+magg kit export --kit web-tools --output web-tools-backup.json
+```
+
 ## Kit Management Tools
 
 Magg provides these tools for managing kits:

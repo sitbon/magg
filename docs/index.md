@@ -21,6 +21,9 @@
 
 Magg (MCP Aggregator) is a meta-MCP server that acts as a central hub for managing multiple MCP servers. It enables LLMs to dynamically discover, add, configure, and use tools from various MCP servers through a unified interface.
 
+> **MCP 2026-07-28**: For how Magg relates to the stateless MCP spec release — and the migration
+> plan — see [Magg and the Stateless MCP Spec](mcp-stateless.md).
+
 ### Core Concepts
 
 - **Server**: An MCP server configuration that provides tools
@@ -605,6 +608,15 @@ mbro:magg> call magg_kit_info name="web-tools"
 
 # Unload a kit
 mbro:magg> call magg_unload_kit name="web-tools"
+```
+
+The same operations are available from the command line without an MCP client:
+
+```bash
+magg kit list
+magg kit load web-tools
+magg kit info web-tools
+magg kit unload web-tools
 ```
 
 For complete documentation, see **[Kit Management Guide](kits.md)**.

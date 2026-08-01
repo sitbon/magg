@@ -4,6 +4,7 @@ import argparse
 import asyncio
 import json
 import logging
+import shlex
 from pathlib import Path
 
 from cryptography.hazmat.primitives import serialization
@@ -29,6 +30,42 @@ from .util.terminal import (
 process.setup(source=__name__)
 
 logger: logging.Logger = logging.getLogger(__name__)
+
+
+def parse_env_args(env_args: list[str]) -> dict[str, str]:
+    """Parse KEY=VALUE environment variable arguments.
+
+    Raises:
+        ValueError: If any argument is not in KEY=VALUE form.
+    """
+    return dict(arg.split("=", 1) for arg in env_args)
+
+
+def parse_command_arg(value: str) -> tuple[str | None, list[str] | None]:
+    """Split a command string into command and argument list.
+
+    Raises:
+        ValueError: If the command has invalid shell syntax (e.g. unbalanced quotes).
+    """
+    parts = shlex.split(value)
+    if not parts:
+        return None, None
+    return parts[0], parts[1:] if len(parts) > 1 else None
+
+
+def parse_transport_arg(value: str) -> dict:
+    """Parse a transport JSON object argument.
+
+    Raises:
+        ValueError: If the value is not a JSON object.
+    """
+    try:
+        transport = json.loads(value)
+    except json.JSONDecodeError as e:
+        raise ValueError(f"invalid JSON: {e}") from e
+    if not isinstance(transport, dict):
+        raise ValueError("transport must be a JSON object")
+    return transport
 
 
 def output_json(data: dict, output_path: Path | None = None) -> None:
@@ -94,18 +131,27 @@ async def cmd_add_server(args) -> int:
     env = None
     if args.env:
         try:
-            env = dict(arg.split("=", 1) for arg in args.env)
+            env = parse_env_args(args.env)
         except ValueError:
             print_error("Invalid environment variable format. Use KEY=VALUE")
+            return 1
+
+    transport = None
+    if args.transport:
+        try:
+            transport = parse_transport_arg(args.transport)
+        except ValueError as e:
+            print_error(f"Invalid transport configuration: {e}")
             return 1
 
     command = None
     command_args = None
     if args.command:
-        parts = args.command.split()
-        if parts:
-            command = parts[0]
-            command_args = parts[1:] if len(parts) > 1 else None
+        try:
+            command, command_args = parse_command_arg(args.command)
+        except ValueError as e:
+            print_error(f"Invalid command: {e}")
+            return 1
 
     try:
         server = ServerConfig(
@@ -118,6 +164,8 @@ async def cmd_add_server(args) -> int:
             env=env,
             cwd=args.cwd,
             notes=args.notes,
+            transport=transport,
+            enabled=not args.disable,
         )
     except ValueError as e:
         print_error(f"Invalid server configuration: {e}")
@@ -139,13 +187,116 @@ async def cmd_add_server(args) -> int:
         return 1
 
 
+def dump_server(server: ServerConfig) -> dict:
+    """Serialize a server config for machine-readable output."""
+    data = server.model_dump(mode="json", exclude_none=True, by_alias=True, exclude={"name"})
+    if not data.get("kits"):
+        data.pop("kits", None)
+    return data
+
+
 async def cmd_list_servers(args) -> int:
     """List configured servers."""
     config_manager = ConfigManager(args.config)
     config = config_manager.load_config()
 
+    if getattr(args, "json", False):
+        output_json({"servers": {name: dump_server(server) for name, server in config.servers.items()}})
+        return 0
+
     print_server_list(config.servers)
     return 0
+
+
+async def cmd_update_server(args) -> int:
+    """Update an existing MCP server's configuration.
+
+    Optional string fields (prefix, command, uri, env, cwd, notes, transport)
+    can be cleared by passing an empty value.
+    """
+    config_manager = ConfigManager(args.config)
+    config = config_manager.load_config()
+
+    if args.name not in config.servers:
+        print_error(f"Server '{args.name}' not found")
+        return 1
+
+    server = config.servers[args.name]
+    updates = {}
+
+    if args.source is not None:
+        updates["source"] = args.source
+
+    if args.prefix is not None:
+        updates["prefix"] = args.prefix or None
+
+    if args.command is not None:
+        if args.command:
+            try:
+                updates["command"], updates["args"] = parse_command_arg(args.command)
+            except ValueError as e:
+                print_error(f"Invalid command: {e}")
+                return 1
+        else:
+            updates["command"] = None
+            updates["args"] = None
+
+    if args.uri is not None:
+        updates["uri"] = args.uri or None
+
+    if args.env is not None:
+        if args.env:
+            try:
+                updates["env"] = parse_env_args(args.env)
+            except ValueError:
+                print_error("Invalid environment variable format. Use KEY=VALUE")
+                return 1
+        else:
+            updates["env"] = None
+
+    if args.cwd is not None:
+        updates["cwd"] = args.cwd or None
+
+    if args.notes is not None:
+        updates["notes"] = args.notes or None
+
+    if args.transport is not None:
+        if args.transport:
+            try:
+                updates["transport"] = parse_transport_arg(args.transport)
+            except ValueError as e:
+                print_error(f"Invalid transport configuration: {e}")
+                return 1
+        else:
+            updates["transport"] = None
+
+    if args.enable is not None:
+        updates["enabled"] = args.enable
+
+    if not updates:
+        print_warning("No updates specified")
+        print_info('See "magg server update --help" for available options')
+        return 1
+
+    if "command" in updates or "uri" in updates:
+        if updates.get("command", server.command) is None and updates.get("uri", server.uri) is None:
+            print_error("Cannot clear both command and URI - a server needs one of them to run")
+            return 1
+
+    try:
+        for field, value in updates.items():
+            setattr(server, field, value)
+    except ValueError as e:
+        print_error(f"Invalid server configuration: {e}")
+        return 1
+
+    if config_manager.save_config(config):
+        print_success(f"Updated server '{args.name}' ({', '.join(updates)})")
+        print_text("If Magg is running, the changes will be applied automatically")
+        return 0
+    else:
+        print_error("Failed to save configuration")
+        return 1
 
 
 async def cmd_remove_server(args) -> int:
@@ -268,6 +419,22 @@ async def cmd_kit(args) -> int:
 
     match args.kit_action:
         case "list":
+            if getattr(args, "json", False):
+                kits = {}
+                for kit_name, kit_path in discovered.items():
+                    kit_config = kit_manager.load_kit(kit_path)
+                    kits[kit_name] = {
+                        "path": str(kit_path),
+                        "loaded": kit_name in config.kits,
+                        "description": kit_config.description if kit_config else None,
+                        "servers": sorted(kit_config.servers.keys()) if kit_config else [],
+                    }
+                for kit_name in config.kits:
+                    if kit_name not in kits:
+                        kits[kit_name] = {"path": None, "loaded": True, "description": None, "servers": []}
+                output_json({"kits": kits})
+                return 0
+
             if not discovered:
                 print_warning("No kits found in kit.d directories")
                 print_info(f"Search paths: {', '.join(str(p) for p in kit_manager.kitd_paths)}")
@@ -275,12 +442,50 @@ async def cmd_kit(args) -> int:
 
             print_info(f"Available kits ({len(discovered)}):")
             for kit_name, kit_path in discovered.items():
+                loaded = " [loaded]" if kit_name in config.kits else ""
                 kit_config = kit_manager.load_kit(kit_path)
                 if kit_config and kit_config.description:
-                    print_text(f"  • {kit_name}: {kit_config.description}")
+                    print_text(f"  • {kit_name}{loaded}: {kit_config.description}")
                 else:
-                    print_text(f"  • {kit_name}")
+                    print_text(f"  • {kit_name}{loaded}")
             return 0
+
+        case "unload":
+            if args.name not in config.kits:
+                print_error(f"Kit '{args.name}' is not loaded")
+                if config.kits:
+                    print_info(f"Loaded kits: {', '.join(config.kits.keys())}")
+                return 1
+
+            kit_manager.load_kits_from_config(config)
+
+            servers_to_remove = [name for name, server in config.servers.items() if server.kits == [args.name]]
+            servers_to_update = [
+                name for name, server in config.servers.items() if args.name in server.kits and len(server.kits) > 1
+            ]
+
+            if servers_to_remove:
+                print_info(f"Unloading kit '{args.name}' will remove {len(servers_to_remove)} servers:")
+                for name in servers_to_remove:
+                    print_text(f"  • {name}")
+                if servers_to_update:
+                    print_info(f"Kept (shared with other kits): {', '.join(servers_to_update)}")
+
+                if not args.force and not confirm_action("Are you sure you want to unload this kit?"):
+                    print_info("Unload cancelled")
+                    return 0
+
+            success, message = kit_manager.unload_kit_from_config(args.name, config)
+            if not success:
+                print_error(message)
+                return 1
+
+            if config_manager.save_config(config):
+                print_success(message)
+                return 0
+            else:
+                print_error("Failed to save configuration")
+                return 1
 
         case "load" | "info":
             if args.name not in discovered:
@@ -323,16 +528,27 @@ async def cmd_kit(args) -> int:
                 return 0
 
             else:  # load
-                if args.name not in config.kits:
-                    config.kits[args.name] = KitInfo(
-                        name=args.name, description=kit_config.description, path=str(kit_path), source="file"
-                    )
+                if args.name in config.kits:
+                    print_error(f"Kit '{args.name}' is already loaded")
+                    return 1
+
+                config.kits[args.name] = KitInfo(
+                    name=args.name, description=kit_config.description, path=str(kit_path), source="file"
+                )
 
                 added_servers = []
+                updated_servers = []
                 skipped_servers = []
                 for server_name, server_config in kit_config.servers.items():
                     if server_name in config.servers:
-                        skipped_servers.append(server_name)
+                        existing = config.servers[server_name]
+                        if args.name not in existing.kits:
+                            # Assign rather than append so pydantic marks the field as
+                            # set - save_config serializes with exclude_unset
+                            existing.kits = [*existing.kits, args.name]
+                            updated_servers.append(server_name)
+                        else:
+                            skipped_servers.append(server_name)
                         continue
 
                     if args.enable is not None:
@@ -349,11 +565,15 @@ async def cmd_kit(args) -> int:
                         for name in added_servers:
                             status = "enabled" if config.servers[name].enabled else "disabled"
                             print_text(f"  • {name} ({status})")
+                    if updated_servers:
+                        print_info(f"Updated kit membership for {len(updated_servers)} existing servers:")
+                        for name in updated_servers:
+                            print_text(f"  • {name}")
                     if skipped_servers:
                         print_warning(f"Skipped {len(skipped_servers)} servers already in configuration:")
                         for name in skipped_servers:
                             print_text(f"  • {name}")
-                    if not added_servers and not skipped_servers:
+                    if not added_servers and not updated_servers and not skipped_servers:
                         print_warning(f"Kit '{args.name}' contains no servers")
                 else:
                     print_error("Failed to save configuration")
@@ -409,6 +629,8 @@ async def cmd_server(args) -> int:
         return await cmd_list_servers(args)
     elif args.server_action == "add":
         return await cmd_add_server(args)
+    elif args.server_action == "update":
+        return await cmd_update_server(args)
     elif args.server_action == "remove":
         return await cmd_remove_server(args)
     elif args.server_action == "enable":
@@ -432,6 +654,10 @@ async def cmd_server_info(args) -> int:
         return 1
 
     server = config.servers[args.name]
+
+    if getattr(args, "json", False):
+        output_json({args.name: dump_server(server)})
+        return 0
 
     info_lines = [
         f"Server: {server.name}",
@@ -671,7 +897,8 @@ def create_parser() -> argparse.ArgumentParser:
     server_parser = subparsers.add_parser("server", help="Manage servers")
     server_subparsers = server_parser.add_subparsers(dest="server_action", help="Server actions", required=True)
 
-    server_subparsers.add_parser("list", help="List configured servers")
+    server_list = server_subparsers.add_parser("list", help="List configured servers")
+    server_list.add_argument("--json", action="store_true", help="Output as JSON (to stdout)")
 
     server_add = server_subparsers.add_parser("add", help="Add a new server")
     server_add.add_argument("name", help="Server name")
@@ -682,6 +909,31 @@ def create_parser() -> argparse.ArgumentParser:
     server_add.add_argument("--env", nargs="*", help="Environment variables (KEY=VALUE)")
     server_add.add_argument("--cwd", dest="cwd", help="Working directory")
     server_add.add_argument("--notes", help="Setup notes")
+    server_add.add_argument("--transport", help="Transport-specific configuration as a JSON object")
+    server_add.add_argument("--disable", action="store_true", help="Add the server in a disabled state")
+
+    server_update = server_subparsers.add_parser(
+        "update",
+        help="Update an existing server",
+        description="Update fields of an existing server. "
+        "Pass an empty value (e.g. --notes '') to clear an optional field.",
+    )
+    server_update.add_argument("name", help="Server name")
+    server_update.add_argument("--source", help="URL of the server package/repository")
+    server_update.add_argument("--prefix", help="Tool prefix ('' to clear)")
+    server_update.add_argument("--command", help="Command to run the server ('' to clear)")
+    server_update.add_argument("--uri", help="URI for HTTP servers ('' to clear)")
+    server_update.add_argument(
+        "--env", nargs="*", help="Environment variables (KEY=VALUE); replaces existing, no values to clear"
+    )
+    server_update.add_argument("--cwd", dest="cwd", help="Working directory ('' to clear)")
+    server_update.add_argument("--notes", help="Setup notes ('' to clear)")
+    server_update.add_argument("--transport", help="Transport configuration as a JSON object ('' to clear)")
+    update_enable_group = server_update.add_mutually_exclusive_group()
+    update_enable_group.add_argument(
+        "--enable", dest="enable", action="store_true", default=None, help="Enable the server"
+    )
+    update_enable_group.add_argument("--disable", dest="enable", action="store_false", help="Disable the server")
 
     server_remove = server_subparsers.add_parser("remove", help="Remove a server")
     server_remove.add_argument("name", help="Server name")
@@ -695,6 +947,7 @@ def create_parser() -> argparse.ArgumentParser:
 
     server_info = server_subparsers.add_parser("info", help="Show detailed information about a server")
     server_info.add_argument("name", help="Server name")
+    server_info.add_argument("--json", action="store_true", help="Output as JSON (to stdout)")
 
     config_parser = subparsers.add_parser("config", help="Manage configuration")
     config_subparsers = config_parser.add_subparsers(dest="config_action", help="Config actions", required=True)
@@ -709,7 +962,8 @@ def create_parser() -> argparse.ArgumentParser:
     kit_parser = subparsers.add_parser("kit", help="Manage kits")
     kit_subparsers = kit_parser.add_subparsers(dest="kit_action", help="Kit actions", required=True)
 
-    kit_subparsers.add_parser("list", help="List available kits")
+    kit_list = kit_subparsers.add_parser("list", help="List available kits")
+    kit_list.add_argument("--json", action="store_true", help="Output as JSON (to stdout)")
 
     kit_load = kit_subparsers.add_parser("load", help="Load a kit into configuration")
     kit_load.add_argument("name", help="Kit name to load")
@@ -717,6 +971,15 @@ def create_parser() -> argparse.ArgumentParser:
     kit_load.add_argument(
         "--no-enable", dest="enable", action="store_false", help="Force disable all servers after loading"
     )
+
+    kit_unload = kit_subparsers.add_parser(
+        "unload",
+        help="Unload a kit from configuration",
+        description="Unload a kit. Servers that belong only to this kit are removed; "
+        "servers shared with other kits are kept.",
+    )
+    kit_unload.add_argument("name", help="Kit name to unload")
+    kit_unload.add_argument("--force", "-f", action="store_true", help="Unload without confirmation")
 
     kit_info = kit_subparsers.add_parser("info", help="Show information about a kit")
     kit_info.add_argument("name", help="Kit name")

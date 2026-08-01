@@ -193,7 +193,9 @@ class KitManager:
         for server_name, server_config in kit_config.servers.items():
             if server_name in config.servers:
                 if kit_name not in config.servers[server_name].kits:
-                    config.servers[server_name].kits.append(kit_name)
+                    # Assign rather than append so pydantic marks the field as set -
+                    # ConfigManager.save_config serializes with exclude_unset
+                    config.servers[server_name].kits = [*config.servers[server_name].kits, kit_name]
                     servers_updated.append(server_name)
             else:
                 server_config.kits = [kit_name]
@@ -231,7 +233,7 @@ class KitManager:
                     servers_to_update.append(server_name)
 
         for server_name in servers_to_update:
-            config.servers[server_name].kits.remove(kit_name)
+            config.servers[server_name].kits = [k for k in config.servers[server_name].kits if k != kit_name]
 
         for server_name in servers_to_remove:
             del config.servers[server_name]

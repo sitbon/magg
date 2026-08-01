@@ -143,6 +143,16 @@ class TestServerAddCLI:
         captured = capsys.readouterr()
         assert "already exists" in captured.err
 
+    @pytest.mark.asyncio
+    async def test_add_without_command_or_uri_warns(self, config_path, capsys):
+        """Source-only servers are allowed but cannot be mounted - warn about it."""
+        result = await run_server_cmd(config_path, "add", "placeholder", "https://example.com")
+        assert result == 0
+        assert "placeholder" in load_servers(config_path)
+
+        captured = capsys.readouterr()
+        assert "neither a command nor a URI" in captured.err
+
 
 class TestServerUpdateCLI:
     """Test magg server update."""

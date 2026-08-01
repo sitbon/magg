@@ -173,6 +173,10 @@ async def cmd_add_server(args) -> int:
 
     config.add_server(server)
 
+    if not server.command and not server.uri:
+        print_warning("Server has neither a command nor a URI - it cannot be mounted, and a running")
+        print_warning("Magg instance will not apply config reloads until one is set via 'server update'")
+
     if config_manager.save_config(config):
         info = f"Added server '{args.name}'\n  Source: {args.source}\n  Prefix: {server.prefix}"
         if server.command:
@@ -933,7 +937,9 @@ def create_parser() -> argparse.ArgumentParser:
     update_enable_group.add_argument(
         "--enable", dest="enable", action="store_true", default=None, help="Enable the server"
     )
-    update_enable_group.add_argument("--disable", dest="enable", action="store_false", help="Disable the server")
+    update_enable_group.add_argument(
+        "--disable", dest="enable", action="store_false", default=None, help="Disable the server"
+    )
 
     server_remove = server_subparsers.add_parser("remove", help="Remove a server")
     server_remove.add_argument("name", help="Server name")

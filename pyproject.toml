@@ -104,6 +104,7 @@ include = [
     "readme.md",
     "license.md",
     "contributing.md",
+    "server.json",
     "compose.yaml",
     "dockerfile",
     ".dockerignore",

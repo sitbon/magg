@@ -1,0 +1,31 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.sitbon/magg",
+  "title": "Magg",
+  "description": "Aggregates and proxies other MCP servers, letting LLMs discover, add, and manage tools at runtime.",
+  "repository": {
+    "url": "https://github.com/sitbon/magg",
+    "source": "github"
+  },
+  "version": "1.1.0",
+  "websiteUrl": "https://github.com/sitbon/magg",
+  "packages": [
+    {
+      "registryType": "pypi",
+      "registryBaseUrl": "https://pypi.org",
+      "identifier": "magg",
+      "version": "1.1.0",
+      "runtimeHint": "uvx",
+      "transport": {
+        "type": "stdio"
+      },
+      "packageArguments": [
+        {
+          "type": "positional",
+          "value": "serve",
+          "description": "Run the Magg server (stdio transport by default)"
+        }
+      ]
+    }
+  ]
+}

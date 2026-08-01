@@ -23,6 +23,9 @@ Magg (MCP Aggregator) is a meta-MCP server that acts as a central hub for managi
 
 > **MCP 2026-07-28**: For how Magg relates to the stateless MCP spec release — and the migration
 > plan — see [Magg and the Stateless MCP Spec](mcp-stateless.md).
+>
+> **Official MCP Registry**: `magg_search_servers` queries the official registry, and Magg ships
+> a `server.json` manifest for publishing — see [MCP Registry Documentation](mcp-registry.md).
 
 ### Core Concepts
 

@@ -491,6 +491,12 @@ Magg appears in multiple locations. Please feel free to submit a PR to add more 
 * [DeepWiki](https://deepwiki.com/sitbon/magg) - AI-generated documentation
 * [Glama.ai](https://glama.ai/mcp/servers/@sitbon/magg) - MCP server listing and hosting
 
+Magg ships a [`server.json`](server.json) manifest for the
+[official MCP Registry](https://registry.modelcontextprotocol.io) (as `io.github.sitbon/magg`),
+and `magg_search_servers` queries the registry as a first-class discovery source alongside
+Glama, GitHub, and npm. See [MCP Registry Documentation](docs/mcp-registry.md) for publishing
+instructions.
+
 ### Awesome GitHub MCP Lists
 
 * [@modelcontextprotocol/servers](https://github.com/modelcontextprotocol/servers)

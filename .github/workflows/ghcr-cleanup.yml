@@ -1,0 +1,44 @@
+name: GHCR Cleanup
+
+# Deletes ephemeral container images from GHCR:
+#   - pr-* tags (per-PR images pushed via the 'push-image' label)
+#   - untagged manifests left behind by moving tags (dev, beta, pr-NN, etc.)
+#
+# Complements the cleanup-untagged job in docker-publish.yml, which runs after
+# branch pushes but never on PR events - this catches what it misses (pr-* tags
+# and untagged manifests orphaned by labeled-PR re-pushes).
+#
+# Version tags (1.2.3, 1.2, *-dev-py3.x) and moving branch tags (dev, beta)
+# are never touched, so production systems that pin versions are unaffected.
+
+on:
+  schedule:
+    - cron: '17 4 * * 1'  # Weekly, Monday 04:17 UTC
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run (log deletions without making changes)'
+        required: true
+        default: true
+        type: boolean
+
+jobs:
+  cleanup:
+    name: Clean up ephemeral images
+    runs-on: ubuntu-latest
+
+    permissions:
+      packages: write
+
+    steps:
+      - name: Delete pr-* tags and untagged images
+        uses: dataaxiom/ghcr-cleanup-action@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          package: magg
+          delete-tags: 'pr-*'
+          exclude-tags: 'dev,beta,beta-dev,latest'
+          delete-untagged: true
+          older-than: 1 week
+          dry-run: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
+          validate: true

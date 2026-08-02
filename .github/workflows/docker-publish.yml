@@ -9,13 +9,16 @@ on:
       - 'pyproject.toml'
       - 'uv.lock'
       - 'dockerfile'
+      - '.github/workflows/docker-publish.yml'
   pull_request:
     branches: [ main, beta ]
+    types: [ opened, synchronize, reopened, labeled ]
     paths:
       - 'magg/**'
       - 'pyproject.toml'
       - 'uv.lock'
       - 'dockerfile'
+      - '.github/workflows/docker-publish.yml'
   workflow_dispatch:
 
 env:
@@ -74,6 +77,7 @@ jobs:
         with:
           name: dev-image-${{ matrix.python-version }}
           path: dev-image-${{ matrix.python-version }}.tar
+          retention-days: 1
 
   test-dev-image:
     name: Test Dev Container
@@ -109,7 +113,15 @@ jobs:
     runs-on: ubuntu-latest
 
     needs: [build-dev-image, test-dev-image]
-    if: ${{ always() && needs.build-dev-image.result == 'success' && (needs.test-dev-image.result == 'success' || needs.test-dev-image.result == 'skipped') }}
+    # On pull requests, images are only pushed when a maintainer adds the
+    # 'push-image' label, and never from forks (their GITHUB_TOKEN cannot
+    # push packages). Branch and tag pushes always publish.
+    if: >-
+      ${{ always() && needs.build-dev-image.result == 'success' &&
+          (needs.test-dev-image.result == 'success' || needs.test-dev-image.result == 'skipped') &&
+          (github.event_name != 'pull_request' ||
+           (github.event.pull_request.head.repo.full_name == github.repository &&
+            contains(github.event.pull_request.labels.*.name, 'push-image'))) }}
 
     permissions:
       contents: read
@@ -226,7 +238,12 @@ jobs:
           context: .
           file: ./dockerfile
           target: ${{ matrix.target }}
-          push: ${{ github.event_name != 'pull_request' }}
+          # Same policy as Push Dev Images: PRs only push with the
+          # 'push-image' label, and never from forks.
+          push: >-
+            ${{ github.event_name != 'pull_request' ||
+                (github.event.pull_request.head.repo.full_name == github.repository &&
+                 contains(github.event.pull_request.labels.*.name, 'push-image')) }}
           tags: ${{ steps.meta.outputs.tags }}
           cache-from: type=gha
           cache-to: type=gha,mode=max

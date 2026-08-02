@@ -8,6 +8,7 @@ on:
       - 'test/**'
       - 'pyproject.toml'
       - 'uv.lock'
+      - '.github/workflows/test.yml'
   pull_request:
     branches: ['*']
     paths:
@@ -15,6 +16,7 @@ on:
       - 'test/**'
       - 'pyproject.toml'
       - 'uv.lock'
+      - '.github/workflows/test.yml'
 
 permissions:
   contents: read

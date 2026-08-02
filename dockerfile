@@ -124,6 +124,7 @@ LABEL org.opencontainers.image.source=https://github.com/sitbon/magg \
 ENV MAGG_LOG_LEVEL=DEBUG
 
 ADD --chown=${USER}:${USER} test/ ./test/
+ADD --chown=${USER}:${USER} server.json ./
 
 RUN --mount=type=cache,uid=1000,gid=1000,target=${HOME}/.cache/uv \
     --mount=type=bind,source=uv.lock,target=uv.lock \

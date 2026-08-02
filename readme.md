@@ -360,7 +360,42 @@ Servers can be added in several ways:
    prefix: pw
    ```
 
-3. **Direct config editing**: Edit `.magg/config.json` directly
+3. **The `magg server` CLI** (see below)
+
+4. **Direct config editing**: Edit `.magg/config.json` directly
+
+### Managing Servers from the CLI
+
+Server and kit configuration can be managed entirely from the command line — no MCP client
+or running server required. The CLI edits `.magg/config.json` directly, and a running Magg
+instance picks up the changes automatically via [config reload](docs/config-reload.md).
+(Tools that require a live server, like `magg_search_servers`, `magg_check`, and
+`magg_smart_configure`, remain available through any MCP client such as `mbro`.)
+
+```bash
+# List servers (human-readable, or JSON on stdout for scripting)
+magg server list
+magg server list --json
+
+# Add a server
+magg server add playwright https://github.com/microsoft/playwright-mcp \
+    --command "npx @playwright/mcp@latest" --prefix pw
+
+# Add a server without enabling it, with transport options
+magg server add web https://example.com/web --uri http://localhost:9000/mcp \
+    --transport '{"keep_alive": false}' --disable
+
+# Update an existing server (pass '' to clear an optional field)
+magg server update playwright --prefix play --notes "Browser automation"
+magg server update playwright --command "npx @playwright/mcp@next"
+magg server update playwright --notes ""
+
+# Enable / disable / inspect / remove
+magg server enable playwright
+magg server disable playwright
+magg server info playwright --json
+magg server remove playwright
+```
 
 ### Real-time Notifications with MaggClient
 
@@ -398,7 +433,13 @@ magg kit unload web-tools
 
 # Get information about a kit
 magg kit info web-tools
+
+# Export the current configuration (or a loaded kit) as a kit file
+magg kit export --name my-kit --output my-kit.json
 ```
+
+When unloading a kit, servers that belong only to that kit are removed, while servers
+shared with other kits are kept.
 
 You can also manage kits programmatically through Magg's tools when connected via an MCP client:
 - `magg_list_kits` - List all available kits
@@ -428,6 +469,15 @@ EOF
 mbro -x setup.mbro
 ```
 
+## MCP 2026-07-28 (Stateless Spec)
+
+The MCP 2026-07-28 spec moves the protocol to a stateless request/response core. Magg's take:
+something still has to own long-lived stdio subprocesses, backend connections, and tool-list
+caching — and that's exactly the layer an aggregator provides. See
+[Magg and the Stateless MCP Spec](docs/mcp-stateless.md) for the impact analysis and migration
+plan, including how Magg bridges pre-2026 (stateful) backends to stateless-era clients and how
+hierarchical Magg deployments fit in.
+
 ## Documentation
 
 For more documentation, see [docs/](docs/index.md).
@@ -440,6 +490,12 @@ Magg appears in multiple locations. Please feel free to submit a PR to add more 
 
 * [DeepWiki](https://deepwiki.com/sitbon/magg) - AI-generated documentation
 * [Glama.ai](https://glama.ai/mcp/servers/@sitbon/magg) - MCP server listing and hosting
+
+Magg ships a [`server.json`](server.json) manifest for the
+[official MCP Registry](https://registry.modelcontextprotocol.io) (as `io.github.sitbon/magg`),
+and `magg_search_servers` queries the registry as a first-class discovery source alongside
+Glama, GitHub, and npm. See [MCP Registry Documentation](docs/mcp-registry.md) for publishing
+instructions.
 
 ### Awesome GitHub MCP Lists
 

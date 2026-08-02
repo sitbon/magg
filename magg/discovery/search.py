@@ -28,6 +28,8 @@ class ToolSearchResult:
 class ToolSearchEngine:
     """Engine for searching and discovering MCP tools."""
 
+    REGISTRY_URL = "https://registry.modelcontextprotocol.io/v0/servers"
+
     def __init__(self):
         self.logger = logging.getLogger(__name__)
         self.session: aiohttp.ClientSession | None = None
@@ -39,6 +41,96 @@ class ToolSearchEngine:
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         if self.session:
             await self.session.close()
+
+    async def search_registry(self, query: str, limit: int = 10) -> list[ToolSearchResult]:
+        """Search the official MCP Registry (registry.modelcontextprotocol.io)."""
+        if not self.session:
+            raise RuntimeError("ToolSearchEngine must be used as async context manager")
+
+        try:
+            params = {"search": query, "version": "latest", "limit": limit}
+
+            async with self.session.get(self.REGISTRY_URL, params=params) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    return self._parse_registry_results(data)
+                else:
+                    self.logger.warning("MCP Registry search failed with status %s", response.status)
+                    return []
+
+        except Exception as e:
+            self.logger.error("Error searching MCP Registry: %s", e)
+            return []
+
+    @classmethod
+    def _parse_registry_results(cls, data: dict[str, Any]) -> list[ToolSearchResult]:
+        """Parse official MCP Registry search results."""
+        results = []
+
+        for entry in data.get("servers", []):
+            server = entry.get("server", {})
+            if not server.get("name"):
+                continue
+
+            packages = server.get("packages") or []
+            remotes = server.get("remotes") or []
+            repository = server.get("repository") or {}
+
+            url = server.get("websiteUrl") or repository.get("url")
+            if not url and remotes:
+                url = remotes[0].get("url")
+
+            tags = []
+            for package in packages:
+                registry_type = package.get("registryType")
+                if registry_type and registry_type not in tags:
+                    tags.append(registry_type)
+            if remotes:
+                tags.append("remote")
+
+            official_meta = entry.get("_meta", {}).get("io.modelcontextprotocol.registry/official", {})
+
+            result = ToolSearchResult(
+                name=server.get("name", ""),
+                description=server.get("description", ""),
+                source="mcp-registry",
+                url=url,
+                tags=tags,
+                rating=None,
+                install_command=cls._registry_install_command(packages),
+                metadata={
+                    "version": server.get("version"),
+                    "title": server.get("title"),
+                    "repository": repository or None,
+                    "packages": packages or None,
+                    "remotes": remotes or None,
+                    "status": official_meta.get("status"),
+                    "updated_at": official_meta.get("updatedAt"),
+                },
+            )
+            results.append(result)
+
+        return results
+
+    @classmethod
+    def _registry_install_command(cls, packages: list[dict[str, Any]]) -> str | None:
+        """Generate an install/run command from registry package metadata."""
+        for package in packages:
+            identifier = package.get("identifier")
+            if not identifier:
+                continue
+
+            match package.get("registryType"):
+                case "npm":
+                    return f"npx -y {identifier}"
+                case "pypi":
+                    return f"uvx {identifier}"
+                case "oci":
+                    return f"docker run --rm -i {identifier}"
+                case _:
+                    continue
+
+        return None
 
     async def search_glama(self, query: str, limit: int = 10) -> list[ToolSearchResult]:
         """Search glama.ai for MCP tools using their API."""
@@ -264,6 +356,7 @@ class ToolSearchEngine:
     async def search_all(self, query: str, limit_per_source: int = 5) -> dict[str, list[ToolSearchResult]]:
         """Search all available sources for tools."""
         tasks = [
+            ("mcp-registry", self.search_registry(query, limit_per_source)),
             ("glama", self.search_glama(query, limit_per_source)),
             ("github", self.search_github(query, limit_per_source)),
             ("npm", self.search_npm(query, limit_per_source)),
@@ -291,7 +384,7 @@ class ToolSearchEngine:
                 score += result.rating * 10
 
             # Bonus for certain sources
-            source_bonus = {"glama.ai": 5.0, "github": 3.0, "npm": 2.0}
+            source_bonus = {"mcp-registry": 6.0, "glama.ai": 5.0, "github": 3.0, "npm": 2.0}
             score += source_bonus.get(result.source, 0.0)
 
             # Bonus for having install command

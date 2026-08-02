@@ -1,13 +1,14 @@
 """Tests for kit CLI commands."""
 
+import json
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
 
-from magg.cli import cmd_kit
+from magg.cli import cmd_kit, create_parser
 from magg.kit import KitConfig
-from magg.settings import MaggConfig, ServerConfig
+from magg.settings import ConfigManager, MaggConfig, ServerConfig
 
 
 class TestKitCLI:
@@ -18,6 +19,7 @@ class TestKitCLI:
         """Create mock args object."""
         args = MagicMock()
         args.config = None
+        args.json = False
         return args
 
     @pytest.fixture
@@ -189,12 +191,13 @@ class TestKitCLI:
             with patch("magg.cli.ConfigManager", return_value=mock_config_instance):
                 await cmd_kit(mock_args)
 
-        # Check that existing server was not overwritten
+        # Check that existing server was not overwritten, but gained kit membership
         assert config.servers["test-server"].source == "https://different.com"
+        assert "test-kit" in config.servers["test-server"].kits
 
         # Check output
         captured = capsys.readouterr()
-        assert "Skipped 1 servers already in configuration" in captured.err
+        assert "Updated kit membership for 1 existing servers" in captured.err
         assert "test-server" in captured.err
 
     @pytest.mark.asyncio
@@ -280,3 +283,152 @@ class TestKitCLI:
 
         captured = capsys.readouterr()
         assert "Failed to save configuration" in captured.err
+
+
+class TestKitUnloadCLI:
+    """Test kit unload CLI command with real kit files and config."""
+
+    @pytest.fixture
+    def kit_env(self, tmp_path, monkeypatch):
+        """Isolated MAGG_PATH with two kits sharing a server."""
+        magg_dir = tmp_path / ".magg"
+        kitd = magg_dir / "kit.d"
+        kitd.mkdir(parents=True)
+
+        (kitd / "alpha.json").write_text(
+            json.dumps(
+                {
+                    "description": "Alpha kit",
+                    "servers": {
+                        "shared": {"source": "https://example.com/shared", "command": "echo shared"},
+                        "alpha-only": {"source": "https://example.com/a", "command": "echo a"},
+                    },
+                }
+            )
+        )
+        (kitd / "beta.json").write_text(
+            json.dumps(
+                {
+                    "description": "Beta kit",
+                    "servers": {
+                        "shared": {"source": "https://example.com/shared", "command": "echo shared"},
+                        "beta-only": {"source": "https://example.com/b", "command": "echo b"},
+                    },
+                }
+            )
+        )
+
+        monkeypatch.setenv("MAGG_PATH", str(magg_dir))
+        monkeypatch.delenv("MAGG_CONFIG_PATH", raising=False)
+        monkeypatch.delenv("MAGG_READ_ONLY", raising=False)
+        return magg_dir / "config.json"
+
+    async def run_kit_cmd(self, config_path, *argv) -> int:
+        args = create_parser().parse_args(["--config", str(config_path), "kit", *argv])
+        return await cmd_kit(args) or 0
+
+    def load_config(self, config_path):
+        return ConfigManager(config_path).load_config()
+
+    @pytest.mark.asyncio
+    async def test_unload_removes_exclusive_servers(self, kit_env, capsys):
+        assert await self.run_kit_cmd(kit_env, "load", "alpha") == 0
+        assert await self.run_kit_cmd(kit_env, "unload", "alpha", "--force") == 0
+
+        config = self.load_config(kit_env)
+        assert "alpha" not in config.kits
+        assert config.servers == {}
+
+        captured = capsys.readouterr()
+        assert "unloaded successfully" in captured.err
+
+    @pytest.mark.asyncio
+    async def test_unload_preserves_shared_servers(self, kit_env, capsys):
+        assert await self.run_kit_cmd(kit_env, "load", "alpha") == 0
+        assert await self.run_kit_cmd(kit_env, "load", "beta") == 0
+
+        # Loading beta must register kit membership on the shared server
+        config = self.load_config(kit_env)
+        assert sorted(config.servers["shared"].kits) == ["alpha", "beta"]
+
+        assert await self.run_kit_cmd(kit_env, "unload", "alpha", "--force") == 0
+
+        config = self.load_config(kit_env)
+        assert "alpha" not in config.kits
+        assert "beta" in config.kits
+        assert "alpha-only" not in config.servers
+        assert config.servers["shared"].kits == ["beta"]
+        assert "beta-only" in config.servers
+
+    @pytest.mark.asyncio
+    async def test_load_already_loaded(self, kit_env, capsys):
+        assert await self.run_kit_cmd(kit_env, "load", "alpha") == 0
+        result = await self.run_kit_cmd(kit_env, "load", "alpha")
+        assert result == 1
+
+        captured = capsys.readouterr()
+        assert "Kit 'alpha' is already loaded" in captured.err
+
+    @pytest.mark.asyncio
+    async def test_load_persists_membership_for_manually_added_server(self, kit_env, capsys):
+        """Regression: kit membership on a pre-existing server must survive save/load.
+
+        Servers added via 'magg server add' have no 'kits' key in config.json; the
+        membership added by 'kit load' must be persisted anyway (exclude_unset).
+        """
+        from magg.cli import cmd_server
+
+        args = create_parser().parse_args(
+            ["--config", str(kit_env), "server", "add", "shared", "https://example.com/shared", "--command", "echo hi"]
+        )
+        assert await cmd_server(args) == 0
+
+        assert await self.run_kit_cmd(kit_env, "load", "alpha") == 0
+
+        captured = capsys.readouterr()
+        assert "Updated kit membership for 1 existing servers" in captured.err
+
+        # Membership must survive a round-trip through config.json
+        config = self.load_config(kit_env)
+        assert config.servers["shared"].kits == ["alpha"]
+
+        # And unload must now treat the server as belonging to the kit
+        assert await self.run_kit_cmd(kit_env, "unload", "alpha", "--force") == 0
+        config = self.load_config(kit_env)
+        assert "shared" not in config.servers
+
+    @pytest.mark.asyncio
+    async def test_unload_not_loaded(self, kit_env, capsys):
+        result = await self.run_kit_cmd(kit_env, "unload", "alpha")
+        assert result == 1
+
+        captured = capsys.readouterr()
+        assert "Kit 'alpha' is not loaded" in captured.err
+
+    @pytest.mark.asyncio
+    async def test_unload_cancelled_without_force(self, kit_env, capsys):
+        assert await self.run_kit_cmd(kit_env, "load", "alpha") == 0
+
+        with patch("magg.cli.confirm_action", return_value=False):
+            result = await self.run_kit_cmd(kit_env, "unload", "alpha")
+        assert result == 0
+
+        config = self.load_config(kit_env)
+        assert "alpha" in config.kits
+        assert "alpha-only" in config.servers
+
+        captured = capsys.readouterr()
+        assert "Unload cancelled" in captured.err
+
+    @pytest.mark.asyncio
+    async def test_kit_list_json(self, kit_env, capsys):
+        assert await self.run_kit_cmd(kit_env, "load", "alpha") == 0
+        capsys.readouterr()
+
+        assert await self.run_kit_cmd(kit_env, "list", "--json") == 0
+
+        captured = capsys.readouterr()
+        data = json.loads(captured.out)
+        assert data["kits"]["alpha"]["loaded"] is True
+        assert data["kits"]["beta"]["loaded"] is False
+        assert sorted(data["kits"]["alpha"]["servers"]) == ["alpha-only", "shared"]

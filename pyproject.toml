@@ -1,6 +1,6 @@
 [project]
 name = "magg"
-version = "1.1.0"
+version = "1.2.0"
 requires-python = ">=3.12"
 description = "MCP Aggregator"
 authors = [{ name = "Phillip Sitbon", email = "phillip.sitbon@gmail.com"}]
@@ -104,6 +104,7 @@ include = [
     "readme.md",
     "license.md",
     "contributing.md",
+    "server.json",
     "compose.yaml",
     "dockerfile",
     ".dockerignore",

@@ -136,6 +136,11 @@ Images are automatically published to GitHub Container Registry with the followi
 - **Branch tags** (from beta branch): `beta`, `beta-dev`
 - **Python-specific dev tags**: `beta-dev-py3.12`, `beta-dev-py3.13`, etc.
 
+Pull requests build and test images but do not publish them unless a maintainer adds the
+`push-image` label, which publishes ephemeral `pr-NN` / `pr-NN-dev` tags (same-repo PRs
+only). Ephemeral `pr-*` tags and untagged manifests are cleaned up weekly; version tags
+are kept forever, so pinned deployments are never affected.
+
 #### Docker Compose
 
 For easier management, use Docker Compose:

@@ -29,14 +29,19 @@ To publish a release (requires GitHub authentication as the `sitbon` account or 
 member, since the `io.github.sitbon/*` namespace is verified via GitHub login):
 
 ```bash
-# Install the publisher CLI
-brew install mcp-publisher
-# or: go install github.com/modelcontextprotocol/registry/cmd/publisher@latest
+# Install the publisher CLI (prebuilt binary; also available via brew on macOS)
+curl -L "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_linux_amd64.tar.gz" \
+    | tar xz mcp-publisher
+install -Dm755 mcp-publisher ~/.local/bin/mcp-publisher
 
 # From the repo root
 mcp-publisher login github
 mcp-publisher publish
 ```
+
+Note: building from source with `go install .../cmd/publisher@latest` produces a binary named
+`publisher` (not `mcp-publisher`) in `$(go env GOPATH)/bin`, which is typically `~/go/bin` and
+not on `PATH` by default — the prebuilt binary above is the simpler route.
 
 **Release checklist**: the `version` fields in `server.json` (both the top-level version
 and the pypi package version) must be bumped to match `pyproject.toml` before

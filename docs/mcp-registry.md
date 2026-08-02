@@ -47,3 +47,10 @@ not on `PATH` by default — the prebuilt binary above is the simpler route.
 and the pypi package version) must be bumped to match `pyproject.toml` before
 publishing, and the PyPI release must already exist — the registry verifies that the
 referenced package version is published.
+
+**Ownership verification**: the registry proves control of the PyPI package by requiring
+the line `mcp-name: io.github.sitbon/magg` in the package README as published on PyPI
+(it fetches `https://pypi.org/pypi/magg/json` and checks the description). The marker
+lives in `readme.md` (Appearances section) — do not remove it. Because PyPI descriptions
+are immutable per release, a release published without the marker cannot be registered;
+publish a new version instead.

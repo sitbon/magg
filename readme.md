@@ -497,6 +497,8 @@ and `magg_search_servers` queries the registry as a first-class discovery source
 Glama, GitHub, and npm. See [MCP Registry Documentation](docs/mcp-registry.md) for publishing
 instructions.
 
+mcp-name: io.github.sitbon/magg
+
 ### Awesome GitHub MCP Lists
 
 * [@modelcontextprotocol/servers](https://github.com/modelcontextprotocol/servers)

@@ -61,12 +61,17 @@ mbro connect calc npx -y @modelcontextprotocol/server-calculator \; tools
 # Multiple commands separated by semicolons
 mbro connect magg http://localhost:8080 \; call magg_status
 
-# Read commands from stdin
+# Run commands and exit instead of dropping into interactive mode
+mbro -n connect calc npx -y @modelcontextprotocol/server-calculator \; call add a=5 b=3
+
+# Read commands from stdin (runs non-interactively)
 echo "connect calc npx calculator; tools" | mbro -
 
 # Execute a script file
 mbro -x setup.mbro
 ```
+
+In non-interactive mode (`-n`, `-X`, or `-`), mbro exits with status 1 if any command failed (unknown command, failed connection, no active connection, tool error, invalid arguments, ...). Commands keep running after a failure unless `--fail-fast` is given.
 
 ### Authentication
 
@@ -123,7 +128,8 @@ mbro:memory> prompt summarize topic=recent_memories max_length=500
 | `connections` | List all connections | `connections` |
 | `connect <name> <connection>` | Connect to a server | `connect calc npx -y @modelcontextprotocol/server-calculator` |
 | `switch <name>` | Switch to another connection | `switch calc` |
-| `disconnect` | Disconnect from current server | `disconnect` |
+| `disconnect <name>` | Disconnect from a server | `disconnect calc` |
+| `status` | Show the current connection's tool, resource, and prompt counts | `status` |
 
 ### Tool Operations
 
@@ -152,13 +158,17 @@ mbro:memory> prompt summarize topic=recent_memories max_length=500
 |---------|-------------|---------|
 | `search <query>` | Search tools, resources, and prompts | `search add` |
 | `info <type> <name>` | Get detailed info | `info tool add` |
-| `status` | Show connection status | `status` |
 
 ### Utility Commands
 
 | Command | Description | Example |
 |---------|-------------|---------|
-| `exit` / `quit` | Exit mbro | `exit` |
+| `script run <name>` | Run a script by name or path | `script run setup` |
+| `script list [filter]` | List discovered scripts | `script list` |
+| `script search <regex>` | Search script names and contents | `script search calc` |
+| `script dump <name>` | Show (or edit and run) a script | `script dump setup` |
+| `help` | Show available commands | `help` |
+| `exit` / `quit` | Exit mbro (also stops a running script) | `exit` |
 
 ## Advanced Features
 
@@ -205,20 +215,21 @@ mbro -x setup.mbro -n
 - **Comments**: Lines starting with `#` are ignored
 - **Empty lines**: Ignored for readability
 - **Line continuation**: Use backslash `\` at end of line
+- **Multi-line JSON**: A JSON object argument can span lines until its braces balance
 - **All commands supported**: Any interactive command works in scripts
-- **Error handling**: Scripts continue on errors unless fatal
+- **Error handling**: Scripts continue after a failed command (or stop with `--fail-fast`); `quit` stops the script
 
 #### Script Discovery
 
 mbro can discover scripts in configured paths:
 ```bash
 # List available scripts
-mbro scripts
+mbro -n script list
 
-# Scripts are searched in:
-# - Current directory: ./.mbro/
-# - Home directory: ~/.mbro/
-# - MAGG_PATH directories
+# Scripts (*.mbro, searched recursively) are found in the Magg path:
+# - Project directory: ./.magg/
+# - Home directory: ~/.magg/
+# - Or the directories in MAGG_PATH (colon-separated)
 ```
 
 #### Example Scripts
@@ -247,7 +258,7 @@ call get_test_results format=json
 
 # Cleanup
 call cleanup_test_data
-disconnect
+disconnect test
 ```
 
 ### Modern CLI Features
@@ -304,12 +315,12 @@ Tab completion provides rich parameter information:
 - **ESC to cancel**: Exit completion without selecting
 - **Smart parsing**: Detects existing parameters to avoid duplicates
 
-#### 💡 Intelligent Error Suggestions
-When errors occur, get helpful suggestions:
+#### 💡 Tool Name Suggestions
+Calling an unknown tool suggests close matches:
 ```bash
 mbro> call wether {"city": "London"}
-Error: Tool 'wether' not found.
-Did you mean: weather, whether_tool?
+Error: Failed to call tool 'wether': Unknown tool: 'wether'
+Did you mean: weather?
 ```
 
 #### ⚡ Search
@@ -335,10 +346,11 @@ mbro supports multiple ways to provide tool arguments:
 
 #### JSON Format (Traditional)
 ```bash
-# In interactive mode, use JSON directly (no surrounding quotes)
+# In interactive mode and scripts, use JSON directly (surrounding single quotes are optional)
 call search {"query": "python tutorials", "limit": 10}
+call search '{"query": "python tutorials", "limit": 10}'
 
-# Complex nested structures
+# Complex nested structures (can span multiple lines)
 call create_task {
   "title": "Review PR",
   "details": {
@@ -348,9 +360,11 @@ call create_task {
   "tags": ["urgent", "review"]
 }
 
-# From command line, quotes may be needed for shell parsing
-mbro --call-tool search '{"query": "python tutorials"}'
+# From the command line, quote the JSON so the shell keeps its double quotes
+mbro -n connect s python server.py \; call search '{"query": "python tutorials"}'
 ```
+
+Prompts accept the same formats: `prompt greet name=Bob` or `prompt greet {"name": "Bob"}`.
 
 #### Shell-Style Key=Value Format (New!)
 ```bash
@@ -366,6 +380,8 @@ call configure debug=true port=8080 timeout=30.5
 # Nested structures need JSON
 call create_task title="Review PR" details='{"repo": "myproject", "pr_number": 123}'
 ```
+
+Values are decoded as JSON (numbers, `true`/`false`, `null`, arrays, objects) and anything that isn't valid JSON stays a string, so `code=007` and `range=10-20` are passed as strings. If the tool's input schema declares a parameter as a string, its value is always passed as-is (`id=12345` stays `"12345"`). Prompt arguments are always strings.
 
 #### Multiline Support
 ```bash
@@ -399,6 +415,10 @@ mbro connect filesystem npx -y @modelcontextprotocol/server-filesystem
 mbro connect myserver python -m mypackage.mcp_server \; tools
 mbro connect api http://localhost:3000 \; status
 ```
+
+A URL without a path (like `http://localhost:3000`) connects to the default `/mcp/` endpoint; URLs with a path (`/mcp`, `/sse`, ...) are used as given.
+
+Connecting fails with the underlying reason (for example, a missing command or a refused connection). If the server doesn't finish initializing within 30 seconds, the connection attempt times out; use `--timeout SECONDS` to change this (`0` disables it).
 
 ### Running Magg in stdio Mode
 
@@ -446,16 +466,17 @@ mbro --repl
 ```
 
 In the Python REPL, you have access to:
-- `current_connection`: The active MCP connection object
+- `current_connection`: The connection that was active when the REPL started (e.g. from a `-x` script), or `None`
 - `self`: The MCPBrowserCLI instance for executing commands
 - All standard Python functionality with async/await support
 
 Example REPL session:
 ```python
 >>> # Direct access to the current connection
->>> tools = await current_connection.list_tools()
->>> print(tools[0].name)
-'add'
+>>> conn = self.browser.get_current_connection()
+>>> tools = await conn.get_tools()
+>>> print(tools[0]["name"])
+add
 
 >>> # Execute mbro commands via self
 >>> await self.handle_command('tools')
@@ -464,7 +485,7 @@ Available tools:
   ...
 
 >>> # Call a tool directly
->>> result = await current_connection.call_tool('add', {'a': 5, 'b': 3})
+>>> result = await conn.call_tool('add', {'a': 5, 'b': 3})
 >>> print(result)
 [TextContent(type='text', text='8')]
 ```
@@ -483,7 +504,7 @@ When used with Magg, mbro can browse the aggregated server:
 magg serve --http --port 8000
 
 # In another terminal, connect mbro to Magg
-mbro --connect magg http://localhost:8000
+mbro connect magg http://localhost:8000/mcp
 ```
 
 This allows you to use mbro to explore all tools from all servers managed by Magg through a single interface.
@@ -592,7 +613,7 @@ $ cat > weather_check.mbro << 'EOF'
 # Weather check script
 connect weather npx -y @modelcontextprotocol/server-weather
 call get_forecast location="San Francisco" days=3
-disconnect
+disconnect weather
 quit
 EOF
 
@@ -680,10 +701,14 @@ mbro -q connect calc npx -y @modelcontextprotocol/server-calculator \; call add 
    - `-n` / `--no-interactive` - Don't drop into interactive mode after commands
    - `-x SCRIPT` / `--execute-script SCRIPT` - Execute .mbro script file (can be used multiple times)
    - `-X SCRIPT` / `--execute-script-n SCRIPT` - Execute script in non-interactive mode (equivalent to -n -x)
+   - `--status-bar` - Show status bar with keyboard shortcuts
+   - `--fail-fast` - Stop running commands and scripts at the first failure
+   - `--timeout SECONDS` - Server initialization timeout when connecting (0 to disable, default: 30)
    - `--help` - Show help message
 
 Special command line usage:
-   - Use `-` as command to read from stdin
+   - Use `-` as command to read commands from stdin (non-interactive)
+   - In non-interactive mode, the exit status is 1 if any command failed
    - Use `\;` to separate multiple commands (escape semicolon)
    - Scripts provide reusable command sequences
    - Minimal quoting: only quote values with spaces

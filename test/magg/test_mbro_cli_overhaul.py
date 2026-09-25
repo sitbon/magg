@@ -77,7 +77,7 @@ class TestMBroCLIOverhaul:
     async def test_handle_commands_from_args(self):
         """Test handling commands from command line args."""
         cli = MagicMock()
-        cli.handle_command = AsyncMock()
+        cli.run_commands = AsyncMock()
 
         args = MagicMock()
         args.commands = ["connect test python server.py", ";", "tools"]
@@ -85,15 +85,13 @@ class TestMBroCLIOverhaul:
         executed = await handle_commands(cli, args)
 
         assert executed is True
-        assert cli.handle_command.call_count == 2
-        cli.handle_command.assert_any_call("connect test python server.py")
-        cli.handle_command.assert_any_call("tools")
+        cli.run_commands.assert_awaited_once_with(["connect test python server.py", "tools"])
 
     @pytest.mark.asyncio
     async def test_handle_commands_from_stdin(self):
         """Test handling commands from stdin."""
         cli = MagicMock()
-        cli.handle_command = AsyncMock()
+        cli.run_commands = AsyncMock()
 
         args = MagicMock()
         args.commands = ["-"]
@@ -104,9 +102,7 @@ class TestMBroCLIOverhaul:
             executed = await handle_commands(cli, args)
 
         assert executed is True
-        assert cli.handle_command.call_count == 2
-        cli.handle_command.assert_any_call("connect test python server.py")
-        cli.handle_command.assert_any_call("tools")
+        cli.run_commands.assert_awaited_once_with(["connect test python server.py", "tools"])
 
     def test_cli_command_parsing_with_comments(self):
         """Test that CLI properly handles comments."""

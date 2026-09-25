@@ -102,7 +102,7 @@ class ScriptManager:
         script_path = self.find_script(script_ref)
         if not script_path:
             self.formatter.format_error(f"Script not found: {script_ref!r}")
-            exit(1)
+            return
 
         try:
             script_content = script_path.read_text()
@@ -110,13 +110,7 @@ class ScriptManager:
             self.formatter.format_error(f"Failed to read script: {e}")
             return
 
-        commands = CommandParser.split_commands(script_content)
-
-        for command in commands:
-            if command.strip():
-                if self.cli.verbose:
-                    self.formatter.format_info(f"> {command}")
-                await self.cli.handle_command(command)
+        await self.cli.run_commands(CommandParser.split_commands(script_content))
 
     async def list_scripts(self, args: List[str]):
         """List available scripts with optional filter."""
@@ -203,7 +197,7 @@ class ScriptManager:
         script_path = self.find_script(script_ref)
         if not script_path:
             self.formatter.format_error(f"Script not found: {script_ref!r}")
-            exit(1)
+            return
 
         try:
             script_content = script_path.read_text()
@@ -219,12 +213,7 @@ class ScriptManager:
             )
 
             if edited is not None:
-                commands = CommandParser.split_commands(edited)
-                for command in commands:
-                    if command.strip():
-                        if self.cli.verbose:
-                            self.formatter.format_info(f"> {command}")
-                        await self.cli.handle_command(command)
+                await self.cli.run_commands(CommandParser.split_commands(edited))
         else:
             self.formatter.format_info(f"Script: {script_path.name}")
             self.formatter.print(script_content)

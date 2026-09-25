@@ -237,7 +237,7 @@ class SourceMetadataCollector:
             owner, repo = path_parts[0], path_parts[1]
 
             # Fetch from GitHub API
-            async with aiohttp.ClientSession() as session:
+            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=15)) as session:
                 api_url = f"https://api.github.com/repos/{owner}/{repo}"
 
                 async with session.get(api_url) as response:

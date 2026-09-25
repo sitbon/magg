@@ -737,7 +737,12 @@ async def cmd_auth(args) -> int:
 
             auth_manager = BearerAuthManager(auth_config.bearer)
 
-            auth_manager.generate_keys()
+            try:
+                auth_manager.generate_keys()
+            except RuntimeError as e:
+                print_error(str(e))
+                return 1
+
             print_success(f"Generated new RSA keypair for audience '{auth_config.bearer.audience}'")
             print_text(
                 f"Private key: {auth_config.bearer.key_path}/{auth_config.bearer.audience}.key\n"
@@ -748,6 +753,7 @@ async def cmd_auth(args) -> int:
             if (
                 auth_config.bearer.issuer != default_config.issuer
                 or auth_config.bearer.audience != default_config.audience
+                or auth_config.bearer.key_path != default_config.key_path
             ):
                 if config_manager.save_auth_config(auth_config):
                     print_info(f"Auth config saved to: {config_manager.auth_config_path}")
@@ -775,9 +781,6 @@ async def cmd_auth(args) -> int:
 
                 if auth_config.bearer.public_key_exists:
                     print_info(f"SSH public key exists: {auth_config.bearer.public_key_path}")
-
-                if auth_config.bearer.private_key_env:
-                    print_info("Private key also available via MAGG_PRIVATE_KEY env var")
             else:
                 print_info("Authentication is DISABLED")
                 print_text("Run 'magg auth init' to enable authentication")
@@ -843,7 +846,7 @@ async def cmd_auth(args) -> int:
 
                     if args.export:
                         single_line = pem.replace("\n", "\\n")
-                        print(f"export MAGG_PRIVATE_KEY={single_line}")
+                        print(f"export MAGG_PRIVATE_KEY={shlex.quote(single_line)}")
                     elif args.oneline:
                         single_line = pem.replace("\n", "\\n")
                         print(single_line)

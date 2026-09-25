@@ -1,6 +1,7 @@
 """Authentication support for Magg."""
 
 import logging
+import os
 import time
 from functools import cached_property
 
@@ -60,7 +61,7 @@ class BearerAuthManager:
 
         private_key = self._generate_keypair()
         if private_key is None:
-            raise RuntimeError("Failed to generate keypair")
+            raise RuntimeError(f"Failed to generate keypair in {self.bearer_config.key_path} (see log for details)")
 
         self._private_key = private_key
         self._public_key = self._derive_public_key(private_key)
@@ -86,11 +87,12 @@ class BearerAuthManager:
         try:
             private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048, backend=default_backend())
 
-            self.bearer_config.key_path.mkdir(mode=0o700, exist_ok=True)
+            self.bearer_config.key_path.mkdir(mode=0o700, parents=True, exist_ok=True)
 
             private_path = self.bearer_config.private_key_path
 
-            with private_path.open("wb") as f:
+            # Create owner-only from the start so the key is never readable by others
+            with os.fdopen(os.open(private_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), "wb") as f:
                 f.write(
                     private_key.private_bytes(
                         encoding=serialization.Encoding.PEM,
@@ -98,7 +100,6 @@ class BearerAuthManager:
                         encryption_algorithm=serialization.NoEncryption(),
                     )
                 )
-            private_path.chmod(0o600)
 
             ssh_public_path = self.bearer_config.public_key_path
             public_key = private_key.public_key()

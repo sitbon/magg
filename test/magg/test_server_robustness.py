@@ -296,7 +296,6 @@ class TestReadOnly:
             await server.load_kit(name="k"),
             await server.unload_kit(name="k"),
             await server.check(action="disable"),
-            await server.check(action="unmount"),
         ]
 
         for response in responses:

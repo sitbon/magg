@@ -250,7 +250,9 @@ Documentation for proxy tool:
         self,
         name: Annotated[str, Field(description="Unique server name")],
         source: Annotated[str, Field(description="URL of the server package/repository")],
-        prefix: Annotated[str | None, Field(description="Tool prefix (defaults to conformed server name)")] = None,
+        prefix: Annotated[
+            str | None, Field(description="Tool prefix (default: none, tools keep their original names)")
+        ] = None,
         command: Annotated[
             str | None,
             Field(description="Full command to run (e.g., 'python server.py', 'npx @playwright/mcp@latest')"),
@@ -804,8 +806,9 @@ Please provide:
         timeout: Annotated[float, Field(description="Timeout in seconds for health check per server")] = 2.5,
     ) -> MaggResponse:
         """Check health of all mounted servers and handle unresponsive ones."""
-        if action != "report" and self.config.read_only:
-            return MaggResponse.error(f"Check action {action!r} is not allowed in read-only mode")
+        # Remounting and unmounting only affect this process; disabling writes the config
+        if action == "disable" and self.config.read_only:
+            return MaggResponse.error("Check action 'disable' is not allowed in read-only mode")
 
         try:
             results = {}

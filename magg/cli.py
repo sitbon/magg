@@ -872,6 +872,9 @@ def create_parser() -> argparse.ArgumentParser:
         prog="magg",
         description="Magg - MCP Aggregator: Manage and aggregate MCP servers",
         epilog='Use "magg <command> --help" for more information about a command.',
+        # Some Python versions (e.g. 3.12.3) match subcommand options like "server update --env"
+        # against abbreviations of global options, which fails as ambiguous
+        allow_abbrev=False,
     )
 
     parser.add_argument(

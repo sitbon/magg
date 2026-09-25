@@ -8,6 +8,7 @@ import shlex
 from pathlib import Path
 
 from cryptography.hazmat.primitives import serialization
+from pydantic import ValidationError
 
 from . import __version__, process
 from .auth import BearerAuthManager
@@ -27,7 +28,10 @@ from .util.terminal import (
     print_warning,
 )
 
-process.setup(source=__name__)
+try:
+    process.setup(source=__name__)
+except ValidationError:
+    pass  # Reported by main() without a traceback
 
 logger: logging.Logger = logging.getLogger(__name__)
 
@@ -1060,10 +1064,26 @@ async def run():
         exit(1)
 
 
+def format_validation_error(error: ValidationError) -> str:
+    """Describe a settings validation error in a line per field, pointing at the env var for MaggConfig."""
+    lines = []
+    for err in error.errors():
+        field = ".".join(str(part) for part in err["loc"])
+        line = f"Invalid setting {field!r}: {err['msg']} (got {err['input']!r})"
+        if error.title == "MaggConfig" and len(err["loc"]) == 1:
+            line += f". Check MAGG_{field.upper()} in your environment or .env file."
+        lines.append(line)
+    return "\n".join(lines)
+
+
 def main():
     """Run the CLI."""
-    process.setup()
-    asyncio.run(run())
+    try:
+        process.setup()
+        asyncio.run(run())
+    except ValidationError as e:
+        print_error(format_validation_error(e))
+        exit(1)
 
 
 if __name__ == "__main__":

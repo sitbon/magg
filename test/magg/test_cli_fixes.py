@@ -4,6 +4,7 @@ import asyncio
 import json
 import os
 import subprocess
+import sys
 import time
 
 import pytest
@@ -125,3 +126,18 @@ def _no_real_private_key(monkeypatch):
     # A MAGG_PRIVATE_KEY in the developer's environment would change auth behavior
     if "MAGG_PRIVATE_KEY" in os.environ:
         monkeypatch.delenv("MAGG_PRIVATE_KEY")
+
+
+class TestInvalidSettings:
+    """Bad MAGG_* values produce a readable error, not a traceback."""
+
+    def test_invalid_env_value(self, tmp_path):
+        env = {**os.environ, "MAGG_AUTO_RELOAD": "maybe", "MAGG_CONFIG_PATH": str(tmp_path / "config.json")}
+
+        result = subprocess.run(
+            [sys.executable, "-m", "magg", "server", "list"], capture_output=True, text=True, env=env, timeout=60
+        )
+
+        assert result.returncode == 1
+        assert "MAGG_AUTO_RELOAD" in result.stderr
+        assert "Traceback" not in result.stderr

@@ -5,10 +5,14 @@ import logging
 import os
 from dataclasses import dataclass
 from functools import cached_property
+from pathlib import Path
 from typing import Annotated
 
 from fastmcp import Client, FastMCP
+from fastmcp.client.transports import StdioTransport
 from fastmcp.server import create_proxy
+from fastmcp.server.providers import FastMCPProvider, Provider
+from fastmcp.server.transforms import Namespace
 from pydantic import Field
 
 from ..auth import BearerAuthManager
@@ -16,7 +20,6 @@ from ..kit import KitManager
 from ..proxy.server import BackendMessageHandler, ProxyFastMCP
 from ..reload import ConfigChange, ServerChange
 from ..settings import ConfigManager, MaggConfig, ServerConfig
-from ..util.stdio_patch import patch_stdio_transport_stderr
 from ..util.transport import get_transport_for_command, get_transport_for_uri
 from .defaults import MAGG_INSTRUCTIONS
 from .response import MaggResponse
@@ -30,6 +33,7 @@ class MountedServer:
 
     proxy: FastMCP
     client: Client
+    provider: Provider | None = None
 
 
 class ServerManager:
@@ -38,7 +42,9 @@ class ServerManager:
     config_manager: ConfigManager
     mcp: ProxyFastMCP
     mounted_servers: dict[str, MountedServer]
+    mount_errors: dict[str, str]
     subprocess_env: dict | None = None
+    auth_error: str | None = None
 
     def __init__(self, config_manager: ConfigManager, *, env: dict | None = None):
         self.config_manager = config_manager
@@ -52,8 +58,12 @@ class ServerManager:
             try:
                 auth_provider = auth_manager.provider
                 logger.debug("Authentication enabled (bearer)")
-            except RuntimeError as e:
-                logger.warning("Authentication disabled: %s", e)
+            except RuntimeError:
+                bearer = auth_config.bearer
+                key_source = "MAGG_PRIVATE_KEY" if bearer.private_key_env else str(bearer.private_key_path)
+                self.auth_error = f"Private key from {key_source} could not be loaded (invalid or passphrase-protected)"
+                # Only fatal when serving HTTP (see require_http_auth); stdio does not use auth
+                logger.warning("%s; bearer authentication is unavailable", self.auth_error)
 
         self.mcp = ProxyFastMCP(
             name=self.self_prefix,
@@ -61,6 +71,12 @@ class ServerManager:
             auth=auth_provider,
         )
         self.mounted_servers = {}
+        self.mount_errors = {}
+
+    def require_http_auth(self) -> None:
+        """Refuse to serve HTTP when a configured private key failed to load (fail closed)."""
+        if self.auth_error:
+            raise RuntimeError(f"{self.auth_error}; refusing to serve HTTP without authentication")
 
     @property
     def config(self) -> MaggConfig:
@@ -94,6 +110,7 @@ class ServerManager:
             return False
 
         try:
+            config = self.config
             message_handler = BackendMessageHandler(server_id=server.name, coordinator=self.mcp.message_coordinator)
 
             if server.command:
@@ -102,11 +119,12 @@ class ServerManager:
                 if server.env or self.subprocess_env:
                     env = {}
 
-                    if server.env:
-                        env.update(server.env)
-
+                    # Per-server env takes precedence over the inherited/provided environment
                     if self.subprocess_env:
                         env.update(self.subprocess_env)
+
+                    if server.env:
+                        env.update(server.env)
 
                 transport = get_transport_for_command(
                     command=server.command,
@@ -116,91 +134,57 @@ class ServerManager:
                     transport_config=server.transport,
                 )
 
-                if not self.config.stderr_show:
-                    transport = patch_stdio_transport_stderr(transport)
-
-                client = Client(transport, message_handler=message_handler)
+                if not config.stderr_show and isinstance(transport, StdioTransport):
+                    transport.log_file = Path(os.devnull)
 
             elif server.uri:
                 transport = get_transport_for_uri(uri=server.uri, transport_config=server.transport)
 
-                client = Client(transport, message_handler=message_handler)
-
             else:
                 logger.error("No command or URI specified for %s", server.name)
+                self.mount_errors[server.name] = "No command or URI specified"
                 return False
 
-            proxy_server = create_proxy(client, name=server.name)
-            self.mcp.mount(server=proxy_server, namespace=server.prefix)
+            # Bound connect/initialize so a hung backend can't block list operations indefinitely
+            init_timeout = config.backend_init_timeout if config.backend_init_timeout > 0 else None
+            client = Client(transport, message_handler=message_handler, init_timeout=init_timeout)
 
-            self.mounted_servers[server.name] = MountedServer(proxy=proxy_server, client=client)
+            # Build the provider that FastMCP.mount() would add, so we can remove it on unmount
+            proxy_server = create_proxy(client, name=server.name)
+            provider: Provider = FastMCPProvider(proxy_server)
+            if server.prefix:
+                provider = provider.wrap_transform(Namespace(server.prefix))
+            self.mcp.add_provider(provider)
+
+            self.mounted_servers[server.name] = MountedServer(proxy=proxy_server, client=client, provider=provider)
+            self.mount_errors.pop(server.name, None)
 
             logger.debug("Mounted server %s with prefix %r", server.name, server.prefix)
             return True
 
         except Exception as e:
             logger.error("Failed to mount server %s: %s", server.name, e)
+            self.mount_errors[server.name] = str(e)
             return False
-
-    def _unmount_from_fastmcp(self, server_name: str) -> bool:
-        """Remove a mounted server from FastMCP's internal structures.
-
-        This is a workaround until FastMCP provides an official unmount method.
-        Returns True if server was found and removed.
-        """
-        # We need to find and remove the MountedServer object from all managers
-        found = False
-
-        # Check tool manager
-        if hasattr(self.mcp, "_tool_manager") and hasattr(self.mcp._tool_manager, "_mounted_servers"):
-            mounted_servers = self.mcp._tool_manager._mounted_servers
-            for i, ms in enumerate(mounted_servers):
-                if hasattr(ms, "server") and hasattr(ms.server, "name") and ms.server.name == server_name:
-                    mounted_servers.pop(i)
-                    found = True
-                    logger.debug("Removed server %s from tool manager", server_name)
-                    break
-
-        # Check resource manager
-        if hasattr(self.mcp, "_resource_manager") and hasattr(self.mcp._resource_manager, "_mounted_servers"):
-            mounted_servers = self.mcp._resource_manager._mounted_servers
-            for i, ms in enumerate(mounted_servers):
-                if hasattr(ms, "server") and hasattr(ms.server, "name") and ms.server.name == server_name:
-                    mounted_servers.pop(i)
-                    found = True
-                    logger.debug("Removed server %s from resource manager", server_name)
-                    break
-
-        # Check prompt manager
-        if hasattr(self.mcp, "_prompt_manager") and hasattr(self.mcp._prompt_manager, "_mounted_servers"):
-            mounted_servers = self.mcp._prompt_manager._mounted_servers
-            for i, ms in enumerate(mounted_servers):
-                if hasattr(ms, "server") and hasattr(ms.server, "name") and ms.server.name == server_name:
-                    mounted_servers.pop(i)
-                    found = True
-                    logger.debug("Removed server %s from prompt manager", server_name)
-                    break
-
-        return found
 
     async def unmount_server(self, name: str) -> bool:
         """Unmount a server."""
         if name in self.mounted_servers:
-            unmounted = self._unmount_from_fastmcp(name)
-            if unmounted:
-                logger.debug("Unmounted server %s from FastMCP", name)
-            else:
-                logger.debug("Server %s was not found in FastMCP's mounted servers", name)
+            server_info = self.mounted_servers.pop(name)
 
-            server_info = self.mounted_servers.get(name)
-            if server_info and server_info.client:
+            if server_info.provider is not None and server_info.provider in self.mcp.providers:
+                self.mcp.providers.remove(server_info.provider)
+                logger.debug("Removed provider for server %s from FastMCP", name)
+            else:
+                logger.debug("Server %s had no provider registered with FastMCP", name)
+
+            if server_info.client:
                 try:
                     await server_info.client.close()
                     logger.debug("Closed client for server %s", name)
                 except Exception as e:
                     logger.warning("Error closing client for server %s: %s", name, e)
 
-            del self.mounted_servers[name]
             logger.debug("Unmounted server %s", name)
             return True
 
@@ -429,12 +413,14 @@ class ManagedServer:
 
     async def run_http(self, host: str = "localhost", port: int = 8000, log_level: str | None = None):
         """Run Magg in HTTP mode."""
+        self.server_manager.require_http_auth()
         log_level = log_level or os.getenv("FASTMCP_LOG_LEVEL", "CRITICAL").upper() or "CRITICAL"
         await self.setup()
         await self.mcp.run_http_async(host=host, port=port, log_level=log_level, show_banner=False)
 
     async def run_hybrid(self, host: str = "localhost", port: int = 8000, log_level: str | None = None):
         """Run Magg in hybrid mode - both stdio and HTTP simultaneously."""
+        self.server_manager.require_http_auth()
         log_level = log_level or os.getenv("FASTMCP_LOG_LEVEL", "CRITICAL").upper() or "CRITICAL"
 
         await self.setup()
@@ -491,6 +477,10 @@ class ManagedServer:
         """Load a kit and its servers into the configuration."""
         try:
             config = self.config
+
+            if config.read_only:
+                return MaggResponse.error("Cannot load kit in read-only mode")
+
             success, message = self.kit_manager.load_kit_to_config(name, config)
 
             if success:
@@ -515,6 +505,9 @@ class ManagedServer:
         """Unload a kit and optionally its servers from the configuration."""
         try:
             config = self.config
+
+            if config.read_only:
+                return MaggResponse.error("Cannot unload kit in read-only mode")
 
             servers_before = set(config.servers.keys())
 

@@ -99,6 +99,7 @@ class TestKitTools:
         """Test successfully unloading a kit."""
         # Create a persistent config object
         mock_config = MagicMock()
+        mock_config.read_only = False
         from magg.settings import KitInfo
 
         mock_config.kits = {"test-kit": KitInfo(name="test-kit", source="file")}

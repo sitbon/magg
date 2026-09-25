@@ -84,7 +84,7 @@ class ProxyMCP:
             str | None,
             Field(
                 description="Name or URI of the specific tool/resource/prompt (with FastMCP prefixing).\n"
-                "Not allowed for 'list' and 'info' actions.",
+                "Required for 'info' and 'call' actions; not allowed for 'list'.",
                 # validation_alias=AliasChoices("name", "uri"),
             ),
         ] = None,

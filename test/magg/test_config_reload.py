@@ -9,6 +9,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from magg.reload import ConfigChange, ConfigReloader, ServerChange
+from magg.server.manager import MountedServer
 from magg.server.runner import MaggRunner
 from magg.server.server import MaggServer
 from magg.settings import MaggConfig, ServerConfig
@@ -355,8 +356,8 @@ class TestMaggCheckResilience:
         mock_bad_client.list_tools.side_effect = Exception("Server session was closed unexpectedly")
 
         server.server_manager.mounted_servers = {
-            "good-server": {"client": mock_good_client},
-            "bad-server": {"client": mock_bad_client},
+            "good-server": MountedServer(proxy=None, client=mock_good_client),
+            "bad-server": MountedServer(proxy=None, client=mock_bad_client),
         }
 
         # Run check with default 0.5s timeout

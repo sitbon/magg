@@ -213,6 +213,11 @@ class MaggConfig(BaseSettings):
     stderr_show: bool = Field(
         default=False, description="Show stderr output from subprocess MCP servers (env: MAGG_STDERR_SHOW)"
     )
+    backend_init_timeout: float = Field(
+        default=30.0,
+        description="Seconds to wait for a backend server to connect and initialize, 0 to wait forever "
+        "(env: MAGG_BACKEND_INIT_TIMEOUT)",
+    )
     servers: dict[str, ServerConfig] = Field(
         default_factory=dict, description="Servers configuration (loaded from config_path)"
     )

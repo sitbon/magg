@@ -8,6 +8,7 @@ import stat
 import pytest
 from watchdog.events import FileMovedEvent
 
+from magg.kit import KitManager
 from magg.reload import ConfigReloader, WatchdogHandler
 from magg.settings import BearerAuthConfig, ConfigFileError, ConfigManager, MaggConfig, ServerConfig
 
@@ -240,3 +241,31 @@ class TestReload:
         config_path.write_text('{"servers": {')
         assert await reloader.reload_config() is None
         assert changes == []
+
+    @pytest.mark.asyncio
+    async def test_watchdog_can_be_disabled(self, config_path):
+        write_config(config_path, {"servers": {}})
+
+        async def callback(change):
+            pass
+
+        reloader = ConfigReloader(config_path, callback)
+        await reloader.start_watching(poll_interval=0.1, use_watchdog=False)
+        try:
+            assert reloader._observer is None
+        finally:
+            await reloader.stop_watching()
+
+
+class TestKitDiscovery:
+    """Kits next to an explicitly configured config file are found."""
+
+    def test_kitd_next_to_config(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("MAGG_PATH", str(tmp_path / "elsewhere"))
+        config_dir = tmp_path / "project"
+        (config_dir / "kit.d").mkdir(parents=True)
+        (config_dir / "kit.d" / "local.json").write_text(json.dumps({"name": "local", "servers": {}}))
+
+        kit_manager = KitManager(ConfigManager(str(config_dir / "config.json")))
+
+        assert "local" in kit_manager.discover_kits()

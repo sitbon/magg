@@ -120,11 +120,12 @@ class ConfigReloader:
         self._observer: Observer | None = None
         self._watchdog_handler: WatchdogHandler | None = None
 
-    async def start_watching(self, poll_interval: float = 1.0) -> None:
+    async def start_watching(self, poll_interval: float = 1.0, use_watchdog: bool | None = None) -> None:
         """Start watching the config file for changes.
 
         Args:
             poll_interval: How often to check for changes (seconds) - only used for polling mode
+            use_watchdog: Use file system notifications (True), polling (False), or auto-detect (None)
         """
         if self._watch_task and not self._watch_task.done():
             logger.warning("Config watcher already running")
@@ -133,17 +134,20 @@ class ConfigReloader:
         self._shutdown_event.clear()
         self._reload_event.clear()
 
-        # Try to start watchdog observer
-        try:
-            self._observer = Observer()
-            self._watchdog_handler = WatchdogHandler(self.config_path, self._reload_event)
-            self._observer.schedule(self._watchdog_handler, str(self.config_path.parent), recursive=False)
-            self._observer.start()
-            logger.debug("Started config file watcher using file system notifications (watchdog)")
-        except Exception as e:
-            logger.warning("Failed to start watchdog observer: %s. Falling back to polling mode.", e)
-            self._observer = None
-            self._watchdog_handler = None
+        # Try to start watchdog observer, unless polling was requested
+        if use_watchdog is not False:
+            try:
+                self._observer = Observer()
+                self._watchdog_handler = WatchdogHandler(self.config_path, self._reload_event)
+                self._observer.schedule(self._watchdog_handler, str(self.config_path.parent), recursive=False)
+                self._observer.start()
+                logger.debug("Started config file watcher using file system notifications (watchdog)")
+            except Exception as e:
+                logger.warning("Failed to start watchdog observer: %s. Falling back to polling mode.", e)
+                self._observer = None
+                self._watchdog_handler = None
+
+        if not self._observer:
             logger.debug("Using polling mode (interval: %.1fs)", poll_interval)
 
         # Start the main watch loop
@@ -412,7 +416,9 @@ class ReloadManager:
                     reload_callback=reload_callback,
                     config_manager=self.config_manager,
                 )
-                await self._config_reloader.start_watching(poll_interval=config.reload_poll_interval)
+                await self._config_reloader.start_watching(
+                    poll_interval=config.reload_poll_interval, use_watchdog=config.reload_use_watchdog
+                )
 
     async def stop(self) -> None:
         """Stop config file watching."""

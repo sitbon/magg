@@ -69,6 +69,10 @@ class KitManager:
         else:
             config = MaggConfig()
             self.kitd_paths = config.get_kitd_paths()
+            # MAGG_CONFIG_PATH or --config can put the config outside the search path
+            config_kitd = config_manager.config_path.parent / "kit.d"
+            if config_kitd.is_dir() and all(config_kitd.resolve() != p.resolve() for p in self.kitd_paths):
+                self.kitd_paths.insert(0, config_kitd)
         self._kits: dict[str, KitConfig] = {}
 
     def discover_kits(self) -> dict[str, Path]:

@@ -221,6 +221,11 @@ class MaggConfig(BaseSettings):
     reload_poll_interval: float = Field(
         default=1.0, description="Config file poll interval in seconds (env: MAGG_RELOAD_POLL_INTERVAL)"
     )
+    reload_use_watchdog: bool | None = Field(
+        default=None,
+        description="Use file system notifications (true) or polling (false) to detect config changes, "
+        "default auto-detect (env: MAGG_RELOAD_USE_WATCHDOG)",
+    )
     stderr_show: bool = Field(
         default=False, description="Show stderr output from subprocess MCP servers (env: MAGG_STDERR_SHOW)"
     )

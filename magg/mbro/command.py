@@ -1,5 +1,6 @@
 """Command handlers for mbro CLI."""
 
+import difflib
 import json
 from typing import TYPE_CHECKING
 
@@ -62,20 +63,23 @@ class Command:
         if connection_string.startswith('"') and connection_string.endswith('"'):
             connection_string = connection_string[1:-1]
 
-        success = await self.browser.add_connection(name, connection_string)
-        if success:
-            conn = self.browser.connections[name]
-            tools = await conn.get_tools()
-            resources = await conn.get_resources()
-            prompts = await conn.get_prompts()
-            if not self.cli.quiet:
-                self.formatter.format_success(
-                    f"Connected to '{name}' (Tools: {len(tools)}, Resources: {len(resources)}, Prompts: {len(prompts)})"
-                )
+        try:
+            await self.browser.add_connection(name, connection_string)
+        except Exception as e:
+            error_args = (e,) if self.cli.verbose else ()
+            self.formatter.format_error(f"Failed to connect to {name!r}: {e}", *error_args)
+            return
 
-            await self.cli.refresh_completer_cache()
-        else:
-            self.formatter.format_error(f"Failed to connect to {name!r}")
+        conn = self.browser.connections[name]
+        tools = await conn.get_tools()
+        resources = await conn.get_resources()
+        prompts = await conn.get_prompts()
+        if not self.cli.quiet:
+            self.formatter.format_success(
+                f"Connected to '{name}' (Tools: {len(tools)}, Resources: {len(resources)}, Prompts: {len(prompts)})"
+            )
+
+        await self.cli.refresh_completer_cache()
 
     async def switch(self, args: list):
         """Switch to a different connection."""
@@ -101,15 +105,21 @@ class Command:
         if not success:
             self.formatter.format_error(f"Connection {name!r} not found")
 
-    async def status(self):
+    async def status(self, args: list):
         """Get status of the current connection.
         This includes counts of tools, resources, and prompts.
         """
         conn = self.browser.get_current_connection()
+        if not conn:
+            self.formatter.format_error("No active connection.")
+            return
+
         tools = await conn.get_tools()
         resources = await conn.get_resources()
         prompts = await conn.get_prompts()
-        self.formatter.format_json({"tools": len(tools), "resources": len(resources), "prompts": len(prompts)})
+        self.formatter.format_json(
+            {"connection": conn.name, "tools": len(tools), "resources": len(resources), "prompts": len(prompts)}
+        )
 
     async def tools(self, args: list):
         """List available tools."""
@@ -122,7 +132,11 @@ class Command:
 
         tools = await conn.get_tools()
         if filter_term:
-            tools = [t for t in tools if filter_term in t["name"].lower() or filter_term in t["description"].lower()]
+            tools = [
+                t
+                for t in tools
+                if filter_term in t["name"].lower() or filter_term in (t.get("description") or "").lower()
+            ]
 
         if not tools:
             self.formatter.format_info(
@@ -169,7 +183,9 @@ class Command:
         prompts = await conn.get_prompts()
         if filter_term:
             prompts = [
-                p for p in prompts if filter_term in p["name"].lower() or filter_term in p["description"].lower()
+                p
+                for p in prompts
+                if filter_term in p["name"].lower() or filter_term in (p.get("description") or "").lower()
             ]
 
         if not prompts:
@@ -201,44 +217,16 @@ class Command:
             return
 
         tool_name = args[0]
-        arguments = {}
-
-        if len(args) > 1:
-            args_str = " ".join(args[1:])
-
-            if args_str.strip().startswith("{"):
-                try:
-                    arguments = json.loads(args_str)
-                except json.JSONDecodeError as e:
-                    self.formatter.format_error(f"Invalid JSON arguments: {e}")
-                    if not self.formatter.json_only:
-                        self.formatter.format_info(
-                            "\nJSON formatting tips:\n"
-                            '  - Use double quotes for strings: {"key": "value"}\n'
-                            '  - Numbers don\'t need quotes: {"count": 42}\n'
-                            '  - Booleans: {"enabled": true}\n'
-                            "  - Don't quote the entire JSON object\n"
-                            '  - Example: call tool {"param": "value"}'
-                        )
-                    return
-            else:
-                has_positional = False
-                for arg in args[1:]:
-                    if "=" not in arg and not arg.startswith("{"):
-                        has_positional = True
-                        break
-
-                if has_positional:
-                    self.formatter.format_error("Positional arguments are not supported. Use key=value syntax.")
-                    self.formatter.format_info(f"Example: call {tool_name} a=1 b=2")
-                    return
-
-                arguments = self.cli.parse_shell_args(args[1:])
 
         tools = await conn.get_tools()
         tool = next((t for t in tools if t["name"] == tool_name), None)
+        schema = tool.get("inputSchema", {}) if tool else {}
+
+        arguments = self._parse_arguments(f"call {tool_name}", args[1:], schema)
+        if arguments is None:
+            return
+
         if tool:
-            schema = tool.get("inputSchema", {})
             required = schema.get("required", [])
             if required:
                 missing = [param for param in required if param not in arguments]
@@ -271,6 +259,8 @@ class Command:
         except Exception as e:
             error_args = (e,) if self.cli.verbose else ()
             self.formatter.format_error(str(e), *error_args)
+            if not tool and (matches := difflib.get_close_matches(tool_name, [t["name"] for t in tools])):
+                self.formatter.format_info(f"Did you mean: {', '.join(matches)}?")
 
     async def resource(self, args: list):
         """Get a resource."""
@@ -295,12 +285,13 @@ class Command:
                     self.formatter.format_resource(result[0])
 
         except Exception as e:
-            self.formatter.format_error(f"Error getting resource: {e}", e)
+            error_args = (e,) if self.cli.verbose else ()
+            self.formatter.format_error(f"Error getting resource: {e}", *error_args)
 
     async def prompt(self, args: list):
         """Get a prompt."""
         if not args:
-            self.formatter.format_error("Usage: prompt <name> [json_arguments]")
+            self.formatter.format_error("Usage: prompt <name> [arguments]")
             return
 
         conn = self.browser.get_current_connection()
@@ -309,14 +300,11 @@ class Command:
             return
 
         name = args[0]
-        arguments = {}
 
-        if len(args) > 1:
-            try:
-                arguments = json.loads(" ".join(args[1:]))
-            except json.JSONDecodeError as e:
-                self.formatter.format_error(f"Invalid JSON arguments: {e}")
-                return
+        # Prompt arguments are strings in MCP, so key=value values are passed through as-is
+        arguments = self._parse_arguments(f"prompt {name}", args[1:], strings=True)
+        if arguments is None:
+            return
 
         try:
             result = await conn.get_prompt(name, arguments)
@@ -324,7 +312,8 @@ class Command:
             self.formatter.format_prompt_result(result)
 
         except Exception as e:
-            self.formatter.format_error(f"Error getting prompt: {e}", e)
+            error_args = (e,) if self.cli.verbose else ()
+            self.formatter.format_error(f"Error getting prompt: {e}", *error_args)
 
     async def search(self, args: list):
         """Search tools, resources, and prompts."""
@@ -345,8 +334,8 @@ class Command:
 
         def matches_item(item, search_term):
             """Check if item matches search term with word splitting."""
-            name = item.get("name", "").lower()
-            desc = item.get("description", "").lower()
+            name = (item.get("name") or "").lower()
+            desc = (item.get("description") or "").lower()
 
             # Direct substring match
             if search_term in name or search_term in desc:
@@ -416,6 +405,40 @@ class Command:
     async def script(self, args: list):
         """Handle script commands."""
         await self.script_manager.handle_script_command(args)
+
+    def _parse_arguments(
+        self, usage: str, args: list, schema: dict | None = None, *, strings: bool = False
+    ) -> dict | None:
+        """Parse call/prompt arguments given as a JSON object or key=value pairs.
+
+        Returns None if the arguments are invalid (the error has already been reported).
+        """
+        if not args:
+            return {}
+
+        args_str = " ".join(args)
+
+        if args_str.strip().startswith("{"):
+            try:
+                return json.loads(args_str)
+            except json.JSONDecodeError as e:
+                self.formatter.format_error(f"Invalid JSON arguments: {e}")
+                if not self.formatter.json_only:
+                    self.formatter.format_info(
+                        "\nJSON formatting tips:\n"
+                        '  - Use double quotes for strings: {"key": "value"}\n'
+                        '  - Numbers don\'t need quotes: {"count": 42}\n'
+                        '  - Booleans: {"enabled": true}\n'
+                        f'  - Example: {usage} {{"param": "value"}}'
+                    )
+                return None
+
+        if any("=" not in arg for arg in args):
+            self.formatter.format_error("Positional arguments are not supported. Use key=value syntax.")
+            self.formatter.format_info(f"Example: {usage} a=1 b=2")
+            return None
+
+        return self.cli.parse_shell_args(args, schema, strings=strings)
 
     async def _handle_proxy_query_result(self, tool_name: str, result: list) -> bool:
         """

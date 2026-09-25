@@ -20,6 +20,8 @@ class OutputFormatter:
         self.console_stdout = Console(file=sys.stdout) if self.use_rich else None
         self.json_only = json_only
         self.indent = indent if indent > 0 else None
+        # Lets callers tell whether a command reported a failure
+        self.error_count = 0
 
     def format_json(self, data: Any) -> None:
         """Format and print JSON data."""
@@ -32,6 +34,8 @@ class OutputFormatter:
 
     def format_error(self, message: str, exception: Exception | None = None) -> None:
         """Format and print an error message."""
+        self.error_count += 1
+
         if self.json_only:
             error_data = {"error": message}
             if exception:
@@ -455,12 +459,16 @@ class OutputFormatter:
             results = {
                 "query": term,
                 "total_matches": total_matches,
-                "tools": [{"name": t["name"], "description": t["description"]} for t in tools],
+                "tools": [{"name": t["name"], "description": t.get("description")} for t in tools],
                 "resources": [
-                    {"name": r["name"], "uri": r.get("uri", r.get("uriTemplate", "")), "description": r["description"]}
+                    {
+                        "name": r["name"],
+                        "uri": r.get("uri", r.get("uriTemplate", "")),
+                        "description": r.get("description"),
+                    }
                     for r in resources
                 ],
-                "prompts": [{"name": p["name"], "description": p["description"]} for p in prompts],
+                "prompts": [{"name": p["name"], "description": p.get("description")} for p in prompts],
             }
             self.format_json(results)
             return
@@ -525,7 +533,7 @@ class OutputFormatter:
                         {"command": "connections, conns", "description": "List all connections"},
                         {"command": "switch <name>", "description": "Switch to a different connection"},
                         {"command": "disconnect <name>", "description": "Disconnect from a server"},
-                        {"command": "status", "description": "Show current status"},
+                        {"command": "status", "description": "Show current connection status"},
                     ],
                     "server_exploration": [
                         {"command": "tools [filter]", "description": "List available tools"},
@@ -538,6 +546,14 @@ class OutputFormatter:
                         {"command": "call <tool_name> [args]", "description": "Call a tool"},
                         {"command": "resource <uri>", "description": "Get a resource"},
                         {"command": "prompt <name> [args]", "description": "Get a prompt"},
+                    ],
+                    "other": [
+                        {
+                            "command": "script <run|list|search|dump> ...",
+                            "description": "Run or manage .mbro scripts",
+                        },
+                        {"command": "help", "description": "Show this help"},
+                        {"command": "quit, exit", "description": "Exit mbro"},
                     ],
                 }
             }
@@ -552,7 +568,7 @@ Connection Management:
   connections, conns                  - List all connections
   switch <name>                       - Switch to a different connection
   disconnect <name>                   - Disconnect from a server
-  refresh                             - Refresh capabilities for current connection
+  status                              - Show current connection status
 
 Server Exploration:
   tools [filter]                      - List available tools
@@ -566,6 +582,11 @@ Tool Interaction:
   resource <uri>                      - Get a resource
   prompt <name> [args]                - Get a prompt
 
+Other:
+  script <run|list|search|dump> ...   - Run or manage .mbro scripts
+  help                                - Show this help
+  quit, exit                          - Exit mbro
+
 Examples:
   connect magg "http://localhost:8080"
   connect calc "npx @wrtnlabs/calculator-mcp"
@@ -573,6 +594,7 @@ Examples:
   call magg_status
   call magg_search_tools {"query": "calculator", "limit": 3}
   call add a=5 b=3
+  prompt greet name=Bob
   search calculator
   info tool magg_status
 

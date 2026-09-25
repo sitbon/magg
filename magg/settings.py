@@ -3,6 +3,8 @@
 import json
 import logging
 import os
+import stat
+import tempfile
 from functools import cached_property
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Coroutine
@@ -10,13 +12,22 @@ from typing import TYPE_CHECKING, Any, Callable, Coroutine
 if TYPE_CHECKING:
     from .reload import ConfigChange
 
-from pydantic import AnyUrl, BaseModel, Field, field_validator, model_validator
+from pydantic import AnyUrl, BaseModel, ConfigDict, Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from .util.paths import get_contrib_paths
 from .util.system import get_project_root
 
-__all__ = "ServerConfig", "MaggConfig", "ConfigManager", "AuthConfig", "BearerAuthConfig", "ClientSettings", "KitInfo"
+__all__ = (
+    "ServerConfig",
+    "MaggConfig",
+    "ConfigManager",
+    "ConfigFileError",
+    "AuthConfig",
+    "BearerAuthConfig",
+    "ClientSettings",
+    "KitInfo",
+)
 
 logger = logging.getLogger(__name__)
 
@@ -48,10 +59,10 @@ class ClientSettings(BaseSettings):
     jwt: str | None = Field(default=None, description="JWT token for authentication (env: MAGG_JWT)")
 
 
-class BearerAuthConfig(BaseSettings):
+class BearerAuthConfig(BaseModel):
     """Bearer token authentication configuration."""
 
-    model_config = SettingsConfigDict(
+    model_config = ConfigDict(
         extra="allow",
         validate_assignment=True,
     )
@@ -108,20 +119,20 @@ class BearerAuthConfig(BaseSettings):
         return self.public_key_path.exists()
 
 
-class AuthConfig(BaseSettings):
+class AuthConfig(BaseModel):
     """Top-level authentication configuration."""
 
-    model_config = SettingsConfigDict(
+    model_config = ConfigDict(
         extra="allow",
         validate_assignment=True,
     )
     bearer: BearerAuthConfig = Field(default_factory=BearerAuthConfig, description="Bearer token authentication config")
 
 
-class ServerConfig(BaseSettings):
+class ServerConfig(BaseModel):
     """Server configuration - defines how to run an MCP server."""
 
-    model_config = SettingsConfigDict(
+    model_config = ConfigDict(
         extra="allow",
         validate_assignment=True,
         arbitrary_types_allowed=True,
@@ -310,6 +321,44 @@ class MaggConfig(BaseSettings):
         return {name: server for name, server in self.servers.items() if server.enabled}
 
 
+class ConfigFileError(ValueError):
+    """The config file exists but couldn't be read or parsed."""
+
+
+def _is_valid_server(name: str, server_data: Any) -> bool:
+    try:
+        ServerConfig.model_validate({**server_data, "name": name})
+        return True
+    except Exception:
+        return False
+
+
+def _write_json_atomic(path: Path, data: Any) -> None:
+    """Write JSON through a temp file and rename, so a crash can't leave a truncated file."""
+    target = Path(os.path.realpath(path))  # Replace a symlink's target, not the link
+    fd, tmp_path = tempfile.mkstemp(dir=target.parent, prefix=f".{target.name}.", suffix=".tmp")
+
+    try:
+        with os.fdopen(fd, "w") as f:
+            json.dump(data, f, indent=2)
+            f.flush()
+            os.fsync(f.fileno())
+
+        try:
+            os.chmod(tmp_path, stat.S_IMODE(target.stat().st_mode))
+        except FileNotFoundError:
+            pass  # New file: keep mkstemp's owner-only permissions
+
+        os.replace(tmp_path, target)
+
+    except BaseException:
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+        raise
+
+
 class ConfigManager:
     """Manages Magg configuration persistence."""
 
@@ -346,94 +395,137 @@ class ConfigManager:
             if cached:
                 return cached
 
-        config = MaggConfig()
-
-        if not self.config_path.exists():
-            return config
-
         try:
-            with self.config_path.open("r") as f:
-                data = json.load(f)
+            return self.read_config()
+        except ConfigFileError as e:
+            self.logger.error("%s", e)
+            return MaggConfig()
 
-            servers = {}
+    def read_config(self) -> MaggConfig:
+        """Read configuration from disk, bypassing the reload cache.
 
-            for name, server_data in data.pop("servers", {}).items():
-                try:
-                    server_data["name"] = name
-                    servers[name] = ServerConfig.model_validate(server_data)
-                except Exception as e:
-                    self.logger.error("Error loading server %r: %s", name, e)
-                    continue
+        Entries that fail validation are logged and skipped. Raises ConfigFileError
+        if the file exists but can't be parsed.
+        """
+        config = MaggConfig()
+        data = self._read_config_data()
 
-            config.servers = servers
+        if data is None:
+            return config
 
-            if "kits" in data:
-                # Handle both old format (list of strings) and new format (dict)
-                kits_data = data.pop("kits", {})
-                if isinstance(kits_data, list):
-                    # Convert old format to new format
-                    config.kits = {kit_name: KitInfo(name=kit_name, source="legacy") for kit_name in kits_data}
-                else:
-                    # Load new format
-                    config.kits = {
-                        name: KitInfo.model_validate(kit_data) if isinstance(kit_data, dict) else KitInfo(name=name)
-                        for name, kit_data in kits_data.items()
-                    }
+        servers = {}
 
-            for key, value in data.items():
-                if not hasattr(config, key):
-                    self.logger.warning("Setting unknown config key %r in %s.", key, self.config_path)
+        for name, server_data in data.pop("servers", {}).items():
+            try:
+                servers[name] = ServerConfig.model_validate({**server_data, "name": name})
+            except Exception as e:
+                self.logger.error("Error loading server %r: %s", name, e)
+
+        config.servers = servers
+
+        # Handle both old format (list of strings) and new format (dict)
+        kits_data = data.pop("kits", {})
+        if isinstance(kits_data, list):
+            kits_data = {kit_name: {"name": kit_name, "source": "legacy"} for kit_name in kits_data}
+
+        kits = {}
+
+        for name, kit_data in kits_data.items():
+            try:
+                kits[name] = KitInfo.model_validate(kit_data) if isinstance(kit_data, dict) else KitInfo(name=name)
+            except Exception as e:
+                self.logger.error("Error loading kit %r: %s", name, e)
+
+        config.kits = kits
+
+        for key, value in data.items():
+            if not hasattr(config, key):
+                self.logger.warning("Setting unknown config key %r in %s.", key, self.config_path)
+            try:
                 setattr(config, key, value)
+            except Exception as e:
+                self.logger.error("Error loading config key %r: %s", key, e)
 
-            return config
+        return config
 
-        except Exception as e:
-            self.logger.error("Error loading config: %s", e)
-            return config
+    def _read_config_data(self) -> dict | None:
+        """Read the raw config file, or return None if it doesn't exist."""
+        try:
+            text = self.config_path.read_text()
+            if not text.strip():
+                return None
+            data = json.loads(text)
+        except FileNotFoundError:
+            return None
+        except (OSError, ValueError) as e:
+            raise ConfigFileError(f"Error loading config {self.config_path}: {e}") from e
+
+        if (
+            not isinstance(data, dict)
+            or not isinstance(data.get("servers", {}), dict)
+            or not isinstance(data.get("kits", {}), dict | list)
+        ):
+            raise ConfigFileError(
+                f'Error loading config {self.config_path}: expected a JSON object with a "servers" object'
+            )
+
+        return data
 
     def save_config(self, config: MaggConfig) -> bool:
-        """Save configuration to disk."""
-        if config.read_only:
+        """Save configuration to disk.
+
+        Settings and server entries in the file that couldn't be loaded are written back
+        unchanged, and a file that can't be parsed is never overwritten.
+        """
+        if config.read_only or self.read_only:
             self.logger.warning("Config is read-only, not saving.")
             return False
 
-        if self.read_only:
-            raise RuntimeError("Config read_only value cannot be changed after initialization.")
+        try:
+            data = self._read_config_data() or {}
+        except ConfigFileError as e:
+            self.logger.error("%s - not saving to avoid losing its contents. Fix or remove the file first.", e)
+            return False
 
         try:
-            # Notify the reloader to ignore the next file change since we're making it
-            if self._reload_manager:
-                self._reload_manager.ignore_next_change()
+            existing_servers = data.get("servers", {})
 
-            data = {
-                "servers": {
-                    name: server.model_dump(
-                        mode="json",
-                        exclude_unset=True,
-                        exclude_none=True,
-                        exclude_defaults=True,
-                        by_alias=True,
-                        exclude={"name"},
-                    )
-                    for name, server in config.servers.items()
-                }
+            data["servers"] = {
+                name: server.model_dump(
+                    mode="json",
+                    exclude_unset=True,
+                    exclude_none=True,
+                    exclude_defaults=True,
+                    by_alias=True,
+                    exclude={"name"},
+                )
+                for name, server in config.servers.items()
             }
+
+            # An entry that failed validation was never loaded, so it isn't missing because it was removed
+            for name, server_data in existing_servers.items():
+                if name not in data["servers"] and not _is_valid_server(name, server_data):
+                    self.logger.warning("Keeping invalid server %r in %s as-is", name, self.config_path)
+                    data["servers"][name] = server_data
 
             if config.kits:
                 data["kits"] = {
                     name: kit_info.model_dump(mode="json", exclude_unset=True, exclude_none=True, exclude_defaults=True)
                     for name, kit_info in config.kits.items()
                 }
+            else:
+                data.pop("kits", None)
 
             if not self.config_path.parent.exists():
                 self.logger.warning("Creating new directory: %s", self.config_path.parent)
                 self.config_path.parent.mkdir(parents=True, exist_ok=True)
 
-            with self.config_path.open("w") as f:
-                json.dump(data, f, indent=2)
+            _write_json_atomic(self.config_path, data)
 
-            # Update the reload manager's cached config to stay in sync
+            # Notify the reloader to ignore the change we just made
             if self._reload_manager:
+                self._reload_manager.ignore_next_change()
+                # Update the reload manager's cached config to stay in sync
                 self._reload_manager.update_cached_config(config)
 
             return True
@@ -509,8 +601,7 @@ class ConfigManager:
 
             data = auth_config.model_dump(mode="json", exclude_none=True)
 
-            with self.auth_config_path.open("w") as f:
-                json.dump(data, f, indent=2)
+            _write_json_atomic(self.auth_config_path, data)
 
             self.auth_config = auth_config
             return True

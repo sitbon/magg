@@ -5,18 +5,17 @@ import logging
 from pathlib import Path
 from typing import Any
 
-from pydantic import Field, field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from .settings import ConfigManager, KitInfo, MaggConfig, ServerConfig
 
 logger = logging.getLogger(__name__)
 
 
-class KitConfig(BaseSettings):
+class KitConfig(BaseModel):
     """Configuration for a kit - a bundle of related MCP servers."""
 
-    model_config = SettingsConfigDict(
+    model_config = ConfigDict(
         extra="allow",
         validate_assignment=True,
     )

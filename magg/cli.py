@@ -86,6 +86,31 @@ async def cmd_serve(args) -> int:
     if (args.http or args.hybrid) and not args.no_banner:
         print_startup_banner()
 
+    if args.http or args.hybrid:
+        config_manager = ConfigManager(args.config)
+        auth_config = config_manager.load_auth_config()
+
+        if not auth_config.bearer.private_key_exists:
+            if not getattr(args, "allow_unauthenticated", False):
+                auth_manager = BearerAuthManager(auth_config.bearer)
+                try:
+                    auth_manager.generate_keys()
+                    token = auth_manager.create_token(subject="magg-admin", hours=24 * 30)
+                    logger.info("Generated new bearer authentication keypair for HTTP mode.")
+                    print_info("\n" + "=" * 60)
+                    print_info("AUTHENTICATION ENABLED FOR HTTP ACCESS")
+                    print_info("Generated bearer access token (valid for 30 days):")
+                    print_info(f"  {token}")
+                    print_info("Use header: Authorization: Bearer <token>")
+                    print_info("=" * 60 + "\n")
+                except Exception as e:
+                    logger.warning("Failed to auto-generate bearer keys: %s", e)
+            else:
+                print_warning("\n" + "!" * 60)
+                print_warning("SECURITY WARNING: Running HTTP server without authentication!")
+                print_warning("The add_server tool exposes arbitrary command execution.")
+                print_warning("!" * 60 + "\n")
+
     env = get_subprocess_environment(inherit=args.env_pass, provided=args.env_set)
     runner = MaggRunner(args.config, env=env)
 
@@ -115,6 +140,11 @@ def cmd_serve_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--hybrid", action="store_true", help="Run in hybrid mode (both stdio and HTTP)")
     parser.add_argument("--host", type=str, default="localhost", help="HTTP server host address (default: localhost)")
     parser.add_argument("--port", type=int, default=8000, help="HTTP server port (default: 8000)")
+    parser.add_argument(
+        "--allow-unauthenticated",
+        action="store_true",
+        help="Allow running HTTP server without authentication (INSECURE)",
+    )
     parser.add_argument("--no-banner", action="store_true", help="Suppress startup banner")
 
 

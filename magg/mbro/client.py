@@ -3,6 +3,7 @@
 import logging
 import os
 from typing import Any
+from urllib.parse import urlparse
 
 from fastmcp import Client
 from fastmcp.client import BearerAuth
@@ -22,6 +23,8 @@ from mcp.types import (
 from magg.util.transport import get_transport_for_command_string, is_connection_string_url
 
 logger = logging.getLogger(__name__)
+
+DEFAULT_CONNECT_TIMEOUT = 30.0
 
 
 class BrowserConnection:
@@ -80,23 +83,33 @@ class BrowserConnection:
 
         return prompts_data
 
-    async def connect(self, env_pass: bool = False, env_vars: dict[str, str] | None = None) -> bool:
-        """Connect to the MCP server using FastMCP Client."""
+    @staticmethod
+    def normalize_url(url: str) -> str:
+        """Point a bare server URL (no path) at the default /mcp/ endpoint."""
+        parsed = urlparse(url)
+        if parsed.path in ("", "/"):
+            return parsed._replace(path="/mcp/").geturl()
+        return url
+
+    async def connect(
+        self, env_pass: bool = False, env_vars: dict[str, str] | None = None, timeout: float | None = None
+    ) -> None:
+        """Connect to the MCP server using FastMCP Client.
+
+        Raises the underlying error if the server can't be reached or doesn't initialize within `timeout`.
+        """
         jwt = os.getenv("MAGG_JWT", os.getenv("MBRO_JWT", os.getenv("MCP_JWT", None)))
         auth = BearerAuth(jwt) if jwt else None
 
         if is_connection_string_url(self.connection_string):
-            url = self.connection_string
-            if not url.endswith("/mcp/"):
-                url = url.rstrip("/") + "/mcp/"
-            client = Client(url, auth=auth)
+            client = Client(self.normalize_url(self.connection_string), auth=auth, init_timeout=timeout)
         else:
             from ..util.system import get_subprocess_environment
 
             env = get_subprocess_environment(inherit=env_pass, provided=env_vars)
 
             transport = get_transport_for_command_string(self.connection_string, env=env)
-            client = Client(transport, auth=auth)
+            client = Client(transport, auth=auth, init_timeout=timeout)
 
         try:
             async with client as conn:
@@ -106,12 +119,16 @@ class BrowserConnection:
                     logger.warning("Connected to %r but ping failed", client)
 
         except Exception as e:
-            logger.error("Failed to connect to MCP server: %s", e)
-            return False
+            # fastmcp's error doesn't say that initialization timed out
+            cause = e.__cause__
+            while cause is not None and not isinstance(cause, TimeoutError):
+                cause = cause.__cause__
+            if timeout and cause is not None:
+                raise TimeoutError(f"server did not initialize within {timeout:g}s") from e
+            raise
 
         self.client = client
         self.connected = True
-        return True
 
     async def call_tool(
         self, tool_name: str, arguments: dict[str, Any] = None
@@ -221,17 +238,27 @@ class BrowserClient:
     current_connection: str | None
     env_pass: bool
     env_vars: dict[str, str] | None
+    timeout: float | None
 
-    def __init__(self, env_pass: bool = False, env_vars: dict[str, str] | None = None):
+    def __init__(
+        self,
+        env_pass: bool = False,
+        env_vars: dict[str, str] | None = None,
+        timeout: float | None = DEFAULT_CONNECT_TIMEOUT,
+    ):
         self.connections: dict[str, BrowserConnection] = {}
         self.current_connection: str | None = None
         self.env_pass = env_pass
         self.env_vars = env_vars
+        self.timeout = timeout
 
-    async def add_connection(self, name: str, connection_string: str) -> bool:
-        """Add a new MCP connection using FastMCP Client connection string."""
+    async def add_connection(self, name: str, connection_string: str) -> None:
+        """Add a new MCP connection using FastMCP Client connection string.
+
+        Raises ValueError if the name is taken, or the connection error if connecting fails.
+        """
         if name in self.connections:
-            return False
+            raise ValueError(f"connection name {name!r} already exists")
 
         if is_connection_string_url(connection_string):
             connection_type = "http"
@@ -239,15 +266,11 @@ class BrowserClient:
             connection_type = "command"
 
         connection = BrowserConnection(name, connection_type, connection_string)
-        success = await connection.connect(env_pass=self.env_pass, env_vars=self.env_vars)
+        await connection.connect(env_pass=self.env_pass, env_vars=self.env_vars, timeout=self.timeout)
 
-        if success:
-            self.connections[name] = connection
-            if not self.current_connection:
-                self.current_connection = name
-            return True
-        else:
-            return False
+        self.connections[name] = connection
+        if not self.current_connection:
+            self.current_connection = name
 
     async def switch_connection(self, name: str) -> bool:
         """Switch to a different connection."""

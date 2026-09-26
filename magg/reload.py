@@ -3,19 +3,16 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
+import os
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable, Coroutine, TypeAlias
+from typing import Callable, Coroutine, TypeAlias
 
 from watchdog.events import FileSystemEventHandler
 from watchdog.observers import Observer
 
-from .settings import MaggConfig, ServerConfig
-
-if TYPE_CHECKING:
-    from .settings import ConfigManager
+from .settings import ConfigFileError, ConfigManager, MaggConfig, ServerConfig
 
 logger = logging.getLogger(__name__)
 
@@ -78,25 +75,41 @@ class WatchdogHandler(FileSystemEventHandler):
             # Not in an async context, get the event loop
             self._loop = asyncio.get_event_loop()
 
-    def on_modified(self, event):
-        """Handle file modification events."""
-        if not event.is_directory and Path(event.src_path) == self.config_path:
+    def _notify(self, path: str | bytes) -> None:
+        if Path(os.fsdecode(path)) == self.config_path:
             # Schedule the reload event in the asyncio loop
             self._loop.call_soon_threadsafe(self.reload_event.set)
+
+    def on_modified(self, event):
+        """Handle file modification events."""
+        if not event.is_directory:
+            self._notify(event.src_path)
+
+    def on_created(self, event):
+        """Handle file creation, e.g. an editor writing a new copy of the file."""
+        if not event.is_directory:
+            self._notify(event.src_path)
+
+    def on_moved(self, event):
+        """Handle a file renamed over the config, as editors and atomic writes do."""
+        if not event.is_directory:
+            self._notify(event.dest_path)
 
 
 class ConfigReloader:
     """Manages configuration reloading with file watching and diff detection."""
 
-    def __init__(self, config_path: Path, reload_callback: ReloadCallback):
+    def __init__(self, config_path: Path, reload_callback: ReloadCallback, config_manager: ConfigManager | None = None):
         """Initialize the config reloader.
 
         Args:
             config_path: Path to the configuration file
             reload_callback: Async callback to handle config changes
+            config_manager: Manager used to read the config file (default: one for config_path)
         """
         self.config_path = config_path
         self.reload_callback = reload_callback
+        self._config_manager = config_manager or ConfigManager(config_path)
         self._last_mtime: float | None = None
         self._last_config: MaggConfig | None = None
         self._watch_task: asyncio.Task | None = None
@@ -107,11 +120,12 @@ class ConfigReloader:
         self._observer: Observer | None = None
         self._watchdog_handler: WatchdogHandler | None = None
 
-    async def start_watching(self, poll_interval: float = 1.0) -> None:
+    async def start_watching(self, poll_interval: float = 1.0, use_watchdog: bool | None = None) -> None:
         """Start watching the config file for changes.
 
         Args:
             poll_interval: How often to check for changes (seconds) - only used for polling mode
+            use_watchdog: Use file system notifications (True), polling (False), or auto-detect (None)
         """
         if self._watch_task and not self._watch_task.done():
             logger.warning("Config watcher already running")
@@ -120,17 +134,20 @@ class ConfigReloader:
         self._shutdown_event.clear()
         self._reload_event.clear()
 
-        # Try to start watchdog observer
-        try:
-            self._observer = Observer()
-            self._watchdog_handler = WatchdogHandler(self.config_path, self._reload_event)
-            self._observer.schedule(self._watchdog_handler, str(self.config_path.parent), recursive=False)
-            self._observer.start()
-            logger.debug("Started config file watcher using file system notifications (watchdog)")
-        except Exception as e:
-            logger.warning("Failed to start watchdog observer: %s. Falling back to polling mode.", e)
-            self._observer = None
-            self._watchdog_handler = None
+        # Try to start watchdog observer, unless polling was requested
+        if use_watchdog is not False:
+            try:
+                self._observer = Observer()
+                self._watchdog_handler = WatchdogHandler(self.config_path, self._reload_event)
+                self._observer.schedule(self._watchdog_handler, str(self.config_path.parent), recursive=False)
+                self._observer.start()
+                logger.debug("Started config file watcher using file system notifications (watchdog)")
+            except Exception as e:
+                logger.warning("Failed to start watchdog observer: %s. Falling back to polling mode.", e)
+                self._observer = None
+                self._watchdog_handler = None
+
+        if not self._observer:
             logger.debug("Using polling mode (interval: %.1fs)", poll_interval)
 
         # Start the main watch loop
@@ -295,24 +312,9 @@ class ConfigReloader:
     def _load_config(self) -> MaggConfig | None:
         """Load configuration from disk."""
         try:
-            with self.config_path.open("r") as f:
-                data = json.load(f)
-
-            servers = {}
-            for name, server_data in data.get("servers", {}).items():
-                try:
-                    server_data["name"] = name
-                    servers[name] = ServerConfig.model_validate(server_data)
-                except Exception as e:
-                    logger.error("Error loading server '%s': %s", name, e)
-                    continue
-
-            config = MaggConfig()
-            config.servers = servers
-            return config
-
-        except Exception as e:
-            logger.error("Error loading config file: %s", e)
+            return self._config_manager.read_config()
+        except ConfigFileError as e:
+            logger.error("%s", e)
             return None
 
     def _detect_changes(self, old_config: MaggConfig, new_config: MaggConfig) -> ConfigChange:
@@ -367,7 +369,7 @@ class ConfigReloader:
         """Validate that the configuration is valid."""
         try:
             for name, server in config.servers.items():
-                if not server.command and not server.uri:
+                if server.enabled and not server.command and not server.uri:
                     logger.error("Server '%s' has neither command nor uri", name)
                     return False
 
@@ -410,9 +412,13 @@ class ReloadManager:
         if config.auto_reload and not self._config_reloader:
             if self.config_manager.config_path.exists():
                 self._config_reloader = ConfigReloader(
-                    config_path=self.config_manager.config_path, reload_callback=reload_callback
+                    config_path=self.config_manager.config_path,
+                    reload_callback=reload_callback,
+                    config_manager=self.config_manager,
                 )
-                await self._config_reloader.start_watching(poll_interval=config.reload_poll_interval)
+                await self._config_reloader.start_watching(
+                    poll_interval=config.reload_poll_interval, use_watchdog=config.reload_use_watchdog
+                )
 
     async def stop(self) -> None:
         """Stop config file watching."""
@@ -436,7 +442,9 @@ class ReloadManager:
                 return False
 
             reloader = ConfigReloader(
-                config_path=self.config_manager.config_path, reload_callback=self._reload_callback
+                config_path=self.config_manager.config_path,
+                reload_callback=self._reload_callback,
+                config_manager=self.config_manager,
             )
             change = await reloader.reload_config()
             return change is not None

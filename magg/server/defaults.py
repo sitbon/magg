@@ -124,7 +124,7 @@ Parameters:
     Can be provided as a dict or JSON string (automatically parsed).
   path (string | null) (optional)
     Name or URI of the specific tool/resource/prompt (with FastMCP prefixing).
-    Not allowed for 'list' and 'info' actions.
+    Required for 'info' and 'call' actions; not allowed for 'list'.
   limit (integer | null) (optional)
     Maximum number of items to return (for 'list' action only). Default: 100, Max: 1000
   offset (integer | null) (optional)

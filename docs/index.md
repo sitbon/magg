@@ -239,7 +239,7 @@ Add a new MCP server to the configuration.
 - `name` (str, required): Unique server name
 - `source` (str, required): URL or URI of the server package/repository (can be a local path as well)
 - `command` (str, optional): Full command to run (e.g., "npx @playwright/mcp@latest")
-- `prefix` (str, optional): Tool prefix (defaults to server name)
+- `prefix` (str, optional): Tool prefix (default: none, tools keep their original names)
 - `uri` (str, optional): URI for HTTP servers
 - `env` (dict|str, optional): Environment variables (can be a dict or JSON string)
 - `cwd` (str, optional): Working directory
@@ -345,7 +345,7 @@ Perform health checks on configured servers with optional remediation actions.
 
 **Parameters:**
 - `action` (str, optional): Action to perform - "report" (default), "remount", "unmount", or "disable"
-- `timeout` (float, optional): Health check timeout in seconds (default: 0.5)
+- `timeout` (float, optional): Health check timeout in seconds (default: 2.5)
 
 **Actions:**
 - `report`: Check server health and return status report
@@ -565,9 +565,10 @@ Kits are a way to bundle related MCP servers together for easy installation and 
 
 ### Kit Discovery
 
-Magg looks for kits in these locations:
-1. `$MAGG_KITD_PATH` (defaults to `~/.magg/kit.d`)
-2. `.magg/kit.d` in the same directory as your `config.json`
+Magg looks for kits in these locations (the first kit found with a given name wins):
+1. `kit.d` in the same directory as your `config.json`
+2. `kit.d` in each directory on `MAGG_PATH` (colon-separated, default: `./.magg`, then `~/.magg`)
+3. Example kits bundled with Magg
 
 ### Creating Kits
 
@@ -738,29 +739,32 @@ When configuration changes are detected, Magg:
 
 - `MAGG_AUTO_RELOAD` (default: `true`) - Enable/disable automatic configuration reloading
 - `MAGG_RELOAD_POLL_INTERVAL` (default: `1.0`) - Polling interval in seconds when watchdog unavailable
-- `MAGG_RELOAD_USE_WATCHDOG` (default: auto-detect) - Force watchdog on/off or let it auto-detect
+- `MAGG_RELOAD_USE_WATCHDOG` (default: auto-detect) - `true` to require file system notifications, `false` to always poll (useful for network filesystems and Docker Desktop bind mounts)
 - `MAGG_STDERR_SHOW` (default: `false`) - Show stderr output from subprocess MCP servers
-- `MAGG_PREFIX_SEP` (default: `_`) - Separator between prefix and tool name
+- `MAGG_PREFIX_SEP` (default: `_`) - Separator between Magg's prefix and its own tool names
+- `MAGG_BACKEND_INIT_TIMEOUT` (default: `30`) - Seconds to wait for a backend server to start, `0` to wait forever
 - `MAGG_SELF_PREFIX` (default: `magg`) - Prefix for Magg's own tools
 
 ### Environment Variable Inheritance
 
 By default, stdio-based MCP servers run with isolated environments. While the recommended approach is to configure environment variables in the server configuration (see Advanced Configuration), you can also pass environment variables at runtime to all stdio subprocesses:
 
+These are global options, so they go before the `serve` command.
+
 **Pass current environment to servers:**
 ```bash
-magg serve --env-pass
+magg --env-pass serve
 ```
 
 **Set specific environment variables:**
 ```bash
-magg serve --env-set API_KEY mykey --env-set LANG en_US.UTF-8
+magg --env-set API_KEY mykey --env-set LANG en_US.UTF-8 serve
 ```
 
 **Combined usage:**
 ```bash
 # Pass current env and add specific variables
-magg serve --env-pass --env-set DEBUG true
+magg --env-pass --env-set DEBUG true serve
 ```
 
 This is useful for:
@@ -771,6 +775,7 @@ This is useful for:
 
 **Note:** 
 - Environment inheritance only affects stdio-based servers. HTTP/URI servers do not receive inherited environment variables.
+- A server's own `env` values take precedence over inherited ones.
 - The preferred method is to set environment variables in the server configuration's `env` field for better reproducibility.
 - The `mbro` CLI tool also supports these same `--env-pass` and `--env-set` flags when connecting to servers.
 
@@ -996,7 +1001,7 @@ Magg organizes tools from multiple servers using a prefix system. Every tool nam
 
 Where:
 - `prefix` is the namespace for a server (configurable per server)
-- `separator` is configurable via `prefix_sep` field or `MAGG_PREFIX_SEP` env var (default: `_`)
+- `separator` is `_` (`MAGG_PREFIX_SEP` changes it for Magg's own tools only)
 - `tool_name` is the original tool name from the server
 
 Examples:
@@ -1019,7 +1024,7 @@ When adding a server, specify the `prefix` field:
 
 Special cases:
 - `"prefix": ""` or `"prefix": null` - No prefix, tools keep original names
-- Omitting prefix field - Server name is used as default prefix
+- Omitting the prefix field is the same as `null`
 - Multiple servers can share the same prefix (tools are merged)
 
 #### Configuring Magg's Prefix

@@ -13,9 +13,10 @@ When you load a kit into Magg, all its servers are added to your configuration. 
 
 ## Kit Discovery
 
-Magg looks for kits in these locations:
-1. `$MAGG_KITD_PATH` (defaults to `~/.magg/kit.d`)
-2. `.magg/kit.d` in the same directory as your `config.json`
+Magg looks for kits in these locations (the first kit found with a given name wins):
+1. `kit.d` in the same directory as your `config.json`
+2. `kit.d` in each directory on `MAGG_PATH` (colon-separated, default: `./.magg`, then `~/.magg`)
+3. Example kits bundled with Magg
 
 Kit files must have a `.json` extension and follow the kit schema.
 
@@ -37,7 +38,7 @@ Kit files must have a `.json` extension and follow the kit schema.
       "source": "https://github.com/example/mcp-calc-server",
       "command": "python",
       "args": ["-m", "mcp_calc_server"],
-      "notes": "Basic calculator server",
+      "notes": "Basic calculator server"
     }
   }
 }

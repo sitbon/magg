@@ -8,6 +8,8 @@ on:
       - 'test/**'
       - 'pyproject.toml'
       - 'uv.lock'
+      - 'server.json'
+      - 'scripts/bump_version.py'
       - '.github/workflows/test.yml'
   pull_request:
     branches: ['*']
@@ -16,32 +18,44 @@ on:
       - 'test/**'
       - 'pyproject.toml'
       - 'uv.lock'
+      - 'server.json'
+      - 'scripts/bump_version.py'
       - '.github/workflows/test.yml'
 
 permissions:
   contents: read
 
 jobs:
+  versions:
+    name: Check version consistency
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Check server.json matches pyproject.toml
+        run: python3 scripts/bump_version.py --check
+
   test:
     runs-on: ubuntu-latest
     strategy:
       matrix:
         python-version: ['3.12', '3.13', '3.14']
       fail-fast: false  # Continue testing other versions if one fails
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
-      
+
       - name: Install uv
         uses: astral-sh/setup-uv@v8.2.0
         with:
           enable-cache: true
           cache-suffix: ${{ matrix.python-version }}
-      
+
       - name: Set up Python ${{ matrix.python-version }}
         run: uv python install ${{ matrix.python-version }}
-      
+
       - name: Install dependencies
         run: |
           uv sync --all-groups --locked --python ${{ matrix.python-version }}

@@ -44,9 +44,9 @@ Note: building from source with `go install .../cmd/publisher@latest` produces a
 not on `PATH` by default — the prebuilt binary above is the simpler route.
 
 **Release checklist**: the `version` fields in `server.json` (both the top-level version
-and the pypi package version) must be bumped to match `pyproject.toml` before
-publishing, and the PyPI release must already exist — the registry verifies that the
-referenced package version is published.
+and the pypi package version) must match `pyproject.toml`. `scripts/bump_version.py` keeps
+them in sync when bumping, and CI fails if they drift. The PyPI release must already exist
+before publishing — the registry verifies that the referenced package version is published.
 
 **Ownership verification**: the registry proves control of the PyPI package by requiring
 the line `mcp-name: io.github.sitbon/magg` in the package README as published on PyPI

@@ -7,7 +7,10 @@ import mcp.types
 from fastmcp import Client, FastMCP
 from fastmcp.client import FastMCPTransport
 from fastmcp.client.messages import MessageHandler
-from fastmcp.tools import FunctionTool
+from fastmcp.prompts import Prompt
+from fastmcp.resources import Resource, ResourceTemplate
+from fastmcp.tools import FunctionTool, Tool
+from fastmcp.utilities.versions import VersionSpec
 
 from ..messaging import MessageRouter, ServerMessageCoordinator
 from .mixin import ProxyMCP
@@ -66,6 +69,34 @@ class ProxyFastMCP(ProxyMCP, FastMCP):
         # This allows us to introspect our own capabilities
         transport = FastMCPTransport(self)
         return Client(transport)
+
+    # FastMCP resolves a component by querying every provider in parallel, so one slow or hung
+    # (unprefixed) backend would delay every lookup. Resolve our own components first; local
+    # components take precedence over providers anyway. Auth-guarded ones go the normal route.
+
+    async def _get_tool(self, name: str, version: VersionSpec | None = None) -> Tool | None:
+        tool = await self.local_provider.get_tool(name, version)
+        if tool is not None and tool.auth is None:
+            return tool
+        return await super()._get_tool(name, version)
+
+    async def _get_resource(self, uri: str, version: VersionSpec | None = None) -> Resource | None:
+        resource = await self.local_provider.get_resource(uri, version)
+        if resource is not None and resource.auth is None:
+            return resource
+        return await super()._get_resource(uri, version)
+
+    async def _get_resource_template(self, uri: str, version: VersionSpec | None = None) -> ResourceTemplate | None:
+        template = await self.local_provider.get_resource_template(uri, version)
+        if template is not None and template.auth is None:
+            return template
+        return await super()._get_resource_template(uri, version)
+
+    async def _get_prompt(self, name: str, version: VersionSpec | None = None) -> Prompt | None:
+        prompt = await self.local_provider.get_prompt(name, version)
+        if prompt is not None and prompt.auth is None:
+            return prompt
+        return await super()._get_prompt(name, version)
 
     def _register_proxy_tool(self):
         tool = FunctionTool.from_function(

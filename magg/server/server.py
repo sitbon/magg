@@ -250,7 +250,9 @@ Documentation for proxy tool:
         self,
         name: Annotated[str, Field(description="Unique server name")],
         source: Annotated[str, Field(description="URL of the server package/repository")],
-        prefix: Annotated[str | None, Field(description="Tool prefix (defaults to conformed server name)")] = None,
+        prefix: Annotated[
+            str | None, Field(description="Tool prefix (default: none, tools keep their original names)")
+        ] = None,
         command: Annotated[
             str | None,
             Field(description="Full command to run (e.g., 'python server.py', 'npx @playwright/mcp@latest')"),
@@ -273,8 +275,14 @@ Documentation for proxy tool:
         try:
             config = self.config
 
+            if config.read_only:
+                return MaggResponse.error("Cannot add server in read-only mode")
+
             if name in config.servers:
                 return MaggResponse.error(f"Server '{name}' already exists")
+
+            if not command and not uri:
+                return MaggResponse.error(f"Server '{name}' needs a way to run: provide either command or uri")
 
             actual_command = command
             actual_args = None
@@ -300,7 +308,7 @@ Documentation for proxy tool:
                     prefix=prefix,
                     command=actual_command,
                     args=actual_args,
-                    uri=uri,
+                    uri=str(uri) if uri else None,
                     env=json_to_dict(env),
                     cwd=cwd,
                     notes=notes,
@@ -316,11 +324,14 @@ Documentation for proxy tool:
                 mount_success = await self.server_manager.mount_server(server)
 
                 if not mount_success:
-                    return MaggResponse.error(f"Failed to mount server '{name}'")
+                    reason = self.server_manager.mount_errors.get(name)
+                    return MaggResponse.error(f"Failed to mount server '{name}'" + (f": {reason}" if reason else ""))
 
             config.add_server(server)
 
             if not self.save_config(config):
+                if mount_success:
+                    await self.server_manager.unmount_server(name)
                 return MaggResponse.error(f"Failed to save configuration for added server '{name}'")
 
             return MaggResponse.success(
@@ -354,6 +365,9 @@ Documentation for proxy tool:
         """Remove a server."""
         try:
             config = self.config
+
+            if config.read_only:
+                return MaggResponse.error("Cannot remove server in read-only mode")
 
             if name in config.servers:
                 config.remove_server(name)
@@ -412,6 +426,9 @@ Documentation for proxy tool:
         try:
             config = self.config
 
+            if config.read_only:
+                return MaggResponse.error("Cannot enable server in read-only mode")
+
             if name not in config.servers:
                 return MaggResponse.error(f"Server '{name}' not found")
 
@@ -439,6 +456,9 @@ Documentation for proxy tool:
         """Disable a server."""
         try:
             config = self.config
+
+            if config.read_only:
+                return MaggResponse.error("Cannot disable server in read-only mode")
 
             if name not in config.servers:
                 return MaggResponse.error(f"Server '{name}' not found")
@@ -786,12 +806,16 @@ Please provide:
         timeout: Annotated[float, Field(description="Timeout in seconds for health check per server")] = 2.5,
     ) -> MaggResponse:
         """Check health of all mounted servers and handle unresponsive ones."""
+        # Remounting and unmounting only affect this process; disabling writes the config
+        if action == "disable" and self.config.read_only:
+            return MaggResponse.error("Check action 'disable' is not allowed in read-only mode")
+
         try:
             results = {}
             unresponsive_servers = []
 
-            for server_name, server_info in self.server_manager.mounted_servers.items():
-                client = server_info.get("client")
+            for server_name, server_info in list(self.server_manager.mounted_servers.items()):
+                client = server_info.client
                 if not client:
                     results[server_name] = {"status": "error", "reason": "No client found"}
                     unresponsive_servers.append(server_name)

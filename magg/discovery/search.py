@@ -3,6 +3,7 @@
 TODO: Add support for mcpservers.org.
 """
 
+import asyncio
 import logging
 from dataclasses import dataclass
 from typing import Any
@@ -35,7 +36,8 @@ class ToolSearchEngine:
         self.session: aiohttp.ClientSession | None = None
 
     async def __aenter__(self):
-        self.session = aiohttp.ClientSession()
+        # Bounded so an unreachable source can't stall a search, and honor proxy env vars
+        self.session = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=15), trust_env=True)
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
@@ -92,7 +94,7 @@ class ToolSearchEngine:
 
             result = ToolSearchResult(
                 name=server.get("name", ""),
-                description=server.get("description", ""),
+                description=server.get("description") or "",
                 source="mcp-registry",
                 url=url,
                 tags=tags,
@@ -168,7 +170,7 @@ class ToolSearchEngine:
             # Convert glama result to our format
             result = ToolSearchResult(
                 name=server.get("name", ""),
-                description=server.get("description", ""),
+                description=server.get("description") or "",
                 source="glama",
                 url=server.get("url", ""),
                 tags=self._extract_tags(server),
@@ -282,14 +284,14 @@ class ToolSearchEngine:
         for item in data.get("items", []):
             # Try to determine if this is an MCP server
             is_mcp_server = any(
-                keyword in item.get("description", "").lower()
+                keyword in (item.get("description") or "").lower()
                 for keyword in ["mcp", "model context protocol", "mcp server"]
             )
 
             if is_mcp_server:
                 result = ToolSearchResult(
                     name=item.get("name", ""),
-                    description=item.get("description", ""),
+                    description=item.get("description") or "",
                     source="github",
                     url=item.get("html_url"),
                     tags=item.get("topics", []),
@@ -338,14 +340,14 @@ class ToolSearchEngine:
 
             result = ToolSearchResult(
                 name=package.get("name", ""),
-                description=package.get("description", ""),
+                description=package.get("description") or "",
                 source="npm",
                 url=f"https://www.npmjs.com/package/{package.get('name')}",
                 tags=package.get("keywords", []),
                 install_command=f"npm install {package.get('name')}",
                 metadata={
                     "version": package.get("version"),
-                    "author": package.get("author", {}).get("name"),
+                    "author": (package.get("author") or {}).get("name"),
                     "license": package.get("license"),
                 },
             )
@@ -362,13 +364,15 @@ class ToolSearchEngine:
             ("npm", self.search_npm(query, limit_per_source)),
         ]
 
+        outcomes = await asyncio.gather(*(task for _, task in tasks), return_exceptions=True)
+
         results = {}
-        for source, task in tasks:
-            try:
-                results[source] = await task
-            except Exception as e:
-                self.logger.error("Error searching %s: %s", source, e)
+        for (source, _), outcome in zip(tasks, outcomes):
+            if isinstance(outcome, BaseException):
+                self.logger.error("Error searching %s: %s", source, outcome)
                 results[source] = []
+            else:
+                results[source] = outcome
 
         return results
 
@@ -384,7 +388,7 @@ class ToolSearchEngine:
                 score += result.rating * 10
 
             # Bonus for certain sources
-            source_bonus = {"mcp-registry": 6.0, "glama.ai": 5.0, "github": 3.0, "npm": 2.0}
+            source_bonus = {"mcp-registry": 6.0, "glama": 5.0, "github": 3.0, "npm": 2.0}
             score += source_bonus.get(result.source, 0.0)
 
             # Bonus for having install command

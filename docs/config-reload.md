@@ -33,7 +33,7 @@ When a configuration change is detected, Magg:
 
 - `MAGG_AUTO_RELOAD`: Enable/disable automatic config reloading (default: `true`)
 - `MAGG_RELOAD_POLL_INTERVAL`: File check interval in seconds when polling (default: `1.0`)
-- `MAGG_RELOAD_USE_WATCHDOG`: Force watchdog on/off, or auto-detect (default: `null` for auto)
+- `MAGG_RELOAD_USE_WATCHDOG`: `true` to use file system notifications, `false` to always poll (default: auto-detect)
 - `MAGG_READ_ONLY`: When `true`, Magg cannot modify config but can still reload external changes
 
 ### Example
@@ -203,11 +203,12 @@ INFO: Configuration reload complete
 
 The logs will show which validation failed:
 ```
-ERROR: Duplicate prefix 'test' found in servers 'server1' and 'server2'
 ERROR: Server 'myserver' has neither command nor uri
 ```
 
-Fix the configuration issue and save again.
+A file that isn't valid JSON is not applied, and Magg won't save over it (so a typo can't
+wipe your configuration). Server entries that fail validation are skipped when loading but
+kept in the file when Magg saves. Fix the configuration issue and save again.
 
 ### Server not responding after reload
 

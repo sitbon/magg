@@ -8,6 +8,7 @@ import shlex
 from pathlib import Path
 
 from cryptography.hazmat.primitives import serialization
+from pydantic import ValidationError
 
 from . import __version__, process
 from .auth import BearerAuthManager
@@ -27,7 +28,10 @@ from .util.terminal import (
     print_warning,
 )
 
-process.setup(source=__name__)
+try:
+    process.setup(source=__name__)
+except ValidationError:
+    pass  # Reported by main() without a traceback
 
 logger: logging.Logger = logging.getLogger(__name__)
 
@@ -737,7 +741,12 @@ async def cmd_auth(args) -> int:
 
             auth_manager = BearerAuthManager(auth_config.bearer)
 
-            auth_manager.generate_keys()
+            try:
+                auth_manager.generate_keys()
+            except RuntimeError as e:
+                print_error(str(e))
+                return 1
+
             print_success(f"Generated new RSA keypair for audience '{auth_config.bearer.audience}'")
             print_text(
                 f"Private key: {auth_config.bearer.key_path}/{auth_config.bearer.audience}.key\n"
@@ -748,6 +757,7 @@ async def cmd_auth(args) -> int:
             if (
                 auth_config.bearer.issuer != default_config.issuer
                 or auth_config.bearer.audience != default_config.audience
+                or auth_config.bearer.key_path != default_config.key_path
             ):
                 if config_manager.save_auth_config(auth_config):
                     print_info(f"Auth config saved to: {config_manager.auth_config_path}")
@@ -775,9 +785,6 @@ async def cmd_auth(args) -> int:
 
                 if auth_config.bearer.public_key_exists:
                     print_info(f"SSH public key exists: {auth_config.bearer.public_key_path}")
-
-                if auth_config.bearer.private_key_env:
-                    print_info("Private key also available via MAGG_PRIVATE_KEY env var")
             else:
                 print_info("Authentication is DISABLED")
                 print_text("Run 'magg auth init' to enable authentication")
@@ -843,7 +850,7 @@ async def cmd_auth(args) -> int:
 
                     if args.export:
                         single_line = pem.replace("\n", "\\n")
-                        print(f"export MAGG_PRIVATE_KEY={single_line}")
+                        print(f"export MAGG_PRIVATE_KEY={shlex.quote(single_line)}")
                     elif args.oneline:
                         single_line = pem.replace("\n", "\\n")
                         print(single_line)
@@ -865,6 +872,9 @@ def create_parser() -> argparse.ArgumentParser:
         prog="magg",
         description="Magg - MCP Aggregator: Manage and aggregate MCP servers",
         epilog='Use "magg <command> --help" for more information about a command.',
+        # Some Python versions (e.g. 3.12.3) match subcommand options like "server update --env"
+        # against abbreviations of global options, which fails as ambiguous
+        allow_abbrev=False,
     )
 
     parser.add_argument(
@@ -1057,10 +1067,26 @@ async def run():
         exit(1)
 
 
+def format_validation_error(error: ValidationError) -> str:
+    """Describe a settings validation error in a line per field, pointing at the env var for MaggConfig."""
+    lines = []
+    for err in error.errors():
+        field = ".".join(str(part) for part in err["loc"])
+        line = f"Invalid setting {field!r}: {err['msg']} (got {err['input']!r})"
+        if error.title == "MaggConfig" and len(err["loc"]) == 1:
+            line += f". Check MAGG_{field.upper()} in your environment or .env file."
+        lines.append(line)
+    return "\n".join(lines)
+
+
 def main():
     """Run the CLI."""
-    process.setup()
-    asyncio.run(run())
+    try:
+        process.setup()
+        asyncio.run(run())
+    except ValidationError as e:
+        print_error(format_validation_error(e))
+        exit(1)
 
 
 if __name__ == "__main__":

@@ -2,6 +2,8 @@
 
 import argparse
 import asyncio
+import json
+import shlex
 import sys
 from asyncio import CancelledError
 from functools import cached_property
@@ -22,12 +24,12 @@ except ImportError:
     arepl = None
 
 from .. import __version__, process
-from .client import BrowserClient
+from .client import DEFAULT_CONNECT_TIMEOUT, BrowserClient
 from .command import Command
 from .completers import create_improved_completer
 from .formatter import OutputFormatter
 from .multiline import MultilineInputHandler
-from .parser import CommandParser, JsonArgParser
+from .parser import CommandParser
 from .validator import InputValidator
 
 
@@ -72,8 +74,10 @@ class MCPBrowserCLI:
         env_pass: bool = False,
         env_vars: dict[str, str] | None = None,
         status_bar: bool = False,
+        fail_fast: bool = False,
+        timeout: float | None = DEFAULT_CONNECT_TIMEOUT,
     ):
-        self.browser = BrowserClient(env_pass=env_pass, env_vars=env_vars)
+        self.browser = BrowserClient(env_pass=env_pass, env_vars=env_vars, timeout=timeout)
         self.running = True
         self.formatter = OutputFormatter(json_only=json_only, use_rich=use_rich, indent=indent)
         self.verbose = verbose
@@ -81,10 +85,11 @@ class MCPBrowserCLI:
         self.env_pass = env_pass
         self.env_vars = env_vars
         self.status_bar = status_bar
+        self.fail_fast = fail_fast
+        self.failed = False  # Set when a command run by run_commands fails
         self.command = Command(self)
 
         if not json_only:
-            self.json_parser = JsonArgParser()
             self.multiline_handler = MultilineInputHandler(self.formatter)
             self._multiline_buffer = []
 
@@ -112,6 +117,7 @@ class MCPBrowserCLI:
                     "status",
                     "search",
                     "info",
+                    "script",
                 ],
                 meta_dict={
                     "help": "Show this help message",
@@ -131,6 +137,7 @@ class MCPBrowserCLI:
                     "prompt": "Get a prompt by name with optional arguments",
                     "search": "Search tools, resources, and prompts by term",
                     "info": "Show detailed info about a tool/resource/prompt",
+                    "script": "Run or manage .mbro scripts",
                 },
             )
 
@@ -295,15 +302,21 @@ class MCPBrowserCLI:
         return InputValidator(self)
 
     @classmethod
-    def parse_shell_args(cls, args: list[str]) -> dict:
+    def parse_shell_args(cls, args: list[str], schema: dict | None = None, *, strings: bool = False) -> dict:
         """Parse shell-style key=value arguments.
+
+        Values are decoded as JSON where possible, otherwise kept as strings. Values for
+        parameters the input schema declares as strings are kept as-is, as are all values
+        when `strings` is set.
 
         Examples:
             name="test" -> {"name": "test"}
             count=42 -> {"count": 42}
             enabled=true -> {"enabled": true}
             name="my server" count=5 -> {"name": "my server", "count": 5}
+            ids=[1,2] code=007 range=10-20 -> {"ids": [1, 2], "code": "007", "range": "10-20"}
         """
+        properties = (schema or {}).get("properties", {})
         result = {}
 
         for arg in args:
@@ -316,22 +329,32 @@ class MCPBrowserCLI:
             if not key:
                 continue
 
-            if value.lower() == "true":
-                result[key] = True
-            elif value.lower() == "false":
-                result[key] = False
-            elif value.replace(".", "", 1).replace("-", "", 1).isdigit():
-                if "." in value:
-                    result[key] = float(value)
-                else:
-                    result[key] = int(value)
+            if (value.startswith('"') and value.endswith('"')) or (value.startswith("'") and value.endswith("'")):
+                result[key] = value[1:-1]
+            elif strings or cls._is_string_param(properties.get(key)):
+                result[key] = value
+            elif value.lower() in ("true", "false"):
+                result[key] = value.lower() == "true"
             else:
-                if (value.startswith('"') and value.endswith('"')) or (value.startswith("'") and value.endswith("'")):
-                    result[key] = value[1:-1]
-                else:
+                try:
+                    result[key] = json.loads(value)
+                except json.JSONDecodeError:
                     result[key] = value
 
         return result
+
+    @staticmethod
+    def _is_string_param(prop: dict | None) -> bool:
+        """Check whether a JSON schema property only accepts strings (or null)."""
+        if not prop:
+            return False
+
+        types = set()
+        for option in prop.get("anyOf") or [prop]:
+            option_type = option.get("type", "any")
+            types.update(option_type if isinstance(option_type, list) else [option_type])
+
+        return types - {"null"} == {"string"}
 
     async def refresh_completer_cache(self):
         """Refresh the completer cache after connection changes."""
@@ -350,6 +373,7 @@ class MCPBrowserCLI:
         if repl:
             if arepl is None:
                 self.formatter.print("REPL mode is only available with Python 3.13+")
+                return
 
             self.formatter.print(
                 "Entering REPL mode. `await self.handle_command(command)` to execute commands.", file=sys.stderr
@@ -419,20 +443,6 @@ class MCPBrowserCLI:
         cmd = parts[0].lower()
         args = parts[1:]
 
-        if args and any("{" in arg for arg in args):
-            json_start_idx = None
-            for i, arg in enumerate(args):
-                if "{" in arg:
-                    json_start_idx = i
-                    break
-
-            if json_start_idx is not None:
-                json_part = " ".join(args[json_start_idx:])
-
-                if json_part.count("{") == json_part.count("}"):
-                    if cmd in ["call", "prompt", "get-prompt"]:
-                        args = args[:json_start_idx] + [json_part]
-
         cmd = self.ALIASES.get(cmd, cmd)
 
         if cmd not in self.COMMANDS:
@@ -440,16 +450,48 @@ class MCPBrowserCLI:
             self.formatter.format_info("Type 'help' for available commands")
             return
 
-        match cmd:
-            case "help":
-                self.show_help()
-            case "quit":
-                self.running = False
-            case _:
-                await getattr(self.command, cmd)(args)
+        try:
+            match cmd:
+                case "help":
+                    self.show_help()
+                case "quit":
+                    self.running = False
+                case _:
+                    await getattr(self.command, cmd)(args)
+
+        except Exception as e:
+            self.formatter.format_error("Unexpected error in command handling", e)
 
         if not self.formatter.json_only:
             self.formatter.print()
+
+    async def run_commands(self, commands: list[str]) -> bool:
+        """Run commands in order, stopping at `quit` (or the first failure with fail_fast).
+
+        A command fails if it reports an error.
+
+        Returns:
+            True if every command that ran succeeded
+        """
+        ok = True
+
+        for command in commands:
+            if not self.running:
+                break
+
+            if self.verbose:
+                self.formatter.format_info(f"> {command}")
+
+            errors = self.formatter.error_count
+            await self.handle_command(command)
+
+            if self.formatter.error_count != errors:
+                ok = False
+                self.failed = True
+                if self.fail_fast:
+                    break
+
+        return ok
 
     def show_help(self):
         """Show help text."""
@@ -474,10 +516,7 @@ async def handle_commands(cli: MCPBrowserCLI, args) -> bool:
     if not commands_to_run:
         return False
 
-    for command in commands_to_run:
-        if command.strip():
-            await cli.handle_command(command)
-
+    await cli.run_commands(commands_to_run)
     return True
 
 
@@ -534,6 +573,16 @@ async def main_async():
         help="Execute script in non-interactive mode",
     )
     parser.add_argument("--status-bar", action="store_true", help="Show status bar with keyboard shortcuts")
+    parser.add_argument(
+        "--fail-fast", action="store_true", help="Stop running commands and scripts at the first failure"
+    )
+    parser.add_argument(
+        "--timeout",
+        type=float,
+        default=DEFAULT_CONNECT_TIMEOUT,
+        metavar="SECONDS",
+        help=f"Server initialization timeout (0 to disable, default: {DEFAULT_CONNECT_TIMEOUT:g})",
+    )
 
     parser.add_argument(
         "commands",
@@ -555,7 +604,13 @@ async def main_async():
         env_pass=args.env_pass,
         env_vars=dict(args.env_set) if args.env_set else None,
         status_bar=args.status_bar,
+        fail_fast=args.fail_fast,
+        timeout=args.timeout,
     )
+
+    # Commands piped through stdin run non-interactively
+    if args.commands and args.commands[0] == "-":
+        args.no_interactive = True
 
     try:
         if hasattr(args, "script_order") and args.script_order:
@@ -563,12 +618,14 @@ async def main_async():
             if has_non_interactive_script:
                 args.no_interactive = True
 
-            for script_path, _ in args.script_order:
-                await cli.handle_command(f"script run {script_path}")
+            await cli.run_commands([f"script run {shlex.quote(path)}" for path, _ in args.script_order])
 
         commands_executed = False
-        if args.commands:
+        if args.commands and not (cli.failed and args.fail_fast):
             commands_executed = await handle_commands(cli, args)
+
+        if cli.failed and (args.no_interactive or args.fail_fast):
+            sys.exit(1)
 
         if not args.no_interactive:
             await cli.start(repl=args.repl)

@@ -5,7 +5,6 @@ import json
 import os
 import subprocess
 import sys
-import time
 
 import pytest
 
@@ -51,13 +50,21 @@ class TestAuthCLI:
         assert "already exists" in capsys.readouterr().err
 
     @pytest.mark.asyncio
-    async def test_init_saves_custom_key_path(self, auth_env, tmp_path):
+    async def test_custom_key_path_is_used_afterwards(self, auth_env, tmp_path, capsys):
+        # Previously the key was generated at --key-path, but later commands looked in the default place
         key_path = tmp_path / "keys"
 
         assert await self.run_auth(auth_env, "init", "--key-path", str(key_path)) == 0
+        capsys.readouterr()
 
-        saved = json.loads((auth_env.parent / "auth.json").read_text())
-        assert saved["bearer"]["key_path"] == str(key_path)
+        assert await self.run_auth(auth_env, "token", "-q") == 0
+        token = capsys.readouterr().out.strip()
+        assert token.count(".") == 2
+
+        manager = BearerAuthManager(BearerAuthConfig(key_path=key_path))
+        manager.load_keys()
+        assert manager.provider is not None
+        assert json.loads((auth_env.parent / "auth.json").read_text())["bearer"]["key_path"] == str(key_path)
 
     @pytest.mark.asyncio
     async def test_private_key_export_is_shell_safe(self, auth_env, tmp_path, capsys):
@@ -100,32 +107,28 @@ class TestSearch:
 
     @pytest.mark.asyncio
     async def test_search_all_runs_sources_concurrently(self, monkeypatch):
-        async def slow(self, query, limit):
-            await asyncio.sleep(0.3)
-            return []
+        # Each source waits until all three have started, which can only happen if they run together
+        all_started = asyncio.Barrier(3)
+
+        def source(name):
+            async def search(self, query, limit):
+                await all_started.wait()
+                return [name]
+
+            return search
 
         async def broken(self, query, limit):
             raise RuntimeError("offline")
 
-        monkeypatch.setattr(ToolSearchEngine, "search_registry", slow)
-        monkeypatch.setattr(ToolSearchEngine, "search_glama", slow)
-        monkeypatch.setattr(ToolSearchEngine, "search_github", slow)
+        monkeypatch.setattr(ToolSearchEngine, "search_registry", source("registry"))
+        monkeypatch.setattr(ToolSearchEngine, "search_glama", source("glama"))
+        monkeypatch.setattr(ToolSearchEngine, "search_github", source("github"))
         monkeypatch.setattr(ToolSearchEngine, "search_npm", broken)
 
-        engine = ToolSearchEngine()
-        start = time.monotonic()
-        results = await engine.search_all("x")
-        elapsed = time.monotonic() - start
+        results = await asyncio.wait_for(ToolSearchEngine().search_all("x"), 5)
 
-        assert elapsed < 0.8
-        assert results == {"mcp-registry": [], "glama": [], "github": [], "npm": []}
-
-
-@pytest.fixture(autouse=True)
-def _no_real_private_key(monkeypatch):
-    # A MAGG_PRIVATE_KEY in the developer's environment would change auth behavior
-    if "MAGG_PRIVATE_KEY" in os.environ:
-        monkeypatch.delenv("MAGG_PRIVATE_KEY")
+        # One failing source doesn't affect the others
+        assert results == {"mcp-registry": ["registry"], "glama": ["glama"], "github": ["github"], "npm": []}
 
 
 class TestInvalidSettings:

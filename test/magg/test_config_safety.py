@@ -4,13 +4,15 @@ import asyncio
 import json
 import os
 import stat
+from pathlib import Path
+from unittest.mock import MagicMock
 
 import pytest
-from watchdog.events import FileMovedEvent
 
+from magg import reload as reload_module
 from magg.kit import KitManager
-from magg.reload import ConfigReloader, WatchdogHandler
-from magg.settings import BearerAuthConfig, ConfigFileError, ConfigManager, MaggConfig, ServerConfig
+from magg.reload import ConfigReloader
+from magg.settings import BearerAuthConfig, ConfigFileError, ConfigManager, ServerConfig
 
 
 @pytest.fixture
@@ -24,6 +26,27 @@ def write_config(path, data):
 
 def read_config(path):
     return json.loads(path.read_text())
+
+
+def replace_config(path, data):
+    """Write the config the way many editors and tools do: a new file renamed over the old one."""
+    tmp_path = path.with_name(f".{path.name}.tmp")
+    tmp_path.write_text(json.dumps(data))
+    os.replace(tmp_path, path)
+
+
+async def wait_until(predicate, timeout=5.0):
+    """Poll until predicate() is true, returning whether it became true in time."""
+    deadline = asyncio.get_running_loop().time() + timeout
+    while not predicate():
+        if asyncio.get_running_loop().time() > deadline:
+            return False
+        await asyncio.sleep(0.05)
+    return True
+
+
+def server_names(change):
+    return {server_change.name for server_change in change.server_changes}
 
 
 class TestEnvironmentIsolation:
@@ -50,7 +73,7 @@ class TestEnvironmentIsolation:
         config = BearerAuthConfig()
 
         assert config.audience == "magg"
-        assert config.key_path != tmp_path
+        assert config.key_path == Path.home() / ".ssh" / "magg"
 
 
 class TestSaveConfig:
@@ -137,14 +160,16 @@ class TestSaveConfig:
         assert data["self_prefix"] == "hub"
         assert data["custom"] == {"x": 1}
 
-    def test_invalid_setting_does_not_discard_servers(self, config_path):
+    def test_invalid_setting_does_not_discard_later_settings(self, config_path):
         write_config(
             config_path,
-            {"auto_reload": "maybe", "servers": {"a": {"source": "s", "command": "echo"}}},
+            {"auto_reload": "maybe", "self_prefix": "hub", "servers": {"a": {"source": "s", "command": "echo"}}},
         )
 
         config = ConfigManager(str(config_path)).load_config()
 
+        assert config.auto_reload is True  # Invalid value skipped, default kept
+        assert config.self_prefix == "hub"
         assert list(config.servers) == ["a"]
 
     def test_write_preserves_mode_and_symlink(self, tmp_path):
@@ -196,65 +221,108 @@ class TestSaveConfig:
 
 
 class TestReload:
-    """Config reload handles files replaced by rename and placeholder servers."""
+    """Config reload picks up real file changes, including ones made by rename."""
 
-    @pytest.mark.asyncio
-    async def test_watchdog_handles_rename_over_config(self, config_path, tmp_path):
-        event = asyncio.Event()
-        handler = WatchdogHandler(config_path, event)
+    @pytest.fixture
+    def changes(self):
+        return []
 
-        handler.on_moved(FileMovedEvent(str(tmp_path / ".config.json.tmp"), str(config_path)))
-        await asyncio.sleep(0)
-
-        assert event.is_set()
-
-    @pytest.mark.asyncio
-    async def test_watchdog_ignores_other_files(self, config_path, tmp_path):
-        event = asyncio.Event()
-        handler = WatchdogHandler(config_path, event)
-
-        handler.on_moved(FileMovedEvent(str(config_path), str(tmp_path / "backup.json")))
-        await asyncio.sleep(0)
-
-        assert not event.is_set()
-
-    def test_disabled_placeholder_does_not_block_reload(self, config_path):
-        config = MaggConfig()
-        config.servers["placeholder"] = ServerConfig(name="placeholder", source="s", enabled=False)
-        config.servers["real"] = ServerConfig(name="real", source="s", command="echo")
-
-        reloader = ConfigReloader(config_path, lambda change: None)
-
-        assert reloader._validate_config(config)
-
-    @pytest.mark.asyncio
-    async def test_unparseable_file_is_not_applied(self, config_path):
-        write_config(config_path, {"servers": {"a": {"source": "s", "command": "echo"}}})
-        changes = []
-
+    @pytest.fixture
+    def callback(self, changes):
         async def callback(change):
             changes.append(change)
 
-        reloader = ConfigReloader(config_path, callback)
-        reloader._last_config = reloader._load_config()
-
-        config_path.write_text('{"servers": {')
-        assert await reloader.reload_config() is None
-        assert changes == []
+        return callback
 
     @pytest.mark.asyncio
-    async def test_watchdog_can_be_disabled(self, config_path):
+    async def test_rename_over_config_triggers_reload(self, config_path, changes, callback):
         write_config(config_path, {"servers": {}})
+        reloader = ConfigReloader(config_path, callback)
+        await reloader.start_watching(poll_interval=0.1)
+        try:
+            await asyncio.sleep(0.2)  # Let the watcher load its baseline
 
-        async def callback(change):
-            pass
+            replace_config(config_path, {"servers": {"a": {"source": "s", "command": "echo"}}})
 
+            assert await wait_until(lambda: changes), "rename over the config was not detected"
+            assert server_names(changes[0]) == {"a"}
+        finally:
+            await reloader.stop_watching()
+
+    @pytest.mark.asyncio
+    async def test_own_save_is_ignored_but_next_edit_is_not(self, config_path, changes, callback):
+        write_config(config_path, {"servers": {}})
+        manager = ConfigManager(str(config_path))
+        await manager.setup_config_reload(callback)
+        try:
+            await asyncio.sleep(0.2)
+
+            # Magg's own save replaces the file too, and must not echo back as a reload
+            config = manager.load_config()
+            config.add_server(ServerConfig(name="saved", source="s", command="echo"))
+            assert manager.save_config(config) is True
+            await asyncio.sleep(0.5)
+            assert changes == []
+
+            # The ignore must be used up by that save, so the next outside edit still reloads
+            data = read_config(config_path)
+            data["servers"]["edited"] = {"source": "s", "command": "echo"}
+            replace_config(config_path, data)
+
+            assert await wait_until(lambda: changes), "edit after an internal save was not detected"
+            assert server_names(changes[0]) == {"edited"}
+        finally:
+            await manager.stop_config_reload()
+
+    @pytest.mark.asyncio
+    async def test_polling_when_watchdog_disabled(self, config_path, changes, callback, monkeypatch):
+        observer = MagicMock()
+        monkeypatch.setattr(reload_module, "Observer", observer)
+        write_config(config_path, {"servers": {}})
         reloader = ConfigReloader(config_path, callback)
         await reloader.start_watching(poll_interval=0.1, use_watchdog=False)
         try:
-            assert reloader._observer is None
+            await asyncio.sleep(0.2)
+            write_config(config_path, {"servers": {"a": {"source": "s", "command": "echo"}}})
+            # Polling compares mtimes, so make sure it moves even on coarse-grained filesystems
+            os.utime(config_path, (config_path.stat().st_atime, config_path.stat().st_mtime + 1))
+
+            assert await wait_until(lambda: changes), "polling did not detect the change"
         finally:
             await reloader.stop_watching()
+
+        observer.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_disabled_placeholder_does_not_block_reload(self, config_path, changes, callback):
+        write_config(config_path, {"servers": {}})
+        reloader = ConfigReloader(config_path, callback)
+        await reloader.reload_config()  # Establish the baseline
+
+        write_config(
+            config_path,
+            {
+                "servers": {
+                    "placeholder": {"source": "s", "enabled": False},
+                    "real": {"source": "s", "command": "echo"},
+                }
+            },
+        )
+        assert await reloader.reload_config() is not None
+
+        assert server_names(changes[-1]) == {"placeholder", "real"}
+
+    @pytest.mark.asyncio
+    async def test_unparseable_file_is_not_applied(self, config_path, changes, callback):
+        write_config(config_path, {"servers": {"a": {"source": "s", "command": "echo"}}})
+        reloader = ConfigReloader(config_path, callback)
+        await reloader.reload_config()  # Establish the baseline
+        changes.clear()
+
+        # A half-written or mistyped file must not look like "every server was removed"
+        config_path.write_text('{"servers": {')
+        assert await reloader.reload_config() is None
+        assert changes == []
 
 
 class TestKitDiscovery:

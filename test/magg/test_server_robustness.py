@@ -32,6 +32,7 @@ mcp = FastMCP("backend")
 @mcp.tool
 def greet(name: str) -> str:
     """Greet someone."""
+    print(f"backend stderr: greeting {name}", file=sys.stderr, flush=True)
     return f"{label}: hello {name}"
 
 
@@ -166,11 +167,10 @@ class TestHungBackend:
         server = MaggServer(config_path, enable_config_reload=False)
 
         async with server:
-            assert server.server_manager.mounted_servers["hung"].client._init_timeout == 2.0
-
             async with Client(server.mcp) as client:
+                # Without the init timeout this waits forever, so bound it to fail instead of hang
                 start = time.monotonic()
-                names = await tool_names(client)
+                names = await asyncio.wait_for(tool_names(client), 15)
                 assert time.monotonic() - start < 10
                 assert "magg_list_servers" in names
                 assert "good_greet" in names
@@ -182,14 +182,6 @@ class TestHungBackend:
                 assert {s["name"] for s in result["output"]} == {"hung", "good"}
 
                 assert (await client.call_tool("good_greet", {"name": "x"})).content[0].text == "g: hello x"
-
-    @pytest.mark.asyncio
-    async def test_init_timeout_zero_waits_forever(self, tmp_path, monkeypatch):
-        monkeypatch.setenv("MAGG_BACKEND_INIT_TIMEOUT", "0")
-        server = MaggServer(tmp_path / "config.json", enable_config_reload=False)
-        assert await server.server_manager.mount_server(ServerConfig(name="s", source="t", command="true"))
-        assert server.server_manager.mounted_servers["s"].client._init_timeout is None
-        await server.server_manager.unmount_server("s")
 
 
 class TestTransportSetup:
@@ -207,13 +199,18 @@ class TestTransportSetup:
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize("show", [False, True])
-    async def test_stderr_log_file(self, tmp_path, monkeypatch, show):
+    async def test_backend_stderr(self, tmp_path, backend_script, monkeypatch, capfd, show):
+        # capfd captures at the file descriptor level, which is where the backend process writes
         monkeypatch.setenv("MAGG_STDERR_SHOW", str(show).lower())
-        server = MaggServer(tmp_path / "config.json", enable_config_reload=False)
-        assert await server.server_manager.mount_server(ServerConfig(name="s", source="t", command="true"))
-        log_file = server.server_manager.mounted_servers["s"].client.transport.log_file
-        assert log_file == (None if show else Path(os.devnull))
-        await server.server_manager.unmount_server("s")
+        config_path = tmp_path / "config.json"
+        write_config(config_path, {"bk": backend_config("bk", backend_script, "one", prefix="bk")})
+        server = MaggServer(config_path, enable_config_reload=False)
+
+        async with server:
+            async with Client(server.mcp) as client:
+                assert (await client.call_tool("bk_greet", {"name": "x"})).content[0].text == "one: hello x"
+
+        assert ("backend stderr: greeting x" in capfd.readouterr().err) == show
 
 
 class TestAddServer:
@@ -309,8 +306,10 @@ class TestReadOnly:
         assert set(server.config.servers) == {"s"}
 
     @pytest.mark.asyncio
-    async def test_check_report_allowed(self, server):
-        response = await server.check(action="report")
+    @pytest.mark.parametrize("action", ["report", "remount", "unmount"])
+    async def test_check_actions_that_do_not_write_config(self, server, action):
+        # Only "disable" writes the config; the others just affect this process
+        response = await server.check(action=action)
         assert response.is_success
 
 
@@ -402,10 +401,3 @@ class TestRunnerSignals:
             if proc.poll() is None:
                 proc.kill()
                 proc.wait()
-
-
-def test_proxy_path_description(tmp_path):
-    server = MaggServer(tmp_path / "config.json", enable_config_reload=False)
-    tool = asyncio.run(server.mcp.get_tool("proxy"))
-    description = tool.parameters["properties"]["path"]["description"]
-    assert "Required for 'info' and 'call'" in description

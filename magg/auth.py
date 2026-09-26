@@ -86,7 +86,7 @@ class BearerAuthManager:
         try:
             private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048, backend=default_backend())
 
-            self.bearer_config.key_path.mkdir(mode=0o700, exist_ok=True)
+            self.bearer_config.key_path.mkdir(mode=0o700, parents=True, exist_ok=True)
 
             private_path = self.bearer_config.private_key_path
 

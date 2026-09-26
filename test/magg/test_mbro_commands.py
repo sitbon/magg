@@ -1,7 +1,9 @@
 """Tests for mbro command handling: argument parsing, errors, exit codes."""
 
+import asyncio
 import shutil
 import sys
+import time
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -229,6 +231,16 @@ class TestCommands:
         conn = BrowserConnection("s", "command", "sleep 100")
         with pytest.raises(TimeoutError, match="0.5s"):
             await conn.connect(timeout=0.5)
+
+    @pytest.mark.asyncio
+    @pytest.mark.skipif(not shutil.which("sleep"), reason="needs sleep")
+    async def test_connect_timeout_zero_disables_it(self):
+        # fastmcp treats an init_timeout of 0 as disabled, so --timeout 0 keeps waiting
+        conn = BrowserConnection("s", "command", "sleep 100")
+        start = time.monotonic()
+        with pytest.raises(TimeoutError):
+            await asyncio.wait_for(conn.connect(timeout=0), 1)
+        assert time.monotonic() - start >= 1
 
     @pytest.mark.asyncio
     async def test_missing_script_does_not_exit(self, cli, capsys):

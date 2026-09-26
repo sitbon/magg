@@ -11,8 +11,9 @@ Please note we have a code of conduct, please follow it in all your interactions
    build.
 2. Update the readme.md with details of changes to the interface; this includes new environment 
    variables, exposed ports, useful file locations, and container parameters.
-3. Increase the version numbers in any example files and pyproject.toml to the new version that this
-   Pull Request would represent. The versioning scheme we use is [SemVer](http://semver.org/).
+3. Bump the version to the one this Pull Request would represent with `scripts/bump_version.py`
+   (`major`, `minor`, `patch`, or an explicit version). It updates pyproject.toml, uv.lock and
+   server.json together. The versioning scheme we use is [SemVer](http://semver.org/).
 4. You may merge the Pull Request in once you have the sign-off of two other developers, or if you 
    do not have permission to do that, you may request the second reviewer to merge it for you.
 

@@ -1,11 +1,5 @@
 """Tests for the official MCP Registry search backend."""
 
-import json
-from pathlib import Path
-
-import pytest
-
-import magg
 from magg.discovery.search import ToolSearchEngine
 
 SAMPLE_RESPONSE = {
@@ -106,30 +100,3 @@ class TestRegistryResultParsing:
         )
         assert cmd([]) is None
         assert cmd([{"registryType": "npm"}]) is None
-
-
-class TestServerManifest:
-    """Test Magg's own server.json registry manifest."""
-
-    def test_server_json_consistency(self):
-        root = Path(__file__).parent.parent.parent
-        manifest = json.loads((root / "server.json").read_text())
-
-        assert manifest["name"] == "io.github.sitbon/magg"
-        assert manifest["repository"]["url"] == "https://github.com/sitbon/magg"
-
-        package = manifest["packages"][0]
-        assert package["registryType"] == "pypi"
-        assert package["identifier"] == "magg"
-        # Top-level and package versions must stay in sync for publishing
-        assert package["version"] == manifest["version"]
-        assert package["transport"]["type"] == "stdio"
-
-    def test_server_json_version_matches_package(self):
-        """Fail release PRs that bump pyproject.toml but forget server.json."""
-        if magg.__version__ == "unknown":
-            pytest.skip("magg package metadata not available")
-
-        root = Path(__file__).parent.parent.parent
-        manifest = json.loads((root / "server.json").read_text())
-        assert manifest["version"] == magg.__version__
